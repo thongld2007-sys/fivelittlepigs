@@ -15,6 +15,7 @@ from backend.database import (
     add_student, list_students
 )
 from backend.diagnostic_engine import update_student_skill, get_next_recommended_skill, get_next_question_difficulty_and_skill
+from backend.fpt_ai import FPTAIError, fpt_ai_client
 from backend.knowledge_graph import KNOWLEDGE_GRAPH
 
 app = FastAPI(title="VGap AI - Adaptive Tutoring Backend")
@@ -85,10 +86,88 @@ class SurveySessionRequest(BaseModel):
     name: str = "Học sinh khảo sát"
     grade: int = 7
 
+class AITutorRequest(BaseModel):
+    question_id: str
+    message: str
+
+class AILessonPlanRequest(BaseModel):
+    skill_id: str
+    group_context: str = ""
+
 # Endpoints
 @app.get("/api/students")
 def get_students():
     return list_students()
+
+@app.get("/api/ai/status")
+def ai_status():
+    return {
+        "provider": "FPT AI Factory",
+        "configured": fpt_ai_client.configured,
+        "model": fpt_ai_client.model or None,
+        "fallback": "offline"
+    }
+
+@app.post("/api/ai/student/{student_id}/tutor")
+def ai_tutor(student_id: str, payload: AITutorRequest):
+    if not get_student(student_id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    if len(payload.message.strip()) == 0 or len(payload.message) > 1000:
+        raise HTTPException(status_code=422, detail="Message must contain 1-1000 characters")
+
+    with open(Config.QUESTIONS_JSON_PATH, "r", encoding="utf-8") as file:
+        questions = json.load(file)
+    question = next((item for item in questions if item["id"] == payload.question_id), None)
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    skill = KNOWLEDGE_GRAPH.get(question["skill_id"], {})
+    mastery = get_student_mastery(student_id, question["skill_id"])
+    correct_key = question.get("correct_answer")
+    correct_option = next(
+        (option.get("text", "") for option in question.get("options", []) if option.get("key") == correct_key),
+        correct_key or ""
+    )
+    system_prompt = (
+        "Bạn là gia sư Socratic an toàn cho học sinh phổ thông Việt Nam. "
+        "Chỉ dùng dữ kiện trong ngữ cảnh, hướng dẫn ngắn gọn từng bước và ưu tiên một câu hỏi gợi mở. "
+        "Không tiết lộ trực tiếp đáp án cuối cùng và không làm hộ toàn bộ bài. "
+        f"Kỹ năng: {skill.get('name', question['skill_id'])}. "
+        f"Mức thành thạo hiện tại: {mastery:.2f}. "
+        f"Câu hỏi: {question.get('text', '')}. Các lựa chọn: {question.get('options', [])}. "
+        f"Đáp án nội bộ, không tiết lộ trực tiếp: {correct_option}."
+    )
+    try:
+        result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=payload.message.strip())
+    except FPTAIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"provider": "FPT AI Factory", "model": result.model, "content": result.content, "usage": result.usage}
+
+@app.post("/api/ai/teacher/lesson-plan")
+def ai_lesson_plan(payload: AILessonPlanRequest):
+    skill = KNOWLEDGE_GRAPH.get(payload.skill_id)
+    if not skill:
+        raise HTTPException(status_code=422, detail="Invalid skill ID")
+    prerequisite_names = [
+        KNOWLEDGE_GRAPH[item]["name"]
+        for item in skill.get("prerequisites", [])
+        if item in KNOWLEDGE_GRAPH
+    ]
+    system_prompt = (
+        "Bạn là trợ lý thiết kế bài giảng theo GDPT 2018 cho giáo viên Việt Nam. "
+        "Trả về văn bản thuần ngắn gọn với đúng 4 mục: Mục tiêu, Khởi động, Hoạt động chính, Đánh giá nhanh. "
+        "Không dùng HTML và không bịa nguồn hay chuẩn chương trình."
+    )
+    user_prompt = (
+        f"Kỹ năng: {skill['name']}; lớp {skill['grade']}; môn {skill.get('subject', 'Toán')}; "
+        f"tiên quyết: {prerequisite_names or ['Không có']}. "
+        f"Bối cảnh nhóm: {payload.group_context.strip() or 'Học sinh đang dưới ngưỡng thành thạo 0.50.'}"
+    )
+    try:
+        result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+    except FPTAIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"provider": "FPT AI Factory", "model": result.model, "content": result.content, "usage": result.usage}
 
 @app.post("/api/students")
 def create_student(payload: StudentCreate):

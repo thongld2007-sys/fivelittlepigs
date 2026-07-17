@@ -1286,7 +1286,7 @@ async function renderTeacherDashboard() {
 }
 
 function triggerLessonPlanForSkill(skillId, title) {
-    generateAILessonPlan(title || skillId);
+    generateAILessonPlan(title || skillId, skillId);
     document.getElementById("modal-lesson-plan").style.display = "flex";
 }
 
@@ -1686,7 +1686,16 @@ function initStudentMascotChat() {
 
     if (!chatInput || !sendBtn || !chatHistory) return;
 
-    function handleSend() {
+    function appendTutorReply(reply) {
+        const botMsg = document.createElement("div");
+        botMsg.className = "mascot-msg bot";
+        botMsg.textContent = reply;
+        chatHistory.appendChild(botMsg);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+        commentPara.textContent = reply;
+    }
+
+    async function handleSend() {
         const text = chatInput.value.trim();
         if (!text) return;
 
@@ -1703,7 +1712,27 @@ function initStudentMascotChat() {
         chatInput.value = "";
         commentPara.textContent = "Trợ lý đang suy nghĩ...";
 
-        // Simulate AI response delay
+        if (state.currentQuestion && state.isLoggedIn) {
+            try {
+                const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        question_id: state.currentQuestion.id,
+                        message: text
+                    })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    appendTutorReply(data.content);
+                    return;
+                }
+            } catch (error) {
+                console.warn("[FPT AI] Không khả dụng, chuyển sang trợ lý offline.", error);
+            }
+        }
+
+        // Deterministic offline fallback
         setTimeout(() => {
             let reply = "Tôi là trợ lý Socratic của VGap. Bạn hãy thử làm tiếp và hỏi tôi nếu có bước nào chưa rõ nhé!";
             const activeSkill = state.studentProgress.activeSkill;
@@ -1737,15 +1766,7 @@ function initStudentMascotChat() {
                 }
             }
 
-            // Append bot reply
-            const botMsg = document.createElement("div");
-            botMsg.className = "mascot-msg bot";
-            botMsg.textContent = reply;
-            chatHistory.appendChild(botMsg);
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-
-            // Sync main mascot comment
-            commentPara.textContent = reply;
+            appendTutorReply(reply);
         }, 1200);
     }
 
@@ -2168,9 +2189,32 @@ function initTeacherModals() {
     if (diagOverlay) diagOverlay.addEventListener("click", () => diagModal.style.display = "none");
 }
 
-function generateAILessonPlan(skillName) {
+async function generateAILessonPlan(skillName, skillId) {
     const container = document.getElementById("lesson-plan-modal-body");
     if (!container) return;
+
+    if (skillId) {
+        container.textContent = "FPT AI đang xây dựng giáo án theo dữ liệu chẩn đoán...";
+        try {
+            const response = await fetch("/api/ai/teacher/lesson-plan", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    skill_id: normalizeSkillId(skillId),
+                    group_context: "Nhóm học sinh có xác suất thành thạo dưới 0.50."
+                })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                container.textContent = data.content;
+                container.style.whiteSpace = "pre-wrap";
+                return;
+            }
+        } catch (error) {
+            console.warn("[FPT AI] Không thể sinh giáo án, dùng mẫu offline.", error);
+        }
+    }
+    container.style.whiteSpace = "";
     
     let topic = skillName || "Quy đồng mẫu số phân số (Kiến thức nền gốc Lớp 5)";
     let targetGroup = "Nhóm học sinh bị hổng kiến thức nền tương ứng.";
