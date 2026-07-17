@@ -1648,4 +1648,31 @@ body {
     color: #FFFFFF;
 }
 
+/* AI Learning Toolbox Styling Override */
+.toolbox-card {
+    padding: 0 !important;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.toolbox-tab-btn {
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.toolbox-tab-btn.active {
+    background: #FFFFFF !important;
+    color: var(--primary) !important;
+}
+.toolbox-tab-btn:hover:not(.active) {
+    background: rgba(85, 122, 250, 0.1);
+}
+.toolbox-panel {
+    display: none;
+}
+.toolbox-panel.active {
+    display: block;
+}
+#toolbox-panel-mascot.active {
+    display: flex;
+}
+
 

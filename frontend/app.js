@@ -91,6 +91,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     initPortalNavigation();
     initTeacherTabs();
     initAITutorChat();
+    initToolboxTabs();
+    initStudentMascotChat();
     initVirtualScratchpad();
     initFractionSlider();
     initTeacherModals();
@@ -194,6 +196,7 @@ async function loadStudentQuestion(skillId) {
             // Setup Mascot
             document.getElementById("mascot-comment").textContent = "Hãy đọc kỹ đề bài nhé! Tôi tin bạn làm được!";
             document.getElementById("hint-content-box").style.display = "none";
+            resetToolboxForNewQuestion();
             
             // Render the Path
             renderPersonalPath();
@@ -306,10 +309,21 @@ async function submitAnswer() {
                 document.getElementById("mascot-comment").textContent = socraticText;
                 showToast("Chưa chính xác. AI đang hỗ trợ chẩn đoán...");
                 
+                // Show distractor explanation
+                const distractorBox = document.getElementById("distractor-feedback-box");
+                const distractorText = document.getElementById("distractor-feedback-text");
+                if (distractorBox && distractorText) {
+                    const expl = (result && result.distractor_explanation) || (state.currentQuestion.distractor_explanations && state.currentQuestion.distractor_explanations[state.selectedOption]);
+                    if (expl) {
+                        distractorText.textContent = expl;
+                        distractorBox.style.display = "block";
+                    }
+                }
+                
                 setTimeout(() => {
                     state.isSubmitting = false;
                     loadStudentQuestion(result.next_recommended_skill);
-                }, 3000);
+                }, 4000);
             }
             return;
         }
@@ -571,7 +585,12 @@ const OFFLINE_MOCK_QUESTIONS = {
         text: "Tính kết quả của phép tính sau: 1/2 + (-2/3)",
         options: [{key:"A",text:"-1/6"}, {key:"B",text:"1/6"}, {key:"C",text:"-7/6"}, {key:"D",text:"7/6"}],
         correct_answer: "A",
-        hint: "Quy đồng mẫu số của 2 phân số trước khi cộng. Mẫu chung là 6."
+        hint: "Quy đồng mẫu số của 2 phân số trước khi cộng. Mẫu chung là 6.",
+        distractor_explanations: {
+            "B": "Bạn có thể đã tính nhầm dấu ở tử số khi thực hiện phép cộng 3 + (-4). Nhớ là 3 + (-4) phải là -1, chứ không phải +1.",
+            "C": "Bạn có thể đã quy đồng đúng mẫu số chung là 6 nhưng nhân sai tử số hoặc tính sai phép cộng ở tử số. 1/2 thành 3/6; -2/3 thành -4/6. Thực hiện cộng tử số: 3 + (-4) = -1. Kết quả phải là -1/6.",
+            "D": "Bạn đã tính sai cả dấu và tử số. Hãy lưu ý quy đồng mẫu số chung là 6 và giữ đúng dấu âm của phân số thứ hai nhé."
+        }
     },
     "MATH_G6": {
         id: "q_math_g6_2",
@@ -581,7 +600,12 @@ const OFFLINE_MOCK_QUESTIONS = {
         text: "Tính kết quả của phép tính sau: (-15) + 8",
         options: [{key:"A",text:"7"}, {key:"B",text:"-7"}, {key:"C",text:"-23"}, {key:"D",text:"23"}],
         correct_answer: "B",
-        hint: "Hai số trái dấu, lấy trị tuyệt đối lớn trừ nhỏ, đặt dấu của số lớn trước kết quả."
+        hint: "Hai số trái dấu, lấy trị tuyệt đối lớn trừ nhỏ, đặt dấu của số lớn trước kết quả.",
+        distractor_explanations: {
+            "A": "Bạn đã lấy trị tuyệt đối lớn trừ trị tuyệt đối bé (15 - 8 = 7) nhưng lại quên lấy dấu của số có trị tuyệt đối lớn hơn (số -15 mang dấu âm).",
+            "C": "Bạn đã cộng hai giá trị tuyệt đối lại với nhau (15 + 8 = 23) rồi lấy dấu âm. Hãy nhớ đây là cộng hai số trái dấu, ta thực hiện phép trừ nhé!",
+            "D": "Bạn đã cộng hai giá trị tuyệt đối lại với nhau (15 + 8 = 23) và lấy dấu dương. Hãy lưu ý dấu của hai số hạng và cách cộng hai số nguyên trái dấu."
+        }
     },
     "MATH_G5": {
         id: "q_math_g5_2",
@@ -591,7 +615,12 @@ const OFFLINE_MOCK_QUESTIONS = {
         text: "Quy đồng mẫu số 3/4 và 5/6. Mẫu chung nhỏ nhất của chúng là bao nhiêu?",
         options: [{key:"A",text:"24"}, {key:"B",text:"12"}, {key:"C",text:"10"}, {key:"D",text:"8"}],
         correct_answer: "B",
-        hint: "Tìm số tự nhiên nhỏ nhất chia hết cho cả 4 và 6, chính là BCNN(4, 6) = 12."
+        hint: "Tìm số tự nhiên nhỏ nhất chia hết cho cả 4 và 6, chính là BCNN(4, 6) = 12.",
+        distractor_explanations: {
+            "A": "24 quả thực là một bội chung của 4 và 6, nhưng đề bài yêu cầu tìm bội chung NHỎ NHẤT (BCNN). Có một số nhỏ hơn 24 chia hết cho cả 4 và 6 đấy (số 12)!",
+            "C": "10 không chia hết cho cả 4 và 6. Bạn có thể đã lấy 4 + 6 = 10. Mẫu số chung phải chia hết cho cả hai mẫu số cũ nhé!",
+            "D": "8 chia hết cho 4 nhưng không chia hết cho 6. Mẫu số chung phải là bội chung của cả hai số."
+        }
     },
     "MATH_G5_LCM": {
         id: "q_math_g5_lcm_2",
@@ -601,7 +630,12 @@ const OFFLINE_MOCK_QUESTIONS = {
         text: "Tìm Bội chung nhỏ nhất của hai số 6 và 8. BCNN(6, 8) = ?",
         options: [{key:"A",text:"48"}, {key:"B",text:"24"}, {key:"C",text:"12"}, {key:"D",text:"18"}],
         correct_answer: "B",
-        hint: "Tìm số nhỏ nhất chia hết cho cả 6 và 8."
+        hint: "Tìm số nhỏ nhất chia hết cho cả 6 và 8.",
+        distractor_explanations: {
+            "A": "48 là tích của 6 và 8, đây là một bội chung nhưng chưa phải bội chung nhỏ nhất. Có số nhỏ hơn 48 chia hết cho cả 6 và 8 đấy!",
+            "C": "12 chia hết cho 6 nhưng không chia hết cho 8. BCNN phải chia hết cho cả hai số.",
+            "D": "18 chia hết cho 6 nhưng không chia hết cho 8. Hãy xem lại các bội của 8 nhé!"
+        }
     }
 };
 
@@ -619,6 +653,7 @@ function loadOfflineMockQuestion(skillId) {
     document.getElementById("hint-content-box").style.display = "none";
     document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
     document.getElementById("mascot-comment").textContent = "[MOCK] Hãy đọc kỹ đề bài nhé! Tôi tin bạn làm được!";
+    resetToolboxForNewQuestion();
     renderPersonalPath();
 }
 
@@ -651,6 +686,17 @@ function submitAnswerOffline() {
         document.getElementById("mascot-comment").textContent = "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem?";
         showToast("[MOCK] Chưa chính xác!");
         
+        // Show distractor explanation
+        const distractorBox = document.getElementById("distractor-feedback-box");
+        const distractorText = document.getElementById("distractor-feedback-text");
+        if (distractorBox && distractorText && state.currentQuestion.distractor_explanations) {
+            const expl = state.currentQuestion.distractor_explanations[state.selectedOption];
+            if (expl) {
+                distractorText.textContent = expl;
+                distractorBox.style.display = "block";
+            }
+        }
+        
         setTimeout(() => {
             // Shift down logic mock
             if (state.studentProgress.activeSkill === 'MATH_G7') {
@@ -661,7 +707,7 @@ function submitAnswerOffline() {
             }
             state.isSubmitting = false;
             loadStudentQuestion(state.studentProgress.activeSkill);
-        }, 2500);
+        }, 4000);
     }
 }
 
@@ -823,6 +869,114 @@ function initAITutorChat() {
         btn.addEventListener("click", () => {
             sendUserMessage(btn.getAttribute("data-prompt") || btn.textContent);
         });
+    });
+}
+
+// AI Learning Toolbox Tab Switching Logic
+function initToolboxTabs() {
+    const tabBtns = document.querySelectorAll(".toolbox-tab-btn");
+    const panels = document.querySelectorAll(".toolbox-panel");
+    
+    tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            
+            const targetTab = btn.getAttribute("data-toolbox-tab");
+            
+            panels.forEach(panel => {
+                panel.classList.remove("active");
+                panel.style.display = "none";
+            });
+            
+            const activePanel = document.getElementById(`toolbox-panel-${targetTab}`);
+            if (activePanel) {
+                activePanel.classList.add("active");
+                if (targetTab === "mascot") {
+                    activePanel.style.display = "flex";
+                } else {
+                    activePanel.style.display = "block";
+                }
+            }
+        });
+    });
+}
+
+// Student Socratic Mascot Chat Integration
+function initStudentMascotChat() {
+    const chatInput = document.getElementById("mascot-chat-input");
+    const sendBtn = document.getElementById("btn-send-mascot-chat");
+    const chatHistory = document.getElementById("mascot-chat-history");
+    const commentPara = document.getElementById("mascot-comment");
+
+    if (!chatInput || !sendBtn || !chatHistory) return;
+
+    function handleSend() {
+        const text = chatInput.value.trim();
+        if (!text) return;
+
+        // Show chat history if hidden
+        chatHistory.style.display = "flex";
+
+        // Append user message
+        const userMsg = document.createElement("div");
+        userMsg.className = "mascot-msg user";
+        userMsg.textContent = text;
+        chatHistory.appendChild(userMsg);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+        chatInput.value = "";
+        commentPara.textContent = "Robot AI đang suy nghĩ...";
+
+        // Simulate AI response delay
+        setTimeout(() => {
+            let reply = "Tôi là trợ lý AI Socratic. Bạn hãy thử làm tiếp và hỏi tôi nếu có bước nào chưa rõ nhé!";
+            const activeSkill = state.studentProgress.activeSkill;
+            const textL = text.toLowerCase();
+
+            if (activeSkill === 'MATH_G7') {
+                if (textL.includes("quy đồng") || textL.includes("mẫu số") || textL.includes("làm sao") || textL.includes("mẫu chung")) {
+                    reply = "Để quy đồng 1/2 và -2/3, ta tìm mẫu số chung nhỏ nhất của 2 và 3. Đó chính là 6. Bạn hãy nhân cả tử và mẫu của 1/2 với 3, và nhân cả tử và mẫu của -2/3 với 2 nhé.";
+                } else if (textL.includes("dấu") || textL.includes("âm")) {
+                    reply = "Khi cộng hai số trái dấu ở tử số (3 và -4), bạn lấy trị tuyệt đối lớn trừ nhỏ: 4 - 3 = 1, rồi lấy dấu âm của số lớn hơn. Kết quả tử số là -1.";
+                } else {
+                    reply = "Gợi ý: Mẫu số chung nhỏ nhất là 6. Bạn hãy quy đồng hai phân số này rồi thực hiện phép cộng các tử số nhé.";
+                }
+            } else if (activeSkill === 'MATH_G6') {
+                if (textL.includes("trái dấu") || textL.includes("cộng") || textL.includes("làm sao")) {
+                    reply = "Để cộng (-15) và 8 (hai số trái dấu), bạn hãy tìm hiệu hai giá trị tuyệt đối: 15 - 8 = 7, sau đó đặt dấu âm của số -15 trước kết quả.";
+                } else {
+                    reply = "Gợi ý: Đây là phép cộng hai số nguyên trái dấu. Bạn hãy lấy hiệu hai trị tuyệt đối rồi lấy dấu của số có trị tuyệt đối lớn hơn.";
+                }
+            } else if (activeSkill === 'MATH_G5') {
+                if (textL.includes("bcnn") || textL.includes("mẫu chung") || textL.includes("nhỏ nhất")) {
+                    reply = "Bội chung nhỏ nhất của 4 và 6 là số nhỏ nhất chia hết cho cả hai số này. Bội của 4 là 4, 8, 12... Bội của 6 là 6, 12... Vậy số nhỏ nhất là 12.";
+                } else {
+                    reply = "Gợi ý: Hãy liệt kê các bội số của 4 và 6, sau đó tìm số nhỏ nhất xuất hiện ở cả hai danh sách nhé.";
+                }
+            } else if (activeSkill === 'MATH_G5_LCM') {
+                if (textL.includes("bcnn") || textL.includes("bội chung") || textL.includes("làm thế nào")) {
+                    reply = "BCNN của 6 và 8 là số nhỏ nhất chia hết cho cả hai. Bạn thử tìm xem bội nào của 8 chia hết cho 6 nhé (8, 16, 24...). Số 24 chính là số cần tìm.";
+                } else {
+                    reply = "Gợi ý: BCNN(6, 8) là số nhỏ nhất khác 0 chia hết cho cả 6 và 8. Hãy thử nhân nhẩm bội của 8 xem số nào đầu tiên chia hết cho 6 nhé.";
+                }
+            }
+
+            // Append bot reply
+            const botMsg = document.createElement("div");
+            botMsg.className = "mascot-msg bot";
+            botMsg.textContent = reply;
+            chatHistory.appendChild(botMsg);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            // Sync main mascot comment
+            commentPara.textContent = reply;
+        }, 1200);
+    }
+
+    sendBtn.addEventListener("click", handleSend);
+    chatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") handleSend();
     });
 }
 
@@ -994,14 +1148,22 @@ function initFractionSlider() {
     if (!slider || !sliderVal || !sliderContainer) return;
     
     btnShowHint.addEventListener("click", () => {
-        const isVisible = document.getElementById("hint-content-box").style.display !== "none";
-        const skill = state.studentProgress.activeSkill;
+        // Auto-switch to Hint Tab
+        const hintTabBtn = document.querySelector(`.toolbox-tab-btn[data-toolbox-tab="hint"]`);
+        if (hintTabBtn) hintTabBtn.click();
         
-        if (isVisible && (skill === "MATH_G7" || skill === "MATH_G5")) {
+        const skill = state.studentProgress.activeSkill;
+        if (skill === "MATH_G7" || skill === "MATH_G5") {
             sliderContainer.style.display = "block";
             drawInteractiveFractionCircle(parseInt(slider.value));
         } else {
             sliderContainer.style.display = "none";
+        }
+        
+        // Fill hint text
+        const hintTextPara = document.getElementById("hint-text");
+        if (hintTextPara && state.currentQuestion) {
+            hintTextPara.textContent = state.currentQuestion.hint || "Hãy đọc kỹ đề bài nhé! Tôi tin bạn làm được!";
         }
     });
     
@@ -1009,17 +1171,6 @@ function initFractionSlider() {
         const val = parseInt(e.target.value);
         sliderVal.textContent = val;
         drawInteractiveFractionCircle(val);
-    });
-    
-    // Wire up hint text render
-    btnShowHint.addEventListener("click", () => {
-        const hintBox = document.getElementById("hint-content-box");
-        if (hintBox.style.display === "none") {
-            hintBox.style.display = "block";
-            document.getElementById("hint-text").textContent = state.currentQuestion.hint || "Đọc kỹ phần gợi ý bên trên.";
-        } else {
-            hintBox.style.display = "none";
-        }
     });
 }
 
@@ -1333,4 +1484,31 @@ if (submitBtn) {
         if (!state.selectedOption || state.isSubmitting) return;
         submitAnswer();
     };
+}
+
+function resetToolboxForNewQuestion() {
+    // Reset toolbox tab back to scratchpad
+    const scratchpadTabBtn = document.querySelector(`.toolbox-tab-btn[data-toolbox-tab="scratchpad"]`);
+    if (scratchpadTabBtn) scratchpadTabBtn.click();
+    
+    // Hide distractor feedback box
+    const distractorBox = document.getElementById("distractor-feedback-box");
+    if (distractorBox) distractorBox.style.display = "none";
+    
+    // Reset mascot chat panel
+    const chatHistory = document.getElementById("mascot-chat-history");
+    if (chatHistory) {
+        chatHistory.innerHTML = "";
+        chatHistory.style.display = "none";
+    }
+    const chatInput = document.getElementById("mascot-chat-input");
+    if (chatInput) chatInput.value = "";
+    
+    // Reset hint visual representation
+    const visualRep = document.getElementById("hint-visual-representation");
+    if (visualRep) visualRep.innerHTML = "";
+    const sliderContainer = document.getElementById("fraction-slider-container");
+    if (sliderContainer) sliderContainer.style.display = "none";
+    const hintTextPara = document.getElementById("hint-text");
+    if (hintTextPara) hintTextPara.textContent = "Vui lòng bấm nút Gợi ý từ AI ở bên cạnh bài tập để nhận trợ giúp trực quan.";
 }
