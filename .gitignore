@@ -9,3 +9,7 @@ __pycache__/
 *.pyc
 backend/__pycache__/
 tests/__pycache__/
+.pytest_cache/
+.venv/
+data/*.db-shm
+data/*.db-wal

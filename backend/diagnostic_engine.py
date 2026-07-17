@@ -1,141 +1,108 @@
-import math
-import random
-from backend.database import get_student_mastery, update_student_mastery, get_db_connection
-from backend.knowledge_graph import KNOWLEDGE_GRAPH, get_prerequisites
+"""Offline Bayesian Knowledge Tracing and adaptive routing."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import backend.database as db
+from backend.knowledge_graph import KnowledgeGraph
+
+
+@dataclass(frozen=True)
+class BKTUpdate:
+    previous_probability: float
+    new_probability: float
+    consecutive_fails: int
+
 
 class BKTProcessor:
-    # Bayesian Knowledge Tracing parameter constants
-    P_GUESS = 0.20       # Probability of guessing correctly
-    P_SLIP = 0.10        # Probability of slipping (making a mistake despite mastering)
-    P_TRANSITION = 0.20  # Probability of learning/transitioning to mastery after a practice step
-    
+    P_L0 = 0.5
+    P_G = 0.2
+    P_S = 0.1
+    P_T = 0.2
+    THRESHOLD_MASTERED = 0.85
+    THRESHOLD_GAP = 0.40
+
     @classmethod
-    def calculate_posterior(cls, p_mastery, is_correct):
-        """
-        Updates the probability of mastery based on the correctness of the answer.
-        """
+    def calculate_new_probability(cls, current_prob: float, is_correct: bool) -> float:
+        if not 0 <= current_prob <= 1:
+            raise ValueError("current_prob must be between 0 and 1")
         if is_correct:
-            # P(M | Correct)
-            num = p_mastery * (1.0 - cls.P_SLIP)
-            den = (p_mastery * (1.0 - cls.P_SLIP)) + ((1.0 - p_mastery) * cls.P_GUESS)
+            numerator = current_prob * (1 - cls.P_S)
+            denominator = numerator + (1 - current_prob) * cls.P_G
         else:
-            # P(M | Incorrect)
-            num = p_mastery * cls.P_SLIP
-            den = (p_mastery * cls.P_SLIP) + ((1.0 - p_mastery) * (1.0 - cls.P_GUESS))
-            
-        # Avoid mathematical division issues
-        if den == 0:
-            return p_mastery
-            
-        p_posterior = num / den
-        
-        # Apply transition probability (learning adjustment)
-        p_new = p_posterior + (1.0 - p_posterior) * cls.P_TRANSITION
-        
-        # Clamp between 0.01 and 0.99
-        return max(0.01, min(0.99, p_new))
+            numerator = current_prob * cls.P_S
+            denominator = numerator + (1 - current_prob) * (1 - cls.P_G)
+        posterior = numerator / denominator if denominator else 0.0
+        return posterior + (1 - posterior) * cls.P_T
 
-def update_student_skill(student_id, skill_id, is_correct):
-    """
-    Updates the student's mastery of the skill using BKT.
-    """
-    current_p = get_student_mastery(student_id, skill_id)
-    new_p = BKTProcessor.calculate_posterior(current_p, is_correct)
-    update_student_mastery(student_id, skill_id, new_p)
-    return new_p
+    @classmethod
+    def evaluate_answer(cls, student_id: str, skill_id: str, is_correct: bool) -> BKTUpdate:
+        mastery = db.get_student_mastery(student_id, skill_id)
+        previous = mastery["current_probability"] if mastery else cls.P_L0
+        old_fails = mastery["consecutive_fails"] if mastery else 0
+        fails = 0 if is_correct else old_fails + 1
+        return BKTUpdate(previous, cls.calculate_new_probability(previous, is_correct), fails)
 
-def get_next_question_difficulty_and_skill(student_id, current_skill_id):
-    """
-    Core adaptive selection algorithm:
-    1. If no response history for this skill:
-       - Serve current skill, difficulty randomly level 2 or 3.
-    2. If there is history:
-       - Check the last response.
-       - If Correct:
-         - Calculate streak of consecutive correct level 3 answers.
-         - If streak >= 3: next question is level 3 with 90% chance, level 2 with 10% chance.
-         - Else: 50% level 2, 50% level 3.
-         - Stay on current skill.
-       - If Incorrect:
-         - If failed at level 2 or 3:
-           - Count total correct answers for this skill.
-           - If correct count < 3: jump down to level 1.
-           - If correct count >= 3: decrease by 1 level (max(1, failed_level - 1)).
-           - Stay on current skill.
-         - If failed at level 1:
-           - Move to a prerequisite (parent node) in the KNOWLEDGE_GRAPH DAG.
-           - Select the prerequisite with the lowest mastery probability.
-           - Serve the prerequisite skill, difficulty randomly level 2 or 3.
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT question_id, difficulty_level, is_correct 
-        FROM responses 
-        WHERE student_id = ? AND skill_id = ? 
-        ORDER BY id DESC
-    """, (student_id, current_skill_id))
-    rows = [dict(r) for r in cursor.fetchall()]
-    conn.close()
-    
-    if not rows:
-        # No history on this skill: start with random difficulty 2 or 3
-        return current_skill_id, random.choice([2, 3])
-        
-    last_response = rows[0]
-    last_correct = bool(last_response["is_correct"])
-    last_diff = last_response["difficulty_level"]
-    
-    if last_correct:
-        # Calculate level 3 correct streak
-        streak_len = 0
-        for r in rows:
-            if r["is_correct"] == 1 and r["difficulty_level"] == 3:
-                streak_len += 1
-            else:
-                break
-        
-        if streak_len >= 3:
-            # High probability of level 3 (90% level 3, 10% level 2)
-            target_diff = random.choices([2, 3], weights=[10, 90])[0]
-        else:
-            # Standard random 2 or 3
-            target_diff = random.choice([2, 3])
-            
-        return current_skill_id, target_diff
-        
-    else:
-        # Incorrect answer
-        if last_diff in [2, 3]:
-            # Count total correct responses for this skill
-            correct_count = sum(1 for r in rows if r["is_correct"] == 1)
-            if correct_count < 3:
-                # Not many correct answers: jump down to level 1
-                return current_skill_id, 1
-            else:
-                # Many correct answers: decrease by 1 level
-                return current_skill_id, max(1, last_diff - 1)
-        else:
-            # Incorrect at level 1: shift to prerequisite
-            prereqs = get_prerequisites(current_skill_id)
-            if prereqs:
-                # Find prerequisite with the lowest mastery probability
-                lowest_prereq = prereqs[0]
-                lowest_p = 1.0
-                for prereq in prereqs:
-                    p = get_student_mastery(student_id, prereq)
-                    if p < lowest_p:
-                        lowest_p = p
-                        lowest_prereq = prereq
-                # For the new skill, start with random difficulty 2 or 3
-                return lowest_prereq, random.choice([2, 3])
-            else:
-                # No prerequisite, stay at level 1
-                return current_skill_id, 1
+    @classmethod
+    def choose_prerequisite(cls, student_id: str, skill_id: str) -> str | None:
+        prerequisites = KnowledgeGraph.get_prerequisites(skill_id)
+        if not prerequisites:
+            return None
+        ranked = []
+        for order, prerequisite in enumerate(prerequisites):
+            state = db.get_student_mastery(student_id, prerequisite)
+            probability = state["current_probability"] if state else cls.P_L0
+            tested = state is not None
+            ranked.append((tested, probability, order, prerequisite))
+        # Diagnose an untested prerequisite first, then the weakest known one.
+        return min(ranked)[3]
 
-def get_next_recommended_skill(student_id, current_skill_id):
-    """
-    Helper wrapper returning only the next recommended skill.
-    """
-    skill, _ = get_next_question_difficulty_and_skill(student_id, current_skill_id)
-    return skill
+    @classmethod
+    def diagnose_next_step(
+        cls, student_id: str, current_skill_id: str, probability: float | None = None
+    ) -> dict:
+        if not KnowledgeGraph.is_valid_skill(current_skill_id):
+            raise ValueError(f"Unknown skill: {current_skill_id}")
+        mastery = db.get_student_mastery(student_id, current_skill_id)
+        current_prob = probability if probability is not None else (
+            mastery["current_probability"] if mastery else None
+        )
+        if current_prob is None:
+            return {
+                "action": "CONTINUE_CURRENT",
+                "target_skill": current_skill_id,
+                "probability": cls.P_L0,
+                "reason": "Chưa có dữ liệu lịch sử; bắt đầu kiểm tra kỹ năng hiện tại.",
+            }
+        if current_prob >= cls.THRESHOLD_MASTERED:
+            return {
+                "action": "MASTERED",
+                "target_skill": None,
+                "probability": current_prob,
+                "reason": f"Xác suất {current_prob:.2f} đạt ngưỡng thành thạo 0.85.",
+            }
+        if current_prob < cls.THRESHOLD_GAP:
+            prerequisite = cls.choose_prerequisite(student_id, current_skill_id)
+            if prerequisite:
+                return {
+                    "action": "DOWNGRADE_DIAGNOSTIC",
+                    "target_skill": prerequisite,
+                    "probability": current_prob,
+                    "reason": (
+                        f"Xác suất {current_prob:.2f} dưới ngưỡng 0.40; "
+                        f"kiểm tra kỹ năng tiên quyết {prerequisite}."
+                    ),
+                }
+            return {
+                "action": "ROOT_GAP",
+                "target_skill": current_skill_id,
+                "probability": current_prob,
+                "reason": "Đã xác định lỗ hổng gốc ở kỹ năng không còn tiên quyết.",
+            }
+        return {
+            "action": "CONTINUE_CURRENT",
+            "target_skill": current_skill_id,
+            "probability": current_prob,
+            "reason": f"Xác suất {current_prob:.2f}; tiếp tục rèn luyện kỹ năng hiện tại.",
+        }

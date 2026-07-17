@@ -8,6 +8,7 @@ const state = {
     studentId: 'emma_std_01',
     selectedStudentForTree: null,
     currentQuestion: null,
+    questionStartedAt: null,
     selectedOption: null,
     isSubmitting: false,
     knowledgeGraph: {},
@@ -18,7 +19,7 @@ const state = {
     // Fallback progress state in case backend is offline
     studentProgress: {
         completedSkills: [],
-        activeSkill: 'MATH_G7',
+        activeSkill: 'MATH7_ADD_RATIONAL',
         lockedSkills: []
     },
     
@@ -155,7 +156,9 @@ function initSubjectSelectors() {
 // Helper mapping UI inputs to Skill ID
 function getSkillIdFromSubjectAndGrade(subject, grade) {
     if (subject === 'Toán') {
-        if (grade === 5) return 'MATH_G5';
+        if (grade === 5) return 'MATH5_COMMON_FRACTION';
+        if (grade === 6) return 'MATH6_ADD_INTEGER';
+        if (grade === 7) return 'MATH7_ADD_RATIONAL';
         return `MATH_G${grade}`;
     } else if (subject === 'Ngữ văn') {
         return `LIT_G${grade}`;
@@ -168,24 +171,79 @@ function getSkillIdFromSubjectAndGrade(subject, grade) {
     } else if (subject === 'Tin học và Công nghệ') {
         return `INFTECH_G${grade}`;
     }
-    return 'MATH_G7';
+    return 'MATH7_ADD_RATIONAL';
+}
+
+const registeredStudentIds = new Set();
+
+function normalizeSkillId(skillId) {
+    const aliases = {
+        MATH_G7: 'MATH7_ADD_RATIONAL',
+        MATH_G6: 'MATH6_ADD_INTEGER',
+        MATH_G5: 'MATH5_COMMON_FRACTION',
+        MATH_G5_LCM: 'MATH5_COMMON_FRACTION',
+        MATH_G4: 'MATH6_ADD_INTEGER'
+    };
+    return aliases[skillId] || skillId || 'MATH7_ADD_RATIONAL';
+}
+
+async function ensureStudentProfile(studentId) {
+    if (registeredStudentIds.has(studentId)) return;
+    const names = {
+        emma_std_01: 'Emma',
+        an_01: 'Nguyễn Văn An',
+        binh_02: 'Trần Bình',
+        hoang_06: 'Lê Huy Hoàng'
+    };
+    const response = await fetch('/api/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            student_id: studentId,
+            name: names[studentId] || `Học sinh ${studentId}`,
+            grade: 7
+        })
+    });
+    if (!response.ok) throw new Error(`Không thể khởi tạo hồ sơ (${response.status})`);
+    registeredStudentIds.add(studentId);
 }
 
 // Load a question from backend API or local mock fallback
 async function loadStudentQuestion(skillId) {
+    skillId = normalizeSkillId(skillId);
     state.selectedOption = null;
     document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
     
     try {
-        const res = await fetch(`/api/student/${state.studentId}/next-question?current_skill=${skillId}`);
+        await ensureStudentProfile(state.studentId);
+        const res = await fetch(`/api/student/${state.studentId}/next-question?current_skill_id=${encodeURIComponent(skillId)}`);
         if (res.ok) {
             const data = await res.json();
-            const question = data.question;
+            if (!data.question) {
+                showToast(data.message || 'Bạn đã hoàn thành kỹ năng này!');
+                return;
+            }
+            const rawQuestion = data.question;
+            const question = {
+                ...rawQuestion,
+                id: rawQuestion.question_id,
+                text: rawQuestion.content,
+                skill_name: (state.knowledgeGraph[rawQuestion.skill_id] || {}).name || rawQuestion.skill_id,
+                difficulty_level: rawQuestion.difficulty || 1,
+                difficulty: rawQuestion.difficulty === 1 ? 'Dễ' : (rawQuestion.difficulty === 3 ? 'Khó' : 'Vừa'),
+                options: rawQuestion.options.map((option, index) => ({
+                    key: String.fromCharCode(65 + index),
+                    text: typeof option === 'string' ? option : option.text,
+                    index
+                }))
+            };
             state.currentQuestion = question;
-            state.studentProgress.activeSkill = data.active_skill;
+            state.questionStartedAt = Date.now();
+            const activeSkill = data.diagnostic_status.target_skill || rawQuestion.skill_id;
+            state.studentProgress.activeSkill = activeSkill;
             
             // Adjust selectors if skill changed due to diagnostic downshift
-            syncSelectorsToActiveSkill(data.active_skill);
+            syncSelectorsToActiveSkill(activeSkill);
             
             // Render UI
             document.getElementById("current-skill-name").textContent = question.skill_name;
@@ -261,12 +319,16 @@ async function submitAnswer() {
     
     // 1. Submit through backend API
     try {
+        const selectedIndex = state.currentQuestion.options.findIndex(
+            option => option.key === state.selectedOption
+        );
         const res = await fetch(`/api/student/${state.studentId}/submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 question_id: state.currentQuestion.id,
-                selected_option: state.selectedOption
+                selected_index: selectedIndex,
+                time_spent: Math.max(0, Math.round((Date.now() - state.questionStartedAt) / 1000))
             })
         });
         
@@ -274,6 +336,9 @@ async function submitAnswer() {
             hideLoadingOverlay();
             const result = await res.json();
             const isCorrect = result.is_correct;
+            const nextSkill = (result.diagnostic && result.diagnostic.target_skill)
+                || result.skill_id
+                || state.studentProgress.activeSkill;
             
             const optionsContainer = document.getElementById("options-container");
             const selectedBtn = optionsContainer.querySelector(`.option-btn[data-val="${state.selectedOption}"]`);
@@ -296,7 +361,7 @@ async function submitAnswer() {
                 
                 setTimeout(() => {
                     state.isSubmitting = false;
-                    loadStudentQuestion(result.next_recommended_skill);
+                    loadStudentQuestion(nextSkill);
                 }, 2000);
             } else {
                 if (selectedBtn) selectedBtn.classList.add("error-feedback");
@@ -324,7 +389,7 @@ async function submitAnswer() {
                 
                 setTimeout(() => {
                     state.isSubmitting = false;
-                    loadStudentQuestion(result.next_recommended_skill);
+                    loadStudentQuestion(nextSkill);
                 }, 4000);
             }
             return;
@@ -535,6 +600,9 @@ function triggerLessonPlanForSkill(skillId, title) {
 }
 
 const KNOWLEDGE_GRAPH_LOCAL_NAMES = {
+    "MATH7_ADD_RATIONAL": "Cộng số hữu tỉ (L7)",
+    "MATH6_ADD_INTEGER": "Cộng số nguyên (L6)",
+    "MATH5_COMMON_FRACTION": "Quy đồng phân số (L5)",
     "MATH_G7": "Cộng số hữu tỉ (L7)",
     "MATH_G6": "Cộng số nguyên (L6)",
     "MATH_G4": "GTTĐ của số nguyên (L4)",
@@ -644,6 +712,7 @@ const OFFLINE_MOCK_QUESTIONS = {
 function loadOfflineMockQuestion(skillId) {
     const question = OFFLINE_MOCK_QUESTIONS[skillId] || OFFLINE_MOCK_QUESTIONS["MATH_G7"];
     state.currentQuestion = question;
+    state.questionStartedAt = Date.now();
     state.selectedOption = null;
     
     document.getElementById("current-skill-name").textContent = KNOWLEDGE_GRAPH_LOCAL_NAMES[question.skill_id] || question.skill_id;

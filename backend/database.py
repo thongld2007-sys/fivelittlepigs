@@ -1,170 +1,263 @@
-import sqlite3
-import os
-import json
-from backend.config import Config
+"""SQLite persistence for the offline-first tutoring server."""
 
-def get_db_connection():
-    conn = sqlite3.connect(Config.DB_PATH)
+from __future__ import annotations
+
+import sqlite3
+import uuid
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Iterator, Sequence
+
+from backend.config import DB_PATH
+
+
+class TutorConnection(sqlite3.Connection):
+    """Connection that commits/rolls back and also closes after a with block."""
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
+
+def get_db_connection() -> sqlite3.Connection:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, timeout=10, factory=TutorConnection)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 10000")
     return conn
 
-def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Create students table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS students (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            grade INTEGER NOT NULL
-        )
-    """)
-    
-    # Create student_mastery table (P(M) for each skill)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS student_mastery (
-            student_id TEXT,
-            skill_id TEXT,
-            mastery_probability REAL DEFAULT 0.5,
-            PRIMARY KEY (student_id, skill_id),
-            FOREIGN KEY (student_id) REFERENCES students(id)
-        )
-    """)
-    
-    # Create responses table
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS responses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_id TEXT,
-            question_id TEXT,
-            skill_id TEXT,
-            difficulty_level INTEGER DEFAULT 2,
-            is_correct INTEGER,
-            timestamp INTEGER,
-            FOREIGN KEY (student_id) REFERENCES students(id)
-        )
-    """)
-    
-    # Try adding the difficulty_level column in case the table already existed
-    try:
-        cursor.execute("ALTER TABLE responses ADD COLUMN difficulty_level INTEGER DEFAULT 2")
-    except sqlite3.OperationalError:
-        pass
-        
-    conn.commit()
-    
-    # Insert mock students if database is empty
-    cursor.execute("SELECT COUNT(*) FROM students")
-    if cursor.fetchone()[0] == 0:
-        mock_students = [
-            ("emma_std_01", "Emma", 7),
-            ("an_01", "Nguyễn Văn An", 6),
-            ("binh_02", "Trần Bình", 5),
-            ("chi_03", "Lê Chi", 7),
-            ("dung_04", "Nguyễn Dũng", 5),
-            ("giang_05", "Phạm Giang", 6),
-            ("hoang_06", "Lê Huy Hoàng", 7),
-            ("linh_08", "Phạm Khánh Linh", 6)
-        ]
-        cursor.executemany("INSERT INTO students (id, name, grade) VALUES (?, ?, ?)", mock_students)
-        conn.commit()
-        
-        # Initialize default mastery values
-        cursor.execute("SELECT id FROM students")
-        student_ids = [row[0] for row in cursor.fetchall()]
-        
-        from backend.knowledge_graph import KNOWLEDGE_GRAPH
-        for s_id in student_ids:
-            for skill_id in KNOWLEDGE_GRAPH.keys():
-                # Set specific gap states for mock students for demo purposes
-                prob = 0.5
-                if s_id == "an_01" and skill_id == "MATH_G7": prob = 0.1
-                elif s_id == "an_01" and skill_id == "MATH_G6": prob = 0.3
-                elif s_id == "binh_02" and skill_id == "MATH_G5": prob = 0.22
-                elif s_id == "dung_04" and skill_id == "MATH_G5_LCM": prob = 0.15
-                elif s_id == "chi_03" and skill_id == "MATH_G7": prob = 0.88
-                
-                cursor.execute("""
-                    INSERT OR REPLACE INTO student_mastery (student_id, skill_id, mastery_probability)
-                    VALUES (?, ?, ?)
-                """, (s_id, skill_id, prob))
-        conn.commit()
-        
-    conn.close()
 
-def get_student(student_id):
+@contextmanager
+def transaction() -> Iterator[sqlite3.Connection]:
     conn = get_db_connection()
-    row = conn.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
-    conn.close()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def init_db() -> None:
+    with get_db_connection() as conn:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS Students (
+                student_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                grade INTEGER NOT NULL CHECK (grade BETWEEN 1 AND 12),
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS Responses (
+                response_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL UNIQUE,
+                student_id TEXT NOT NULL,
+                question_id TEXT NOT NULL,
+                selected_index INTEGER NOT NULL CHECK (selected_index >= 0),
+                is_correct INTEGER NOT NULL CHECK (is_correct IN (0, 1)),
+                time_spent INTEGER NOT NULL CHECK (time_spent BETWEEN 0 AND 86400),
+                timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                is_synced INTEGER NOT NULL DEFAULT 0 CHECK (is_synced IN (0, 1)),
+                FOREIGN KEY (student_id) REFERENCES Students(student_id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS Student_Mastery (
+                student_id TEXT NOT NULL,
+                skill_id TEXT NOT NULL,
+                current_probability REAL NOT NULL CHECK (current_probability BETWEEN 0 AND 1),
+                consecutive_fails INTEGER NOT NULL DEFAULT 0 CHECK (consecutive_fails >= 0),
+                last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (student_id, skill_id),
+                FOREIGN KEY (student_id) REFERENCES Students(student_id) ON DELETE CASCADE
+            );
+
+            """
+        )
+        _migrate_legacy_schema(conn)
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS Diagnostic_Events (
+                diagnostic_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT NOT NULL,
+                student_id TEXT NOT NULL,
+                skill_id TEXT NOT NULL,
+                previous_probability REAL NOT NULL,
+                new_probability REAL NOT NULL,
+                action TEXT NOT NULL,
+                target_skill TEXT,
+                reason TEXT NOT NULL,
+                timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (event_id) REFERENCES Responses(event_id) ON DELETE CASCADE,
+                FOREIGN KEY (student_id) REFERENCES Students(student_id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_responses_sync ON Responses(is_synced, response_id);
+            CREATE INDEX IF NOT EXISTS idx_mastery_skill ON Student_Mastery(skill_id, current_probability);
+            CREATE INDEX IF NOT EXISTS idx_diagnostics_student ON Diagnostic_Events(student_id, timestamp);
+            """
+        )
+
+
+def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _migrate_legacy_schema(conn: sqlite3.Connection) -> None:
+    """Add safe defaults for databases created by the original prototype."""
+    student_columns = _columns(conn, "Students")
+    if "created_at" not in student_columns:
+        conn.execute("ALTER TABLE Students ADD COLUMN created_at TEXT")
+        conn.execute("UPDATE Students SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+    response_columns = _columns(conn, "Responses")
+    additions = {
+        "event_id": "TEXT",
+        "selected_index": "INTEGER NOT NULL DEFAULT 0",
+        "is_synced": "INTEGER NOT NULL DEFAULT 0",
+    }
+    for name, definition in additions.items():
+        if name not in response_columns:
+            conn.execute(f"ALTER TABLE Responses ADD COLUMN {name} {definition}")
+    conn.execute(
+        "UPDATE Responses SET event_id = lower(hex(randomblob(16))) "
+        "WHERE event_id IS NULL OR event_id = ''"
+    )
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_responses_event ON Responses(event_id)")
+
+
+def add_student(student_id: str, name: str, grade: int) -> dict:
+    with transaction() as conn:
+        conn.execute(
+            """INSERT INTO Students(student_id, name, grade) VALUES (?, ?, ?)
+               ON CONFLICT(student_id) DO UPDATE SET name=excluded.name, grade=excluded.grade""",
+            (student_id, name, grade),
+        )
+    return get_student(student_id)
+
+
+def get_student(student_id: str) -> dict | None:
+    with get_db_connection() as conn:
+        row = conn.execute(
+            "SELECT student_id, name, grade, created_at FROM Students WHERE student_id = ?",
+            (student_id,),
+        ).fetchone()
     return dict(row) if row else None
 
-def get_student_mastery(student_id, skill_id):
-    conn = get_db_connection()
-    row = conn.execute("""
-        SELECT mastery_probability FROM student_mastery 
-        WHERE student_id = ? AND skill_id = ?
-    """, (student_id, skill_id)).fetchone()
-    conn.close()
-    return row[0] if row else 0.5
 
-def update_student_mastery(student_id, skill_id, prob):
-    conn = get_db_connection()
-    conn.execute("""
-        INSERT OR REPLACE INTO student_mastery (student_id, skill_id, mastery_probability)
-        VALUES (?, ?, ?)
-    """, (student_id, skill_id, prob))
-    conn.commit()
-    conn.close()
+def list_students() -> list[dict]:
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            "SELECT student_id, name, grade, created_at FROM Students ORDER BY name, student_id"
+        ).fetchall()
+    return [dict(row) for row in rows]
 
-def record_response(student_id, question_id, skill_id, difficulty_level, is_correct, timestamp):
-    conn = get_db_connection()
-    conn.execute("""
-        INSERT INTO responses (student_id, question_id, skill_id, difficulty_level, is_correct, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (student_id, question_id, skill_id, difficulty_level, 1 if is_correct else 0, timestamp))
-    conn.commit()
-    conn.close()
 
-def get_consecutive_failed_count(student_id, skill_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT is_correct FROM responses 
-        WHERE student_id = ? AND skill_id = ?
-        ORDER BY id DESC LIMIT 10
-    """, (student_id, skill_id))
-    rows = cursor.fetchall()
-    conn.close()
-    
-    count = 0
-    for row in rows:
-        if row[0] == 0:
-            count += 1
-        else:
-            break
-    return count
+def get_student_mastery(student_id: str, skill_id: str, conn: sqlite3.Connection | None = None) -> dict | None:
+    owns_connection = conn is None
+    conn = conn or get_db_connection()
+    try:
+        row = conn.execute(
+            """SELECT current_probability, consecutive_fails, last_updated
+               FROM Student_Mastery WHERE student_id = ? AND skill_id = ?""",
+            (student_id, skill_id),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        if owns_connection:
+            conn.close()
 
-def get_stuck_time_minutes(student_id, skill_id):
-    # Returns estimated minutes student has been stuck on a skill (time difference from first response in active streak to now)
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT timestamp FROM responses 
-        WHERE student_id = ? AND skill_id = ?
-        ORDER BY id DESC
-    """, (student_id, skill_id))
-    rows = cursor.fetchall()
-    conn.close()
-    
-    if not rows:
-        return 2  # default fallback mock
-    
-    # Calculate time between first and last attempt in current session
-    last_attempt = rows[0][0]
-    # Let's count how far back the failure goes
-    failures_time = [r[0] for r in rows]
-    if len(failures_time) > 1:
-        diff_secs = failures_time[0] - failures_time[-1]
-        return max(2, int(diff_secs / 60))
-    return 2
+
+def record_answer(
+    *, student_id: str, question_id: str, selected_index: int, is_correct: bool,
+    time_spent: int, skill_id: str, previous_probability: float,
+    new_probability: float, consecutive_fails: int, action: str,
+    target_skill: str | None, reason: str, event_id: str | None = None,
+) -> tuple[str, bool]:
+    """Atomically persist an answer, mastery update, and explainability event.
+
+    Returns (event_id, created). Replayed event IDs are idempotent.
+    """
+    event_id = event_id or str(uuid.uuid4())
+    with transaction() as conn:
+        existing = conn.execute(
+            "SELECT event_id FROM Responses WHERE event_id = ?", (event_id,)
+        ).fetchone()
+        if existing:
+            return event_id, False
+        conn.execute(
+            """INSERT INTO Responses
+               (event_id, student_id, question_id, selected_index, is_correct, time_spent)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (event_id, student_id, question_id, selected_index, int(is_correct), time_spent),
+        )
+        conn.execute(
+            """INSERT INTO Student_Mastery
+               (student_id, skill_id, current_probability, consecutive_fails)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(student_id, skill_id) DO UPDATE SET
+                 current_probability=excluded.current_probability,
+                 consecutive_fails=excluded.consecutive_fails,
+                 last_updated=CURRENT_TIMESTAMP""",
+            (student_id, skill_id, new_probability, consecutive_fails),
+        )
+        conn.execute(
+            """INSERT INTO Diagnostic_Events
+               (event_id, student_id, skill_id, previous_probability, new_probability,
+                action, target_skill, reason)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (event_id, student_id, skill_id, previous_probability, new_probability,
+             action, target_skill, reason),
+        )
+    return event_id, True
+
+
+def get_unsynced_responses(limit: int = 500) -> list[dict]:
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """SELECT event_id, student_id, question_id, selected_index, is_correct,
+                      time_spent, timestamp
+               FROM Responses WHERE is_synced = 0 ORDER BY response_id LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_response_by_event(event_id: str) -> dict | None:
+    with get_db_connection() as conn:
+        row = conn.execute(
+            """SELECT event_id, student_id, question_id, selected_index, is_correct,
+                      time_spent, timestamp, is_synced
+               FROM Responses WHERE event_id = ?""",
+            (event_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def mark_responses_as_synced(event_ids: Sequence[str]) -> int:
+    if not event_ids:
+        return 0
+    placeholders = ",".join("?" for _ in event_ids)
+    with transaction() as conn:
+        cursor = conn.execute(
+            f"UPDATE Responses SET is_synced = 1 WHERE event_id IN ({placeholders})",
+            tuple(event_ids),
+        )
+    return cursor.rowcount
+
+
+def get_reasoning_tree(student_id: str, limit: int = 100) -> list[dict]:
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """SELECT event_id, skill_id, previous_probability, new_probability,
+                      action, target_skill, reason, timestamp
+               FROM Diagnostic_Events WHERE student_id = ?
+               ORDER BY diagnostic_id DESC LIMIT ?""",
+            (student_id, limit),
+        ).fetchall()
+    return [dict(row) for row in reversed(rows)]
