@@ -55,12 +55,26 @@ KNOWLEDGE_GRAPH.update({
         "description": "Cộng và trừ các số nguyên cùng dấu hoặc khác dấu.",
         "prerequisites": ["MATH_G4"]
     },
+    "MATH_G6_GEO": {
+        "name": "Góc, tia và đường thẳng (Lớp 6)",
+        "grade": 6,
+        "subject": "Toán",
+        "description": "Nhận biết góc, tia, đường thẳng và tính số đo góc đơn giản.",
+        "prerequisites": ["MATH_G3"]
+    },
     "MATH_G7": {
         "name": "Cộng, trừ số hữu tỉ (Lớp 7)",
         "grade": 7,
         "subject": "Toán",
         "description": "Cộng, trừ phân số và số thập phân ở dạng hữu tỉ.",
         "prerequisites": ["MATH_G6", "MATH_G5"]
+    },
+    "MATH_G7_GEO": {
+        "name": "Tam giác và các góc (Lớp 7)",
+        "grade": 7,
+        "subject": "Toán",
+        "description": "Tính góc trong tam giác, nhận biết tam giác cân và quan hệ góc.",
+        "prerequisites": ["MATH_G6_GEO"]
     },
     "MATH_G8": {
         "name": "Hằng đẳng thức đáng nhớ (Lớp 8)",
@@ -69,12 +83,26 @@ KNOWLEDGE_GRAPH.update({
         "description": "Sử dụng 7 hằng đẳng thức đáng nhớ để biến đổi biểu thức đại số.",
         "prerequisites": ["MATH_G7"]
     },
+    "MATH_G8_GEO": {
+        "name": "Tứ giác và định lý Thales (Lớp 8)",
+        "grade": 8,
+        "subject": "Toán",
+        "description": "Nhận biết tính chất tứ giác, đường trung bình và tỉ lệ đoạn thẳng.",
+        "prerequisites": ["MATH_G7_GEO"]
+    },
     "MATH_G9": {
         "name": "Phương trình bậc hai (Lớp 9)",
         "grade": 9,
         "subject": "Toán",
         "description": "Giải phương trình bậc hai một ẩn số sử dụng công thức nghiệm biệt thức Delta.",
         "prerequisites": ["MATH_G8"]
+    },
+    "MATH_G9_GEO": {
+        "name": "Hệ thức lượng trong tam giác vuông (Lớp 9)",
+        "grade": 9,
+        "subject": "Toán",
+        "description": "Sử dụng hệ thức lượng, tỉ số lượng giác và định lý Pythagoras trong tam giác vuông.",
+        "prerequisites": ["MATH_G8_GEO"]
     }
 })
 

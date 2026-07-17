@@ -522,6 +522,204 @@ body {
     flex-direction: column;
 }
 
+.test-setup-card {
+    margin-bottom: 1.2rem;
+    padding: 1.2rem;
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(220px, 1.2fr) auto;
+    gap: 1rem;
+    align-items: end;
+    background: #e8ecff;
+    border: 3px solid #000;
+    border-radius: 16px;
+    box-shadow: var(--shadow-flat-sm);
+}
+
+.test-setup-copy {
+    align-self: center;
+}
+
+.test-setup-copy p {
+    margin-top: 0.45rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.btn-start-test {
+    min-width: 132px;
+    min-height: 46px;
+    border-radius: 12px;
+}
+
+.test-progress-card {
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+}
+
+.test-stage-pill {
+    flex: 1;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.65rem 0.75rem;
+    background: #FFFFFF;
+    border: var(--border-width) solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-flat-sm);
+    font-family: var(--font-poppins);
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.test-stage-pill.active {
+    background: var(--secondary);
+    color: var(--text-main);
+}
+
+.test-stage-pill.completed {
+    background: var(--success-light);
+    color: #166534;
+}
+
+.survey-result-card {
+    margin-bottom: 1rem;
+}
+
+.survey-result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: var(--border-width) dashed var(--border-color);
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.survey-result-header h3 {
+    margin: 0.75rem 0 0.3rem;
+    font-family: var(--font-poppins);
+    font-size: 1.35rem;
+}
+
+.survey-result-header p {
+    margin: 0;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.survey-score {
+    min-width: 112px;
+    min-height: 112px;
+    border: 3px solid var(--border-color);
+    border-radius: 16px;
+    background: var(--secondary);
+    box-shadow: var(--shadow-flat);
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    padding-top: 1.6rem;
+}
+
+.survey-score strong {
+    font-family: var(--font-poppins);
+    font-size: 2.8rem;
+    line-height: 1;
+}
+
+.survey-score span {
+    font-family: var(--font-poppins);
+    font-weight: 800;
+}
+
+.survey-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 1.2rem;
+}
+
+.survey-stat {
+    background: #ffffff;
+    border: var(--border-width) solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-flat-sm);
+    padding: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+}
+
+.survey-stat span,
+.survey-stat strong {
+    font-family: var(--font-poppins);
+    font-weight: 800;
+}
+
+.survey-ai-summary h4 {
+    margin: 1rem 0 0.5rem;
+    font-family: var(--font-poppins);
+}
+
+.survey-ai-summary p,
+.survey-ai-summary li {
+    color: var(--text-muted);
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.survey-ai-summary ul {
+    padding-left: 1.2rem;
+}
+
+.learning-path-list {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.learning-step {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    background: var(--primary-light);
+    border: var(--border-width) solid var(--border-color);
+    border-radius: 12px;
+    padding: 0.8rem;
+}
+
+.learning-step-index {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: var(--primary);
+    color: #ffffff;
+    border: var(--border-width) solid var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-poppins);
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.learning-step p {
+    margin: 0.2rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+}
+
+.btn-retake-survey {
+    width: 100%;
+    margin-top: 1.2rem;
+}
+
 .question-card-header {
     display: flex;
     gap: 0.8rem;
@@ -605,6 +803,117 @@ body {
     font-weight: 600;
     line-height: 1.6;
     font-family: var(--font-poppins);
+}
+
+.question-visual-box {
+    margin-top: -0.4rem;
+    margin-bottom: 1.2rem;
+}
+
+.visual-panel {
+    background: #ffffff;
+    border: var(--border-width) solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-flat-sm);
+    padding: 0.8rem;
+    overflow: hidden;
+}
+
+.visual-panel svg {
+    width: 100%;
+    max-height: 180px;
+    display: block;
+}
+
+.visual-panel p {
+    margin: 0.5rem 0 0;
+    font-family: var(--font-inter);
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.shape-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.8rem;
+    align-items: end;
+    justify-items: center;
+    min-height: 86px;
+}
+
+.shape {
+    display: inline-block;
+    border: 3px solid var(--border-color);
+    box-shadow: var(--shadow-flat-sm);
+}
+
+.shape.triangle {
+    width: 0;
+    height: 0;
+    border-left: 34px solid transparent;
+    border-right: 34px solid transparent;
+    border-bottom: 64px solid var(--secondary);
+    box-shadow: none;
+}
+
+.shape.square {
+    width: 64px;
+    height: 64px;
+    background: var(--primary-light);
+}
+
+.shape.circle {
+    width: 64px;
+    height: 64px;
+    background: var(--success-light);
+    border-radius: 50%;
+}
+
+.shape.hexagon {
+    width: 68px;
+    height: 58px;
+    background: var(--accent);
+    clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+
+.visual-code .mini-keyboard {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(34px, 1fr));
+    gap: 0.35rem;
+}
+
+.visual-code .mini-keyboard span {
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8fafc;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-family: var(--font-poppins);
+    font-weight: 800;
+    font-size: 0.78rem;
+}
+
+.visual-code .mini-keyboard span:last-child {
+    grid-column: span 3;
+    background: var(--secondary);
+}
+
+.visual-language {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    font-family: var(--font-poppins);
+    font-weight: 800;
+    color: var(--primary);
+}
+
+.visual-language i {
+    font-size: 1.5rem;
 }
 
 .options-grid {
@@ -1675,4 +1984,117 @@ body {
     display: flex;
 }
 
+@media (max-width: 1180px) {
+    .student-workspace,
+    .teacher-grouping-layout,
+    .tree-workspace-layout,
+    .tutor-chat-layout {
+        grid-template-columns: 1fr;
+    }
 
+    .path-card,
+    .toolbox-card {
+        order: initial;
+    }
+
+    .metrics-summary-row,
+    .groups-grid,
+    .courses-grid-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .app-container {
+        display: block;
+    }
+
+    .sidebar-navigation {
+        position: static;
+        width: 100%;
+        height: auto;
+        padding: 1rem;
+    }
+
+    .sidebar-menu {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 1rem;
+    }
+
+    .content-wrapper {
+        margin-left: 0;
+    }
+
+    .topbar-navigation {
+        position: static;
+        padding: 1rem;
+        align-items: flex-start;
+        gap: 1rem;
+        flex-direction: column;
+    }
+
+    .topbar-right,
+    .rewards-row,
+    .question-card-header,
+    .question-actions,
+    .teacher-tabs-nav,
+    .group-card-header {
+        flex-wrap: wrap;
+    }
+
+    .test-setup-card {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .test-progress-card {
+        flex-direction: column;
+    }
+
+    .test-stage-pill {
+        width: 100%;
+    }
+
+    .survey-result-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .survey-score {
+        width: 100%;
+        min-height: 88px;
+        padding-top: 1rem;
+    }
+
+    .survey-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .main-content {
+        padding: 1rem;
+    }
+
+    .memphis-card {
+        padding: 1.2rem;
+        border-radius: 16px;
+    }
+
+    .options-grid,
+    .inspector-detail-row {
+        grid-template-columns: 1fr;
+    }
+
+    .option-btn {
+        padding: 0.9rem;
+        font-size: 0.95rem;
+    }
+
+    .heatmap-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+
+    .modal-card {
+        max-height: 92vh;
+    }
+}

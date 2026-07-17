@@ -2,9 +2,10 @@ import os
 import re
 
 # File paths for Adaptive Tutoring System
-BRAINSTORMING_PATH = r"C:\Users\ThinkPad\.gemini\antigravity-ide\brain\94e64a21-1e1b-44c5-aa42-7f86b290601b\adaptive_tutor_brainstorming.md"
-PLAN_PATH = r"C:\Users\ThinkPad\.gemini\antigravity-ide\brain\94e64a21-1e1b-44c5-aa42-7f86b290601b\implementation_plan.md"
-OUTPUT_HTML_PATH = r"c:\Users\ThinkPad\OneDrive - MSFT\Desktop\VNAI\Adaptive_Tutoring_System_Report.html"
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+BRAINSTORMING_PATH = os.path.join(PROJECT_DIR, "docs", "adaptive_tutor_brainstorming.md")
+PLAN_PATH = os.path.join(PROJECT_DIR, "docs", "implementation_plan.md")
+OUTPUT_HTML_PATH = os.path.join(PROJECT_DIR, "Adaptive_Tutoring_System_Report.html")
 
 def md_to_html(md_text):
     """
@@ -157,7 +158,7 @@ def build_report():
     <p>Để tối ưu hóa năng suất và chạy nước rút hiệu quả, kế hoạch phân chia vai trò cho 5 thành viên được thiết lập như sau:</p>
     
     <div class="table-container">
-        <table>
+        <table class="team-table">
             <thead>
                 <tr>
                     <th>Thành viên & Vai trò</th>
@@ -173,7 +174,7 @@ def build_report():
                         <ul>
                             <li>Thiết lập SQLite Database để lưu trữ dữ liệu học sinh, nhật ký làm bài (responses) và trạng thái thành thạo kiến thức.</li>
                             <li>Xây dựng FastAPI routes cung cấp câu hỏi tiếp theo, nhận kết quả chấm điểm và trả báo cáo giáo viên.</li>
-                            <li>Hiện thực giao thức đồng bộ log nhẹ (Sync Queue) khi phát hiện kết nối internet.</li>
+                            <li>Chuẩn hóa API tĩnh và dữ liệu cục bộ để hệ thống chạy offline ổn định trong môi trường trường học.</li>
                         </ul>
                     </td>
                 </tr>
@@ -182,9 +183,9 @@ def build_report():
                     <td><code>backend/knowledge_graph.py</code><br><code>backend/diagnostic_engine.py</code><br><code>data/questions.json</code></td>
                     <td>
                         <ul>
-                            <li>Khai báo cấu trúc DAG kết nối các kỹ năng toán THCS lớp 5, 6, 7.</li>
+                            <li>Khai báo cấu trúc DAG kết nối kỹ năng lớp 1-9 cho 6 nhóm môn học theo định hướng GDPT 2018.</li>
                             <li>Lập trình lớp BKTProcessor chứa các công thức cập nhật xác suất Bayesian và logic hạ độ khó tìm lỗi gốc.</li>
-                            <li>Chuẩn bị ngân hàng câu hỏi phân loại theo mã kỹ năng (sử dụng Gemini sinh tự động).</li>
+                            <li>Chuẩn bị ngân hàng 189 câu hỏi bằng script cục bộ, bổ sung hình học và phân loại theo mã kỹ năng cùng 3 mức độ khó.</li>
                         </ul>
                     </td>
                 </tr>
@@ -195,7 +196,7 @@ def build_report():
                         <ul>
                             <li>Thiết kế giao diện ôn luyện của học sinh (Student View) trực quan và tập trung.</li>
                             <li>Thiết kế Dashboard của giáo viên (Teacher View) chia tab: Phân nhóm học sinh (Auto-Grouping) và bảng ưu tiên.</li>
-                            <li>Viết CSS Glassmorphic hiện đại, tương phản tốt và tối ưu responsive trên mọi dòng máy tính trường học.</li>
+                            <li>Viết CSS Memphis flat design, tương phản tốt và tối ưu responsive trên máy tính trường học.</li>
                         </ul>
                     </td>
                 </tr>
@@ -204,9 +205,9 @@ def build_report():
                     <td><code>frontend/app.js</code></td>
                     <td>
                         <ul>
-                            <li>Xử lý sự kiện học sinh chọn đáp án, gọi API Backend và hiển thị đúng/sai kèm gợi ý động (Hints).</li>
-                            <li>Vẽ biểu đồ hình cột tiến trình học tập của lớp học bằng CSS/HTML động.</li>
-                            <li>Kết nối WebSocket/API để cập nhật dữ liệu báo cáo thời gian thực về Dashboard giáo viên.</li>
+                            <li>Xử lý luồng chọn lớp, chọn môn rồi bắt đầu bài test thích ứng.</li>
+                            <li>Điều phối 3 dạng câu hỏi: trắc nghiệm, đúng/sai và trả lời ngắn; gọi API Backend và hiển thị đúng/sai kèm gợi ý động.</li>
+                            <li>Render lộ trình cá nhân, hình minh họa câu hỏi và dữ liệu báo cáo giáo viên qua API REST.</li>
                         </ul>
                     </td>
                 </tr>
@@ -397,12 +398,42 @@ def build_report():
         th, td {{
             padding: 0.8rem 1rem;
             border-bottom: 1px solid var(--border);
+            vertical-align: top;
         }}
         
         th {{
             background: #f8fafc;
             font-weight: 600;
             color: var(--text-headers);
+        }}
+
+        .team-table {{
+            table-layout: fixed;
+        }}
+
+        .team-table th:nth-child(1),
+        .team-table td:nth-child(1) {{
+            width: 22%;
+        }}
+
+        .team-table th:nth-child(2),
+        .team-table td:nth-child(2) {{
+            width: 26%;
+        }}
+
+        .team-table th:nth-child(3),
+        .team-table td:nth-child(3) {{
+            width: 52%;
+        }}
+
+        .team-table td,
+        .team-table li {{
+            font-size: 0.95rem;
+            line-height: 1.55;
+        }}
+
+        .team-table code {{
+            overflow-wrap: anywhere;
         }}
         
         .print-btn-container {{
@@ -446,6 +477,21 @@ def build_report():
             }}
             .print-btn-container {{
                 display: none;
+            }}
+        }}
+
+        @media (max-width: 760px) {{
+            body {{
+                padding: 1rem;
+            }}
+            .container {{
+                padding: 1.5rem;
+            }}
+            .header h1 {{
+                font-size: 1.8rem;
+            }}
+            table {{
+                min-width: 720px;
             }}
         }}
     </style>

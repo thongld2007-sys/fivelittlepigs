@@ -6,6 +6,7 @@ import time
 import os
 import json
 import sqlite3
+import re
 
 from backend.config import Config
 from backend.database import (
@@ -20,6 +21,50 @@ app = FastAPI(title="VGap AI - Adaptive Tutoring Backend")
 # Initialize database
 init_db()
 
+
+def build_distractor_explanations(question):
+    """Create concise, grounded feedback for every wrong multiple-choice option."""
+    correct_key = question["correct_answer"]
+    correct_option = next((opt for opt in question["options"] if opt["key"] == correct_key), None)
+    correct_text = correct_option["text"] if correct_option else correct_key
+    hint = question.get("hint", "Hãy xem lại kiến thức nền của câu hỏi này.")
+
+    explanations = {}
+    for opt in question["options"]:
+        if opt["key"] == correct_key:
+            continue
+        explanations[opt["key"]] = (
+            f"Đáp án {opt['key']} chưa đúng. Gợi ý trọng tâm: {hint} "
+            f"Kết quả đúng là {correct_key}: {correct_text}."
+        )
+    return explanations
+
+def get_correct_option_text(question):
+    correct_key = question.get("correct_answer")
+    correct_option = next((opt for opt in question.get("options", []) if opt.get("key") == correct_key), None)
+    return correct_option.get("text", "") if correct_option else ""
+
+def is_short_answer_compatible(question):
+    """Short-answer mode only accepts numbers, fractions, equations, or comparison symbols."""
+    answer = get_correct_option_text(question).strip()
+    if not answer:
+        return False
+
+    compact = answer.replace(" ", "")
+    if re.match(r"^[<>=≤≥≠]+$", compact):
+        return True
+
+    blocked_words = ["hoặc", "và", "ngày", "mét", "tế bào", "hình", "ngón", "bác", "phím", ","]
+    lower_answer = answer.lower()
+    if any(word in lower_answer for word in blocked_words):
+        return False
+
+    numeric_tokens = re.findall(r"-?\d+(?:[.,]\d+)?(?:/\d+(?:[.,]\d+)?)?", compact)
+    if len(numeric_tokens) != 1:
+        return False
+
+    return bool(re.match(r"^-?\d+(?:[.,]\d+)?(?:/\d+(?:[.,]\d+)?)?%?$", compact))
+
 @app.get("/api/knowledge-graph")
 def get_knowledge_graph():
     return KNOWLEDGE_GRAPH
@@ -29,9 +74,40 @@ class AnswerSubmission(BaseModel):
     question_id: str
     selected_option: str
 
+class SurveySessionRequest(BaseModel):
+    student_id: str
+    name: str = "Học sinh khảo sát"
+    grade: int = 7
+
 # Endpoints
+@app.post("/api/student/session")
+def create_survey_session(payload: SurveySessionRequest):
+    """Create a clean student profile for one adaptive survey attempt."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR REPLACE INTO students (id, name, grade) VALUES (?, ?, ?)",
+        (payload.student_id, payload.name, payload.grade)
+    )
+
+    for skill_id in KNOWLEDGE_GRAPH.keys():
+        cursor.execute("""
+            INSERT OR REPLACE INTO student_mastery (student_id, skill_id, mastery_probability)
+            VALUES (?, ?, ?)
+        """, (payload.student_id, skill_id, 0.5))
+
+    cursor.execute("DELETE FROM responses WHERE student_id = ?", (payload.student_id,))
+    conn.commit()
+    conn.close()
+
+    return {
+        "student_id": payload.student_id,
+        "grade": payload.grade,
+        "status": "ready"
+    }
+
 @app.get("/api/student/{student_id}/next-question")
-def get_next_question(student_id: str, current_skill: str = "MATH_G7"):
+def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_format: str = "choice"):
     student = get_student(student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -46,23 +122,56 @@ def get_next_question(student_id: str, current_skill: str = "MATH_G7"):
     with open(Config.QUESTIONS_JSON_PATH, "r", encoding="utf-8") as f:
         questions = json.load(f)
         
+    def filter_by_answer_format(candidates):
+        if answer_format != "short":
+            return candidates
+        return [q for q in candidates if is_short_answer_compatible(q)]
+
     # Filter questions for this skill and difficulty
-    skill_questions = [
+    skill_questions = filter_by_answer_format([
         q for q in questions 
         if q["skill_id"] == recommended_skill and q.get("difficulty_level", 2) == target_difficulty
-    ]
+    ])
     
     if not skill_questions:
         # Fallback to any question for this skill
-        skill_questions = [q for q in questions if q["skill_id"] == recommended_skill]
+        skill_questions = filter_by_answer_format([q for q in questions if q["skill_id"] == recommended_skill])
+
+    if not skill_questions and answer_format == "short":
+        skill_info = KNOWLEDGE_GRAPH.get(recommended_skill, {})
+        same_grade_skill_ids = {
+            skill_id for skill_id, info in KNOWLEDGE_GRAPH.items()
+            if info.get("subject") == skill_info.get("subject") and info.get("grade") == skill_info.get("grade")
+        }
+        skill_questions = [
+            q for q in questions
+            if q["skill_id"] in same_grade_skill_ids and is_short_answer_compatible(q)
+        ]
         
     if not skill_questions:
         # Fallback to absolute value
-        skill_questions = [q for q in questions if q["skill_id"] == "MATH_G4"]
+        skill_questions = filter_by_answer_format([q for q in questions if q["skill_id"] == "MATH_G4"]) or [q for q in questions if q["skill_id"] == "MATH_G4"]
+
+    # Avoid serving a question the student has already answered for this skill
+    # until all candidates at the chosen level have been exhausted.
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT question_id FROM responses
+        WHERE student_id = ? AND skill_id = ?
+        ORDER BY id DESC
+    """, (student_id, recommended_skill))
+    answered_ids = {row[0] for row in cursor.fetchall()}
+    conn.close()
+
+    fresh_questions = [q for q in skill_questions if q["id"] not in answered_ids]
+    if fresh_questions:
+        skill_questions = fresh_questions
         
     # Pick a random question from matching ones to make it dynamic
     import random
     question = random.choice(skill_questions)
+    distractor_explanations = build_distractor_explanations(question)
     
     return {
         "question": {
@@ -73,7 +182,9 @@ def get_next_question(student_id: str, current_skill: str = "MATH_G7"):
             "difficulty": question.get("difficulty", "Vừa"),
             "text": question["text"],
             "options": question["options"],
-            "hint": question.get("hint", "")
+            "hint": question.get("hint", ""),
+            "visual_hint": question.get("visual_hint", question["skill_id"]),
+            "distractor_explanations": distractor_explanations
         },
         "active_skill": recommended_skill,
         "target_difficulty": target_difficulty
@@ -94,6 +205,7 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
         raise HTTPException(status_code=404, detail="Question not found")
         
     is_correct = (submission.selected_option == question["correct_answer"])
+    distractor_explanations = build_distractor_explanations(question)
     
     # Record response in DB (with difficulty_level)
     record_response(
@@ -114,6 +226,8 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
     return {
         "is_correct": is_correct,
         "correct_answer": question["correct_answer"],
+        "distractor_explanation": None if is_correct else distractor_explanations.get(submission.selected_option),
+        "hint": question.get("hint", ""),
         "new_mastery_probability": new_mastery,
         "next_recommended_skill": next_skill,
         "next_recommended_difficulty": next_diff

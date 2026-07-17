@@ -167,12 +167,42 @@
         th, td {
             padding: 0.8rem 1rem;
             border-bottom: 1px solid var(--border);
+            vertical-align: top;
         }
         
         th {
             background: #f8fafc;
             font-weight: 600;
             color: var(--text-headers);
+        }
+
+        .team-table {
+            table-layout: fixed;
+        }
+
+        .team-table th:nth-child(1),
+        .team-table td:nth-child(1) {
+            width: 22%;
+        }
+
+        .team-table th:nth-child(2),
+        .team-table td:nth-child(2) {
+            width: 26%;
+        }
+
+        .team-table th:nth-child(3),
+        .team-table td:nth-child(3) {
+            width: 52%;
+        }
+
+        .team-table td,
+        .team-table li {
+            font-size: 0.95rem;
+            line-height: 1.55;
+        }
+
+        .team-table code {
+            overflow-wrap: anywhere;
         }
         
         .print-btn-container {
@@ -218,6 +248,21 @@
                 display: none;
             }
         }
+
+        @media (max-width: 760px) {
+            body {
+                padding: 1rem;
+            }
+            .container {
+                padding: 1.5rem;
+            }
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            table {
+                min-width: 720px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -236,293 +281,14 @@
         </div>
 
         <section>
-            <h1>Brainstorming & Thiết kế: Hệ thống Gia sư Thích ứng chẩn đoán Lỗ hổng Kiến thức Gốc (Đề 1)</h1>
-<br>
-<p>Đề tài này tập trung giải quyết bài toán phân hóa trình độ trong lớp học Việt Nam (đặc biệt ở vùng sâu, vùng xa, lớp sĩ số đông 40 học sinh) bằng cách xây dựng một hệ thống gia sư số thích ứng tự động chẩn đoán lỗ hổng gốc (root-cause gap) của học sinh và trợ lý số (Dashboard) hỗ trợ giáo viên điều phối giảng dạy hiệu quả.</p>
-<br>
-<hr>
-<br>
-<h2>1. Bản đồ Tổng quan Hệ thống (System Architecture)</h2>
-<br>
-<pre class="code-block"><code class="language-mermaid">graph TD
-    subgraph Student Client (Offline-First Web App)
-        StudentUI[Student Practice UI] &lt;--&gt; LocalDB[(SQLite Local Database)]
-        StudentUI --&gt;|Answer Submission| DiagnosticEngine[Adaptive Diagnostic Engine]
-    end
-
-    subgraph Local Server / Teacher Client
-        TeacherUI[Teacher Dashboard UI] &lt;--&gt; LocalDB
-        LocalDB &lt;--&gt; SyncService[Băng thông thấp: Sync Service]
-    end
-
-    subgraph Central Cloud (Optional Hub)
-        SyncService &lt;--&gt;|Sync when online| CloudDB[(Central Cloud DB)]
-    end
-
-    subgraph Core AI &amp; Diagnostics
-        DiagnosticEngine &lt;--&gt; KG[Knowledge Graph: Sơ đồ Kiến thức GDPT 2018]
-        DiagnosticEngine --&gt;|Update State| BKT[Bayesian Knowledge Tracing / Decision Tree]
-        BKT --&gt;|Generate Next Question| QuestionBank[Question Bank DB]
-    end
-
-    subgraph Teacher Assistant Layers
-        LocalDB --&gt; GroupingService[Automatic Student Grouping]
-        LocalDB --&gt; PriorityAlerts[Teacher Priority Suggestions]
-        GroupingService --&gt; TeacherUI
-        PriorityAlerts --&gt; TeacherUI
-    end
-</code></pre>
-<br>
-<hr>
-<br>
-<h2>2. Chi tiết Chiến lược thiết kế theo 6 Tiêu chí Barem</h2>
-<br>
-<h3>Tiêu chí 1: Technical Implementation & Engineering Depth (20 điểm)</h3>
-<ul>
-<li>  <strong>Offline-First & Sync Protocol:</strong></li>
-<li>  Hệ thống chạy hoàn toàn trên mạng cục bộ trường học (Local LAN) thông qua một thiết bị máy chủ mini (ví dụ: máy tính của giáo viên hoặc Raspberry Pi) chạy SQLite và FastAPI Backend.</li>
-<li>  Tất cả tiến trình làm bài, chấm điểm và chẩn đoán diễn ra offline mà không cần internet.</li>
-<li>  Xây dựng giao thức đồng bộ hóa nhẹ (Incremental Sync): Khi có mạng yếu hoặc kết nối cuối tuần, hệ thống chỉ đẩy dữ liệu thô dạng log nén (JSON nén) lên Cloud Hub để tiết kiệm tối đa băng thông.</li>
-<li>  <strong>Thư viện:</strong> Dùng SQLite tích hợp sẵn, FastAPI (Python) làm backend gọn nhẹ, tối ưu hóa bộ nhớ cho thiết bị cấu hình thấp.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h3>Tiêu chí 2: AI-Native Architecture & Innovation (20 điểm)</h3>
-<ul>
-<li>  <strong>Knowledge Graph (Sơ đồ Kiến thức Gốc GDPT 2018):</strong></li>
-<li>  Thiết kế cây phả hệ kiến thức (Knowledge Dependency Tree) môn Toán. Ví dụ:</li>
-<li>  <code>Toán 7: Cộng trừ số hữu tỉ</code> -> Phụ thuộc vào <code>Toán 6: Cộng trừ số nguyên</code> và <code>Toán 5: Quy đồng mẫu số phân số</code>.</li>
-<li>  Khi học sinh làm sai bài toán lớp 7, hệ thống không chỉ báo sai mà tự động hạ độ khó xuống bài toán lớp 6 và lớp 5 để kiểm tra chính xác họ bị hổng ở bước nào.</li>
-<li>  <strong>Engine Chẩn đoán Lỗ hổng gốc (Adaptive Diagnostic Engine):</strong></li>
-<li>  Sử dụng thuật toán <strong>BKT (Bayesian Knowledge Tracing)</strong> đơn giản hóa hoặc cây quyết định (Decision Tree) để tính toán xác suất thành thạo (mastery probability) của học sinh đối với từng kỹ năng con.</li>
-<li>  Đường đi chẩn đoán: Nếu học sinh sai -> chuyển sang câu hỏi kiểm tra kỹ năng tiên quyết (Prerequisite skill). Nếu làm đúng -> chứng tỏ hổng ở kỹ năng hiện tại. Nếu làm sai tiếp -> tiếp tục đào sâu xuống lớp dưới.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h3>Tiêu chí 3: Business Viability & Pilot Pathway (20 điểm)</h3>
-<ul>
-<li>  <strong>Giải quyết nỗi đau giáo dục thực tế:</strong></li>
-<li>  Giáo viên dạy lớp 40 học sinh không thể giảng giải riêng cho từng em có trình độ chênh lệch. Học sinh yếu nản chí vì không hiểu bài, học sinh giỏi chán nản vì phải học lại kiến thức đã biết.</li>
-<li>  <strong>Lộ trình Pilot PoC khả thi:</strong></li>
-<li>  <strong>Giai đoạn 1 (Tuần 1-2):</strong> Số hóa sơ đồ kiến thức toán trung học cơ sở (Lớp 6, 7) và ngân hàng câu hỏi khoảng 100 câu.</li>
-<li>  <strong>Giai đoạn 2 (Tuần 3-4):</strong> Chạy thử nghiệm giả lập (Simulation) trên 50 hồ sơ học sinh ảo với các lỗ hổng kiến thức định trước để kiểm tra độ chính xác của thuật toán chẩn đoán.</li>
-<li>  <strong>Giai đoạn 3 (Tuần 5-8):</strong> Thử nghiệm thực tế tại 1 lớp học ở khu vực khó khăn thông qua mạng LAN nội bộ. Đo lường mức độ cải thiện điểm số và thời gian tiết kiệm được của giáo viên.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h3>Tiêu chí 4: AI-Native UX & Design Thinking (15 điểm)</h3>
-<ul>
-<li>  <strong>Student Interface (Trực quan & Gamified):</strong></li>
-<li>  Giao diện làm bài sạch sẽ, không gây mất tập trung.</li>
-<li>  Sử dụng cơ chế giải thích gợi ý (hint) từng bước thay vì hiển thị đáp án ngay. Gợi ý thay đổi linh hoạt tùy theo mức độ chẩn đoán lỗ hổng.</li>
-<li>  <strong>Teacher Dashboard (Premium Trợ lý số):</strong></li>
-<li>  <strong>Auto-Grouping (Tự động nhóm học sinh):</strong> Tự động phân loại 40 học sinh thành 3-4 nhóm nhỏ dựa trên lỗ hổng chung (ví dụ: "Nhóm 5 em hổng kiến thức ước chung lớn nhất").</li>
-<li>  <strong>Priority List (Thứ tự ưu tiên hỗ trợ):</strong> Chỉ ra chính xác 3 học sinh đang gặp khó khăn nhất (loạt câu sai liên tục, mất phương hướng) để giáo viên đến hỗ trợ trực tiếp.</li>
-<li>  <strong>Class-wide Gap Alerts (Cảnh báo toàn lớp):</strong> Báo cáo chủ đề cả lớp đang yếu nhất để giáo viên giảng lại chung trên bảng.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h3>Tiêu chí 5: AI Safety, Grounding & Trust (15 điểm)</h3>
-<ul>
-<li>  <strong>Độ tin cậy của chẩn đoán:</strong></li>
-<li>  Không để LLM tự do chấm điểm tự luận để tránh thiên kiến hoặc ảo tưởng (hallucination). Tất cả các câu hỏi chẩn đoán ban đầu sử dụng dạng trắc nghiệm, điền số hoặc kéo thả có đáp án đối chiếu cơ sở dữ liệu cứng.</li>
-<li>  <strong>Tính minh bạch của dữ liệu:</strong></li>
-<li>  Mọi quyết định chuyển hướng câu hỏi và cập nhật xác suất kỹ năng đều được ghi lại dưới dạng cây sơ đồ tư duy (Reasoning Tree) trên Dashboard của giáo viên để giáo viên hiểu tại sao AI đưa ra kết luận học sinh bị hổng kiến thức đó.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h3>Tiêu chí 6: Presentation, Demo & Defensibility (10 điểm)</h3>
-<ul>
-<li>  <strong>Kịch bản Demo ấn tượng:</strong></li>
-<li>  *Tình huống:* Học sinh A (Lớp 7) làm bài tập cộng phân số lớp 7 bị sai.</li>
-<li>  *Hệ thống:* Tự động đưa ra câu hỏi phụ lớp 5 về Quy đồng mẫu số. Học sinh A làm sai tiếp. Hệ thống kết luận: Lỗ hổng gốc là lớp 5.</li>
-<li>  *Giáo viên:* Mở Dashboard, thấy học sinh A được xếp vào nhóm "Lỗ hổng phân số lớp 5", nhận đề xuất bài giảng tương ứng để kèm cặp.</li>
-<li>  <strong>Chứng minh khả năng chạy trên thiết bị yếu:</strong></li>
-<li>  Trình diễn chạy mượt mà trên môi trường máy tính cấu hình thấp (Celeron/2GB RAM) hoặc Raspberry Pi.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h2>3. Khắc phục điểm yếu & Các điểm bổ sung chéo (Self-Correction)</h2>
-<br>
-<ul>
-<li>  <strong>Vấn đề:</strong> Khối lượng bài giảng toán GDPT 2018 rất lớn, tự soạn ngân hàng câu hỏi trong thời gian ngắn là bất khả thi.</li>
-<li>  *Khắc phục:* Sử dụng LLM (Gemini API) để sinh tự động ngân hàng câu hỏi dựa trên nội dung chuẩn SGK 2018 dưới dạng file JSON cấu trúc sẵn, sau đó cho giáo viên duyệt nhanh.</li>
-<li>  <strong>Vấn đề:</strong> Offline hoàn toàn làm sao gọi LLM/Gemini?</li>
-<li>  *Khắc phục:* AI chẩn đoán (BKT/Decision Tree) chạy offline 100% bằng code thuật toán Python cục bộ không cần mạng. LLM (Gemini/OpenAI) chỉ được dùng ở server đám mây để chuẩn bị nội dung (offline content preparation) và đồng bộ hóa báo cáo phân tích sâu định kỳ khi có kết nối internet.</li>
-</ul>
-<br>
+            <br>
 
         </section>
 
         <hr class="section-separator">
 
         <section>
-            <h1>Kế hoạch triển khai: Hệ thống Gia sư Thích ứng chẩn đoán Lỗ hổng Kiến thức Gốc (Đề 1)</h1>
-<br>
-<p>Kế hoạch này cung cấp sơ đồ thiết kế chi tiết, cấu trúc thư mục và <strong>giải pháp kỹ thuật/thuật toán cụ thể xuyên suốt</strong> để đội thi bám sát và hiện thực hóa hệ thống.</p>
-<br>
-<hr>
-<br>
-<h2>1. Cấu trúc Thư mục Dự án Đề xuất</h2>
-<br>
-<pre class="code-block"><code class="language-text">c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/
-├── backend/                  # API Server &amp; Diagnostic Engine (Python FastAPI)
-│   ├── app.py                # Định nghĩa các REST API endpoints
-│   ├── config.py             # Cấu hình môi trường local server
-│   ├── database.py           # SQLite DB: Học sinh, kết quả làm bài, trạng thái kiến thức
-│   ├── knowledge_graph.py    # Định nghĩa đồ thị kiến thức (Nodes: Kỹ năng, Edges: Tiên quyết)
-│   └── diagnostic_engine.py  # Thuật toán chẩn đoán lỗ hổng gốc (BKT / Decision Tree)
-├── frontend/                 # Giao diện Web (Single-Page App cao cấp)
-│   ├── index.html            # Giao diện học sinh làm bài &amp; Dashboard của giáo viên
-│   ├── style.css             # Vanilla CSS: Glassmorphic UI, biểu đồ phân tích
-│   └── app.js                # Logic chạy tương tác, kiểm tra đáp án, hiển thị biểu đồ
-├── data/                     # Cơ sở dữ liệu và ngân hàng câu hỏi
-│   ├── questions.json        # Ngân hàng câu hỏi toán phân loại theo mã kỹ năng
-│   └── tutor.db              # SQLite Database chạy thực tế
-├── requirements.txt          # Thư viện Python cần thiết
-└── run.py                    # File chạy nhanh khởi động cả Backend và Frontend
-</code></pre>
-<br>
-<hr>
-<br>
-<h2>2. Giải pháp Kỹ thuật Xuyên suốt (Core Technical Solutions)</h2>
-<br>
-<p>Để hệ thống hoạt động chính xác, ổn định offline và giải quyết triệt để yêu cầu chẩn đoán lỗ hổng gốc, chúng ta áp dụng các giải pháp thuật toán sau:</p>
-<br>
-<h3>A. Mô hình Đồ thị Kiến thức (Knowledge Graph DAG)</h3>
-<p>Cấu trúc kiến thức môn Toán được lưu dưới dạng <strong>Đồ thị có hướng không chu trình (DAG)</strong>. Mỗi nút là một Kỹ năng (Skill) có liên kết tới các kỹ năng tiên quyết (Prerequisites).</p>
-<br>
-<ul>
-<li>  <strong>Định nghĩa Cấu trúc Node:</strong></li>
-<pre class="code-block"><code class="language-json">    {
-      "skill_id": "MATH7_ADD_RATIONAL",
-      "name": "Cộng trừ số hữu tỉ (Lớp 7)",
-      "grade": 7,
-      "prerequisites": ["MATH6_ADD_INTEGER", "MATH5_COMMON_FRACTION"]
-    }
-</code></pre>
-</ul>
-<br>
-<h3>B. Thuật toán Chẩn đoán & Cập nhật Trạng thái (Diagnostic Logic)</h3>
-<p>Sử dụng mô hình <strong>Bayesian Knowledge Tracing (BKT) đơn giản</strong> để quản lý độ thành thạo $P(M_s)$ của học sinh đối với kỹ năng $s$.</p>
-<br>
-<p>1.  <strong>Cấu hình Xác suất mặc định:</strong></p>
-<ul>
-<li>  $P(L_0)$ (Xác suất biết trước): $0.5$ (Học sinh trung bình có 50% khả năng đã biết kỹ năng).</li>
-<li>  $P(G)$ (Xác suất đoán bừa - Guess): $0.2$ (Trắc nghiệm 4 đáp án).</li>
-<li>  $P(S)$ (Xác suất làm sai dù đã biết - Slip): $0.1$.</li>
-<li>  $P(T)$ (Xác suất học được sau mỗi câu hỏi - Transition): $0.2$.</li>
-</ul>
-<br>
-<p>2.  <strong>Công thức Cập nhật xác suất sau khi có câu trả lời:</strong></p>
-<ul>
-<li>  *Nếu học sinh trả lời ĐÚNG:*</li>
-</ul>
-<p>$$P(M_{s} | Correct) = \frac{P(M_s) \times (1 - P(S))}{P(M_s) \times (1 - P(S)) + (1 - P(M_s)) \times P(G)}$$</p>
-<ul>
-<li>  *Nếu học sinh trả lời SAI:*</li>
-</ul>
-<p>$$P(M_{s} | Incorrect) = \frac{P(M_s) \times P(S)}{P(M_s) \times P(S) + (1 - P(M_s)) \times (1 - P(G))}$$</p>
-<ul>
-<li>  *Xác suất cập nhật cho lượt tiếp theo (sau khi chuyển giao kiến thức):*</li>
-</ul>
-<p>$$P(M_s) \leftarrow P(M_s | Result) + (1 - P(M_s | Result)) \times P(T)$$</p>
-<br>
-<p>3.  <strong>Hành vi Thích ứng (Adaptation Rules):</strong></p>
-<ul>
-<li>  <strong>Ngưỡng thành thạo (Mastered Threshold):</strong> $P(M_s) \ge 0.85$. Nếu vượt qua, đánh dấu học sinh đã làm chủ kỹ năng $s$ và nâng cấp lên kỹ năng cấp cao tiếp theo.</li>
-<li>  <strong>Ngưỡng lỗ hổng (Gap Threshold):</strong> $P(M_s) < 0.40$. Nếu sụt giảm dưới ngưỡng này, hệ thống đánh dấu học sinh bị hổng kỹ năng $s$, <strong>tự động tạm dừng</strong> tiến trình hiện tại và mở luồng chẩn đoán (Diagnostic sub-path) bằng cách đưa ra câu hỏi của các kỹ năng trong <code>prerequisites</code>.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h3>C. Cơ chế Trợ lý Giáo viên (Teacher Assistant Engine)</h3>
-<br>
-<p>1.  <strong>Tự động Phân nhóm Học sinh (Auto-Grouping):</strong></p>
-<ul>
-<li>  Cứ mỗi 10 giây, Backend quét bảng <code>student_mastery</code>.</li>
-<li>  Với mỗi kỹ năng $s$, gom tất cả học sinh có $P(M_s) < 0.50$ thành một nhóm.</li>
-<li>  Nếu nhóm có số lượng học sinh vượt quá 20% sĩ số lớp, gửi <strong>Cảnh báo giảng lại toàn lớp (Class-wide Re-teach Alert)</strong> cho giáo viên.</li>
-</ul>
-<br>
-<p>2.  <strong>Xác định học sinh cần kèm cặp ưu tiên (Priority Score):</strong></p>
-<ul>
-<li>  Giáo viên cần biết em nào đang gặp bế tắc nhất trong lớp học. Chúng ta tính toán <strong>Điểm Ưu tiên (Priority Score - $PS$)</strong> cho từng học sinh:</li>
-</ul>
-<p>$$PS = (1.0 - P(M_{current})) \times (1.0 + N_{failed}) \times \ln(T_{stuck} + 2)$$</p>
-<ul>
-<li>  $P(M_{current})$: Xác suất thành thạo của kỹ năng hiện tại em đang làm.</li>
-<li>  $N_{failed}$: Số câu làm sai liên tiếp của kỹ năng hiện tại.</li>
-<li>  $T_{stuck}$: Thời gian (phút) em bị mắc kẹt ở kỹ năng này.</li>
-<li>  Học sinh có điểm $PS$ cao nhất sẽ được xếp lên đầu danh sách <strong>"Cần giáo viên kèm gấp"</strong>.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h3>D. Giao thức đồng bộ mạng yếu (Offline Sync Protocol)</h3>
-<ul>
-<li>  <strong>Offline Storage:</strong> Toàn bộ lịch sử làm bài được lưu trữ tức thì vào SQLite bảng <code>responses</code>.</li>
-<li>  <strong>Sync Log format:</strong> Định nghĩa log dạng hàng đợi (Queue), ghi vết gọn nhẹ:</li>
-<pre class="code-block"><code class="language-json">    {
-      "event_id": "uuid",
-      "student_id": "std101",
-      "question_id": "math7_q05",
-      "is_correct": 0,
-      "time_spent": 45,
-      "timestamp": 1721200000
-    }
-</code></pre>
-<li>  <strong>Giao thức đẩy (Push Sync):</strong> Cứ khi có kết nối internet nhẹ (Ping thành công tới Cloud Hub), đẩy danh sách tin nhắn log dạng JSON nén lên server, dọn dẹp hàng đợi local.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h2>3. Danh sách File cần tạo mới (Proposed Files)</h2>
-<br>
-<h3>Component 1: Engine chẩn đoán & Đồ thị</h3>
-<ul>
-<li>  #### <a href="file:///c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/backend/knowledge_graph.py">NEW] [knowledge_graph.py</a></li>
-<li>  Khai báo cấu trúc DAG kết nối các chương mục toán THCS lớp 5, 6, 7.</li>
-<li>  #### <a href="file:///c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/backend/diagnostic_engine.py">NEW] [diagnostic_engine.py</a></li>
-<li>  Hiện thực lớp <code>BKTProcessor</code> chứa các công thức toán Bayesian và logic adaptive điều hướng câu hỏi.</li>
-</ul>
-<br>
-<h3>Component 2: APIs & SQLite Database</h3>
-<ul>
-<li>  #### <a href="file:///c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/backend/database.py">NEW] [database.py</a></li>
-<li>  Khởi tạo SQLite DB và các truy vấn ghi vết, cập nhật xác suất chẩn đoán.</li>
-<li>  #### <a href="file:///c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/backend/app.py">NEW] [app.py</a></li>
-<li>  Cung cấp các API: lấy câu hỏi chẩn đoán tiếp theo, nhận kết quả nộp bài, và API dashboard giáo viên thống kê điểm ưu tiên hỗ trợ.</li>
-<li>  #### <a href="file:///c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/data/questions.json">NEW] [questions.json</a></li>
-<li>  Ngân hàng câu hỏi thử nghiệm cho phép chẩn đoán đa tầng (lớp 5 lên lớp 7).</li>
-</ul>
-<br>
-<h3>Component 3: Frontend Interface</h3>
-<ul>
-<li>  #### <a href="file:///c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/frontend/index.html">NEW] [index.html</a></li>
-<li>  Màn hình ôn luyện học sinh (có vùng gợi ý thông minh) và Dashboard giáo viên.</li>
-<li>  #### <a href="file:///c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/frontend/style.css">NEW] [style.css</a></li>
-<li>  Giao diện Glassmorphism và CSS Grid chia các khu vực báo cáo, danh sách ưu tiên.</li>
-<li>  #### <a href="file:///c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/frontend/app.js">NEW] [app.js</a></li>
-<li>  Xử lý tương tác, cập nhật biểu đồ và kéo dãn tiến trình chẩn đoán.</li>
-</ul>
-<br>
-<hr>
-<br>
-<h2>4. Kế hoạch kiểm thử (Verification Plan)</h2>
-<br>
-<h3>Automated Test</h3>
-<ul>
-<li>  #### <a href="file:///c:/Users/ThinkPad/OneDrive - MSFT/Desktop/VNAI/tests/test_diagnostics.py">NEW] [test_diagnostics.py</a></li>
-<li>  Tự động chạy chuỗi giả lập 10 câu trả lời của 1 học sinh ảo bị hổng kiến thức phân số lớp 5 để kiểm chứng xem hệ thống có đưa ra kết luận chẩn đoán xác suất thành thạo phân số lớp 5 giảm xuống cực thấp hay không.</li>
-</ul>
-<br>
+            <br>
 
         </section>
         
@@ -534,7 +300,7 @@
     <p>Để tối ưu hóa năng suất và chạy nước rút hiệu quả, kế hoạch phân chia vai trò cho 5 thành viên được thiết lập như sau:</p>
     
     <div class="table-container">
-        <table>
+        <table class="team-table">
             <thead>
                 <tr>
                     <th>Thành viên & Vai trò</th>
@@ -550,7 +316,7 @@
                         <ul>
                             <li>Thiết lập SQLite Database để lưu trữ dữ liệu học sinh, nhật ký làm bài (responses) và trạng thái thành thạo kiến thức.</li>
                             <li>Xây dựng FastAPI routes cung cấp câu hỏi tiếp theo, nhận kết quả chấm điểm và trả báo cáo giáo viên.</li>
-                            <li>Hiện thực giao thức đồng bộ log nhẹ (Sync Queue) khi phát hiện kết nối internet.</li>
+                            <li>Chuẩn hóa API tĩnh và dữ liệu cục bộ để hệ thống chạy offline ổn định trong môi trường trường học.</li>
                         </ul>
                     </td>
                 </tr>
@@ -559,9 +325,9 @@
                     <td><code>backend/knowledge_graph.py</code><br><code>backend/diagnostic_engine.py</code><br><code>data/questions.json</code></td>
                     <td>
                         <ul>
-                            <li>Khai báo cấu trúc DAG kết nối các kỹ năng toán THCS lớp 5, 6, 7.</li>
+                            <li>Khai báo cấu trúc DAG kết nối kỹ năng lớp 1-9 cho 6 nhóm môn học theo định hướng GDPT 2018.</li>
                             <li>Lập trình lớp BKTProcessor chứa các công thức cập nhật xác suất Bayesian và logic hạ độ khó tìm lỗi gốc.</li>
-                            <li>Chuẩn bị ngân hàng câu hỏi phân loại theo mã kỹ năng (sử dụng Gemini sinh tự động).</li>
+                            <li>Chuẩn bị ngân hàng 189 câu hỏi bằng script cục bộ, bổ sung hình học và phân loại theo mã kỹ năng cùng 3 mức độ khó.</li>
                         </ul>
                     </td>
                 </tr>
@@ -572,7 +338,7 @@
                         <ul>
                             <li>Thiết kế giao diện ôn luyện của học sinh (Student View) trực quan và tập trung.</li>
                             <li>Thiết kế Dashboard của giáo viên (Teacher View) chia tab: Phân nhóm học sinh (Auto-Grouping) và bảng ưu tiên.</li>
-                            <li>Viết CSS Glassmorphic hiện đại, tương phản tốt và tối ưu responsive trên mọi dòng máy tính trường học.</li>
+                            <li>Viết CSS Memphis flat design, tương phản tốt và tối ưu responsive trên máy tính trường học.</li>
                         </ul>
                     </td>
                 </tr>
@@ -581,9 +347,9 @@
                     <td><code>frontend/app.js</code></td>
                     <td>
                         <ul>
-                            <li>Xử lý sự kiện học sinh chọn đáp án, gọi API Backend và hiển thị đúng/sai kèm gợi ý động (Hints).</li>
-                            <li>Vẽ biểu đồ hình cột tiến trình học tập của lớp học bằng CSS/HTML động.</li>
-                            <li>Kết nối WebSocket/API để cập nhật dữ liệu báo cáo thời gian thực về Dashboard giáo viên.</li>
+                            <li>Xử lý luồng chọn lớp, chọn môn rồi bắt đầu bài test thích ứng.</li>
+                            <li>Điều phối 3 dạng câu hỏi: trắc nghiệm, đúng/sai và trả lời ngắn; gọi API Backend và hiển thị đúng/sai kèm gợi ý động.</li>
+                            <li>Render lộ trình cá nhân, hình minh họa câu hỏi và dữ liệu báo cáo giáo viên qua API REST.</li>
                         </ul>
                     </td>
                 </tr>

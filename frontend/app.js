@@ -9,7 +9,27 @@ const state = {
     selectedStudentForTree: null,
     currentQuestion: null,
     selectedOption: null,
+    typedAnswer: "",
     isSubmitting: false,
+    testStarted: false,
+    surveyCompleted: false,
+    baseStudentId: 'emma_std_01',
+    testSession: {
+        subject: "Toán",
+        grade: 7,
+        targetSkill: "MATH_G7",
+        stage: "multiple_choice",
+        stageIndex: 0,
+        answeredInStage: 0,
+        totalAnswered: 0,
+        currentSkill: "MATH_G7",
+        attempts: [],
+        stageTargets: {
+            multiple_choice: 12,
+            true_false: 4,
+            short_answer: 6
+        }
+    },
     knowledgeGraph: {},
     streak: 0,
     xp: 1200,
@@ -33,6 +53,22 @@ const state = {
         { id: 'linh_08', name: 'Phạm Khánh Linh', currentSkill: 'MATH_G6', nFailed: 4, tStuck: 11, mastery: 0.15 }
     ]
 };
+
+function escapeHTML(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+function setButtonIconLabel(button, iconClass, label) {
+    button.replaceChildren();
+    const icon = document.createElement("i");
+    icon.className = iconClass;
+    button.append(icon, document.createTextNode(` ${label}`));
+}
 
 // Reasoning Path Mock for teacher tree tab
 const REASONING_TREES = {
@@ -104,8 +140,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Bind Subject and Grade Selector Events
     initSubjectSelectors();
 
-    // Load First Question
-    loadStudentQuestion(state.studentProgress.activeSkill);
+    prepareTestSetup();
 });
 
 // Load Knowledge Graph from backend
@@ -133,6 +168,7 @@ async function loadKnowledgeGraph() {
 function initSubjectSelectors() {
     const subjectSelect = document.getElementById("subject-select");
     const gradeSelect = document.getElementById("grade-select");
+    const startBtn = document.getElementById("btn-start-test");
     
     if (subjectSelect && gradeSelect) {
         const onSelectChange = () => {
@@ -141,17 +177,108 @@ function initSubjectSelectors() {
             const skillId = getSkillIdFromSubjectAndGrade(subject, grade);
             
             state.studentProgress.activeSkill = skillId;
-            showToast(`Đã chọn: ${subject} - Lớp ${grade}`);
-            loadStudentQuestion(skillId);
+            state.testSession.subject = subject;
+            state.testSession.grade = grade;
+            if (state.testStarted) {
+                prepareTestSetup();
+            }
+            showToast(`Đã chọn: ${subject} - Lớp ${grade}. Bấm Bắt đầu để vào bài test.`);
         };
         
         subjectSelect.addEventListener("change", onSelectChange);
         gradeSelect.addEventListener("change", onSelectChange);
     }
+
+    if (startBtn) {
+        startBtn.addEventListener("click", startAdaptiveTest);
+    }
+}
+
+function prepareTestSetup() {
+    state.testStarted = false;
+    state.surveyCompleted = false;
+    state.selectedOption = null;
+    state.typedAnswer = "";
+    state.currentQuestion = null;
+    resetTestStage();
+    setQuestionVisibility(false);
+    setSurveyResultVisibility(false);
+    document.getElementById("current-skill-name").textContent = "Chọn lớp và môn";
+    document.getElementById("current-question-difficulty").textContent = "Sẵn sàng";
+    document.getElementById("question-text").textContent = "Hãy chọn lớp và môn rồi bấm Bắt đầu.";
+    document.getElementById("mascot-comment").textContent = "Tôi sẽ chỉ mở câu hỏi sau khi bạn bắt đầu bài test.";
+    renderPersonalPath();
+}
+
+async function startAdaptiveTest() {
+    const subjectSelect = document.getElementById("subject-select");
+    const gradeSelect = document.getElementById("grade-select");
+    const subject = subjectSelect ? subjectSelect.value : state.testSession.subject;
+    const grade = gradeSelect ? parseInt(gradeSelect.value) : state.testSession.grade;
+    const skillId = getSkillIdFromSubjectAndGrade(subject, grade);
+
+    state.testStarted = true;
+    state.surveyCompleted = false;
+    state.studentId = `${state.baseStudentId}_survey_${Date.now()}`;
+    state.testSession.subject = subject;
+    state.testSession.grade = grade;
+    state.testSession.targetSkill = skillId;
+    state.testSession.currentSkill = skillId;
+    state.studentProgress.activeSkill = skillId;
+    resetTestStage();
+    setQuestionVisibility(true);
+    setSurveyResultVisibility(false);
+    updateTestStageUI();
+    await createCleanSurveySession(grade);
+    showToast(`Bắt đầu bài test ${subject} - Lớp ${grade}`);
+    loadStudentQuestion(skillId);
+}
+
+function resetTestStage() {
+    state.testSession.stage = "multiple_choice";
+    state.testSession.stageIndex = 0;
+    state.testSession.answeredInStage = 0;
+    state.testSession.totalAnswered = 0;
+    state.testSession.attempts = [];
+    updateTestStageUI();
+}
+
+function setQuestionVisibility(isVisible) {
+    const questionCard = document.getElementById("question-card");
+    const progressCard = document.getElementById("test-progress-card");
+    if (questionCard) questionCard.style.display = isVisible ? "block" : "none";
+    if (progressCard) progressCard.style.display = isVisible ? "flex" : "none";
+}
+
+function setSurveyResultVisibility(isVisible) {
+    const resultCard = document.getElementById("survey-result-card");
+    if (resultCard) resultCard.style.display = isVisible ? "block" : "none";
+}
+
+async function createCleanSurveySession(grade) {
+    try {
+        const res = await fetch("/api/student/session", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                student_id: state.studentId,
+                name: "Emma - Phiên khảo sát",
+                grade
+            })
+        });
+        if (!res.ok) {
+            console.warn("[-] Could not create clean survey session. Continuing with local state only.");
+        }
+    } catch (e) {
+        console.warn("[-] Survey session API unavailable. Continuing with offline fallback.", e);
+    }
 }
 
 // Helper mapping UI inputs to Skill ID
 function getSkillIdFromSubjectAndGrade(subject, grade) {
+    const matchingSkills = getSkillsForSubjectGrade(subject, grade);
+    if (matchingSkills.length) return matchingSkills[0];
+
     if (subject === 'Toán') {
         if (grade === 5) return 'MATH_G5';
         return `MATH_G${grade}`;
@@ -169,29 +296,42 @@ function getSkillIdFromSubjectAndGrade(subject, grade) {
     return 'MATH_G7';
 }
 
+function getSkillsForSubjectGrade(subject, grade) {
+    return Object.entries(state.knowledgeGraph || {})
+        .filter(([, info]) => info.subject === subject && Number(info.grade) === Number(grade))
+        .map(([skillId]) => skillId)
+        .sort();
+}
+
+function getRandomSkillForCurrentSelection(excludeSkillId = null) {
+    const skills = getSkillsForSubjectGrade(state.testSession.subject, state.testSession.grade);
+    if (!skills.length) return state.testSession.targetSkill;
+    const pool = skills.length > 1 ? skills.filter(skillId => skillId !== excludeSkillId) : skills;
+    return pool[Math.floor(Math.random() * pool.length)] || skills[0];
+}
+
 // Load a question from backend API or local mock fallback
 async function loadStudentQuestion(skillId) {
+    if (!state.testStarted || state.surveyCompleted) return;
+
     state.selectedOption = null;
+    state.typedAnswer = "";
     document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
     
     try {
-        const res = await fetch(`/api/student/${state.studentId}/next-question?current_skill=${skillId}`);
+        const params = new URLSearchParams({
+            current_skill: skillId,
+            answer_format: state.testSession.stage === "short_answer" ? "short" : "choice"
+        });
+        const res = await fetch(`/api/student/${state.studentId}/next-question?${params.toString()}`);
         if (res.ok) {
             const data = await res.json();
             const question = data.question;
             state.currentQuestion = question;
             state.studentProgress.activeSkill = data.active_skill;
+            state.testSession.currentSkill = data.active_skill;
             
-            // Adjust selectors if skill changed due to diagnostic downshift
-            syncSelectorsToActiveSkill(data.active_skill);
-            
-            // Render UI
-            document.getElementById("current-skill-name").textContent = question.skill_name;
-            document.getElementById("current-question-difficulty").textContent = `Mức độ: ${question.difficulty}`;
-            document.getElementById("question-text").textContent = question.text;
-            
-            // Render Options
-            renderQuestionOptions(question.options);
+            renderCurrentQuestion(question);
             
             // Setup Mascot
             document.getElementById("mascot-comment").textContent = "Hãy đọc kỹ đề bài nhé! Tôi tin bạn làm được!";
@@ -224,16 +364,610 @@ function syncSelectorsToActiveSkill(skillId) {
     }
 }
 
+function getCurrentStageLabel() {
+    const labels = {
+        multiple_choice: "Trắc nghiệm",
+        true_false: "Đúng/Sai",
+        short_answer: "Trả lời ngắn"
+    };
+    return labels[state.testSession.stage] || "Trắc nghiệm";
+}
+
+function getCorrectOption(question) {
+    return question.options.find(opt => opt.key === question.correct_answer) || question.options[0];
+}
+
+function getWrongOptions(question) {
+    return question.options.filter(opt => opt.key !== question.correct_answer);
+}
+
+function getCorrectAnswerText(question) {
+    return getCorrectOption(question)?.text || "";
+}
+
+function buildTrueFalsePrompt(question) {
+    const wrongOptions = getWrongOptions(question);
+    const useCorrect = ((state.testSession.answeredInStage + question.id.length) % 2) === 0 || wrongOptions.length === 0;
+    const statementOption = useCorrect ? getCorrectOption(question) : wrongOptions[(state.testSession.answeredInStage + question.id.length) % wrongOptions.length];
+    question.true_false_answer = useCorrect;
+    question.true_false_option_key = statementOption.key;
+    return `${question.text}\n\nNhận định: Đáp án đúng là "${statementOption.text}".`;
+}
+
+function buildShortAnswerPrompt(question) {
+    return `${question.text}\n\nNhập đáp án ngắn bằng số, cụm từ hoặc kết quả cuối cùng.`;
+}
+
+function renderQuestionVisual(question) {
+    const visualBox = document.getElementById("question-visual-box");
+    if (!visualBox) return;
+
+    const visual = getQuestionVisualMarkup(question);
+    visualBox.innerHTML = visual;
+    visualBox.style.display = visual ? "block" : "none";
+}
+
+function getQuestionVisualMarkup(question) {
+    const skillId = question.visual_hint || question.skill_id || "";
+    const text = `${question.text || ""} ${question.hint || ""}`.toLowerCase();
+
+    if (skillId.startsWith("MATH_G1") && (text.includes("hình") || text.includes("góc"))) {
+        return `
+            <div class="visual-panel">
+                <div class="shape-row">
+                    <span class="shape triangle"></span>
+                    <span class="shape square"></span>
+                    <span class="shape circle"></span>
+                    <span class="shape hexagon"></span>
+                </div>
+                <p>Đếm góc, cạnh hoặc so sánh số lượng trực quan.</p>
+            </div>
+        `;
+    }
+
+    if ((skillId.startsWith("MATH_G4") || skillId.startsWith("MATH_G6")) && (text.includes("số nguyên") || text.includes("giá trị tuyệt đối") || text.includes("trái dấu"))) {
+        return `
+            <div class="visual-panel">
+                <svg viewBox="0 0 520 90" role="img" aria-label="Trục số minh họa">
+                    <line x1="30" y1="45" x2="490" y2="45" stroke="#0f172a" stroke-width="4" />
+                    ${[-20,-15,-10,-5,0,5,10,15,20].map((n, i) => {
+                        const x = 30 + i * 57.5;
+                        const marker = n === 0 ? '#557AFA' : n < 0 ? '#EF5350' : '#4CAF50';
+                        return `<line x1="${x}" y1="32" x2="${x}" y2="58" stroke="#0f172a" stroke-width="2" />
+                            <text x="${x}" y="78" text-anchor="middle" font-family="Poppins" font-size="14" font-weight="700">${n}</text>
+                            <circle cx="${x}" cy="45" r="5" fill="${marker}" stroke="#0f172a" stroke-width="1.5" />`;
+                    }).join("")}
+                </svg>
+                <p>Dùng trục số để kiểm tra dấu và khoảng cách tới 0.</p>
+            </div>
+        `;
+    }
+
+    if ((skillId.startsWith("MATH_G5") || skillId.startsWith("MATH_G7")) && (text.includes("phân số") || text.includes("mẫu") || text.includes("quy đồng"))) {
+        return `
+            <div class="visual-panel">
+                <svg viewBox="0 0 360 150" role="img" aria-label="Minh họa quy đồng phân số">
+                    <rect x="30" y="30" width="120" height="34" rx="6" fill="#FCD075" stroke="#0f172a" stroke-width="3" />
+                    <line x1="90" y1="30" x2="90" y2="64" stroke="#0f172a" stroke-width="2" />
+                    <text x="90" y="92" text-anchor="middle" font-family="Poppins" font-size="16" font-weight="800">1/2 = 3/6</text>
+                    <rect x="210" y="30" width="120" height="34" rx="6" fill="#e8ecff" stroke="#0f172a" stroke-width="3" />
+                    <line x1="250" y1="30" x2="250" y2="64" stroke="#0f172a" stroke-width="2" />
+                    <line x1="290" y1="30" x2="290" y2="64" stroke="#0f172a" stroke-width="2" />
+                    <text x="270" y="92" text-anchor="middle" font-family="Poppins" font-size="16" font-weight="800">2/3 = 4/6</text>
+                    <text x="180" y="128" text-anchor="middle" font-family="Inter" font-size="13" font-weight="700">Quy đồng về cùng mẫu rồi mới cộng/trừ tử số.</text>
+                </svg>
+            </div>
+        `;
+    }
+
+    if (skillId.startsWith("SCI_G1") || text.includes("cây") || text.includes("rễ") || text.includes("lá")) {
+        return `
+            <div class="visual-panel">
+                <svg viewBox="0 0 260 170" role="img" aria-label="Cấu tạo cây">
+                    <line x1="130" y1="70" x2="130" y2="125" stroke="#4CAF50" stroke-width="10" stroke-linecap="round" />
+                    <ellipse cx="95" cy="65" rx="36" ry="20" fill="#8BC34A" stroke="#0f172a" stroke-width="3" transform="rotate(-25 95 65)" />
+                    <ellipse cx="165" cy="62" rx="36" ry="20" fill="#8BC34A" stroke="#0f172a" stroke-width="3" transform="rotate(25 165 62)" />
+                    <path d="M130 124 C105 140 92 150 78 160 M130 124 C130 145 130 154 130 166 M130 124 C155 140 168 150 182 160" fill="none" stroke="#8B5E3C" stroke-width="5" stroke-linecap="round" />
+                    <rect x="30" y="126" width="200" height="12" rx="6" fill="#F9A46B" stroke="#0f172a" stroke-width="2" />
+                    <text x="62" y="38" font-family="Poppins" font-size="13" font-weight="800">Lá</text>
+                    <text x="146" y="108" font-family="Poppins" font-size="13" font-weight="800">Thân</text>
+                    <text x="170" y="158" font-family="Poppins" font-size="13" font-weight="800">Rễ</text>
+                </svg>
+            </div>
+        `;
+    }
+
+    if (skillId.startsWith("SCI_G4") || text.includes("nước") || text.includes("bay hơi") || text.includes("ngưng tụ")) {
+        return `
+            <div class="visual-panel">
+                <svg viewBox="0 0 360 150" role="img" aria-label="Vòng tuần hoàn nước">
+                    <circle cx="62" cy="38" r="22" fill="#FCD075" stroke="#0f172a" stroke-width="3" />
+                    <path d="M55 105 C105 68 155 68 205 105" fill="none" stroke="#557AFA" stroke-width="5" stroke-linecap="round" />
+                    <path d="M225 45 C245 25 285 25 305 45 C325 45 333 70 313 82 L226 82 C205 70 208 48 225 45Z" fill="#e8ecff" stroke="#0f172a" stroke-width="3" />
+                    <path d="M255 88 l-10 22 M278 88 l-10 22 M301 88 l-10 22" stroke="#557AFA" stroke-width="4" stroke-linecap="round" />
+                    <text x="180" y="136" text-anchor="middle" font-family="Inter" font-size="13" font-weight="700">Bay hơi → ngưng tụ → mưa</text>
+                </svg>
+            </div>
+        `;
+    }
+
+    if (skillId.startsWith("SCI_G7") || text.includes("phản xạ") || text.includes("góc tới")) {
+        return `
+            <div class="visual-panel">
+                <svg viewBox="0 0 360 150" role="img" aria-label="Phản xạ ánh sáng">
+                    <line x1="40" y1="118" x2="320" y2="118" stroke="#0f172a" stroke-width="5" />
+                    <line x1="180" y1="25" x2="180" y2="118" stroke="#94a3b8" stroke-width="3" stroke-dasharray="8 6" />
+                    <line x1="65" y1="25" x2="180" y2="118" stroke="#EF5350" stroke-width="5" marker-end="url(#arrow)" />
+                    <line x1="180" y1="118" x2="295" y2="25" stroke="#557AFA" stroke-width="5" marker-end="url(#arrow)" />
+                    <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#0f172a" /></marker></defs>
+                    <text x="98" y="78" font-family="Poppins" font-size="14" font-weight="800">tia tới</text>
+                    <text x="226" y="78" font-family="Poppins" font-size="14" font-weight="800">tia phản xạ</text>
+                </svg>
+            </div>
+        `;
+    }
+
+    if (skillId.includes("_GEO") || text.includes("tam giác") || text.includes("tứ giác") || text.includes("góc")) {
+        return `
+            <div class="visual-panel">
+                <svg viewBox="0 0 320 170" role="img" aria-label="Minh họa hình học">
+                    <polygon points="60,130 160,35 260,130" fill="#e8ecff" stroke="#0f172a" stroke-width="4" />
+                    <path d="M82 130 A25 25 0 0 1 101 112" fill="none" stroke="#EF5350" stroke-width="4" />
+                    <path d="M238 130 A25 25 0 0 0 219 112" fill="none" stroke="#557AFA" stroke-width="4" />
+                    <text x="160" y="28" text-anchor="middle" font-family="Poppins" font-size="15" font-weight="800">A</text>
+                    <text x="48" y="150" font-family="Poppins" font-size="15" font-weight="800">B</text>
+                    <text x="266" y="150" font-family="Poppins" font-size="15" font-weight="800">C</text>
+                    <text x="160" y="154" text-anchor="middle" font-family="Inter" font-size="13" font-weight="700">Tổng góc tam giác = 180°</text>
+                </svg>
+            </div>
+        `;
+    }
+
+    return "";
+}
+
+function renderCurrentQuestion(question) {
+    const stageLabel = getCurrentStageLabel();
+    const stageTarget = state.testSession.stageTargets[state.testSession.stage];
+    const ordinal = state.testSession.answeredInStage + 1;
+    const difficultyText = `Mức độ: ${question.difficulty} | ${stageLabel} ${ordinal}/${stageTarget}`;
+
+    document.getElementById("current-skill-name").textContent = question.skill_name || KNOWLEDGE_GRAPH_LOCAL_NAMES[question.skill_id] || question.skill_id;
+    document.getElementById("current-question-difficulty").textContent = difficultyText;
+
+    const optionsContainer = document.getElementById("options-container");
+    const textInputContainer = document.getElementById("text-input-container");
+    const textInput = document.getElementById("answer-text-input");
+    optionsContainer.replaceChildren();
+    textInputContainer.style.display = "none";
+    if (textInput) textInput.value = "";
+    renderQuestionVisual(question);
+
+    if (state.testSession.stage === "true_false") {
+        document.getElementById("question-text").textContent = buildTrueFalsePrompt(question);
+        renderQuestionOptions([
+            { key: "TRUE", label: "Đ", text: "Đúng" },
+            { key: "FALSE", label: "S", text: "Sai" }
+        ]);
+    } else if (state.testSession.stage === "short_answer") {
+        document.getElementById("question-text").textContent = buildShortAnswerPrompt(question);
+        textInputContainer.style.display = "block";
+        if (textInput) {
+            textInput.focus();
+            textInput.placeholder = "Nhập đáp án, ví dụ: -1/6, 1.25, <, >, =";
+            textInput.oninput = handleShortAnswerInput;
+            textInput.onkeypress = (e) => {
+                if (e.key === "Enter" && state.selectedOption && !state.isSubmitting) submitAnswer();
+            };
+        }
+    } else {
+        document.getElementById("question-text").textContent = question.text;
+        renderQuestionOptions(question.options);
+    }
+
+    updateTestStageUI();
+}
+
+function handleShortAnswerInput(e) {
+    state.typedAnswer = e.target.value;
+    state.selectedOption = state.typedAnswer.trim() ? "__SHORT_ANSWER__" : null;
+    const submitBtn = document.getElementById("btn-submit-answer");
+    if (state.selectedOption) {
+        submitBtn.removeAttribute("disabled");
+    } else {
+        submitBtn.setAttribute("disabled", "true");
+    }
+}
+
+function normalizeAnswer(value) {
+    return String(value ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .replaceAll(",", ".")
+        .replace(/[()]/g, "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+}
+
+function compactAnswer(value) {
+    return normalizeAnswer(value).replace(/[^a-z0-9./:=+\-*<>]/g, "");
+}
+
+function parseNumericAnswer(value) {
+    const normalized = compactAnswer(value);
+    if (!normalized) return null;
+
+    const fractionMatch = normalized.match(/^(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/);
+    if (fractionMatch) {
+        const numerator = Number(fractionMatch[1]);
+        const denominator = Number(fractionMatch[2]);
+        if (Number.isFinite(numerator) && Number.isFinite(denominator) && denominator !== 0) {
+            return numerator / denominator;
+        }
+    }
+
+    const percentMatch = normalized.match(/^(-?\d+(?:\.\d+)?)%$/);
+    if (percentMatch) {
+        return Number(percentMatch[1]) / 100;
+    }
+
+    const simpleNumber = normalized.match(/^-?\d+(?:\.\d+)?$/);
+    if (simpleNumber) return Number(normalized);
+
+    return null;
+}
+
+function isShortAnswerCompatibleText(value) {
+    const raw = String(value ?? "").trim();
+    const compact = compactAnswer(raw);
+    if (!compact) return false;
+    if (/^[<>=]+$/.test(compact)) return true;
+    if (/\b(hoac|va|ngay|tebao|hinh|ngon|phim)\b/i.test(compact) || compact.includes(",")) return false;
+    const numericTokens = compact.match(/-?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?/g) || [];
+    if (numericTokens.length !== 1) return false;
+    if (/^-?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?%?$/i.test(compact)) return true;
+    return false;
+}
+
+function answerTextMatches(inputValue, optionText) {
+    if (!isShortAnswerCompatibleText(optionText)) return false;
+    const input = normalizeAnswer(inputValue);
+    const option = normalizeAnswer(optionText);
+    const compactInput = compactAnswer(inputValue);
+    const compactOption = compactAnswer(optionText);
+    if (!input || !option) return false;
+    if (input === option || compactInput === compactOption) return true;
+
+    const inputNumber = parseNumericAnswer(inputValue);
+    const optionNumber = parseNumericAnswer(optionText);
+    if (inputNumber !== null && optionNumber !== null && Math.abs(inputNumber - optionNumber) < 1e-9) {
+        return true;
+    }
+
+    return false;
+}
+
+function findOptionByShortAnswer(question, typedAnswer) {
+    const answer = String(typedAnswer ?? "").trim();
+    if (!answer) return null;
+
+    return question.options.find(opt => isShortAnswerCompatibleText(opt.text) && answerTextMatches(answer, opt.text)) || null;
+}
+
+function buildShortAnswerFeedback(isCorrect) {
+    if (isCorrect) return "Tuyệt vời! Đáp án ngắn của bạn khớp với kết quả đúng.";
+    const hint = state.currentQuestion?.hint || "Hãy kiểm tra lại kết quả cuối cùng và cách viết đáp án.";
+    return `Chưa khớp rồi. Gợi ý: ${hint}`;
+}
+
+function resolveSubmissionOption() {
+    const question = state.currentQuestion;
+    if (!question) return state.selectedOption;
+
+    if (state.testSession.stage === "true_false") {
+        const pickedTrue = state.selectedOption === "TRUE";
+        if (pickedTrue === question.true_false_answer) return question.correct_answer;
+        return question.true_false_option_key === question.correct_answer
+            ? (getWrongOptions(question)[0]?.key || question.correct_answer)
+            : question.true_false_option_key;
+    }
+
+    if (state.testSession.stage === "short_answer") {
+        const matchedOption = findOptionByShortAnswer(question, state.typedAnswer);
+        return matchedOption?.key || getWrongOptions(question)[0]?.key || "__WRONG__";
+    }
+
+    return state.selectedOption;
+}
+
+function updateTestStageUI() {
+    const stageOrder = ["multiple_choice", "true_false", "short_answer"];
+    document.querySelectorAll(".test-stage-pill").forEach(pill => {
+        const stage = pill.getAttribute("data-stage");
+        const stageIndex = stageOrder.indexOf(stage);
+        pill.classList.toggle("active", stage === state.testSession.stage);
+        pill.classList.toggle("completed", stageIndex < state.testSession.stageIndex);
+    });
+}
+
+function advanceQuestionFormatIfNeeded() {
+    const stageOrder = ["multiple_choice", "true_false", "short_answer"];
+    state.testSession.answeredInStage += 1;
+    state.testSession.totalAnswered += 1;
+    const currentTarget = state.testSession.stageTargets[state.testSession.stage];
+    const totalTarget = getSurveyTotalTarget();
+    if (state.testSession.totalAnswered >= totalTarget) {
+        updateTestStageUI();
+        return {
+            completed: true,
+            message: "Đã hoàn thành bài khảo sát. AI đang tổng hợp kết quả và lộ trình học."
+        };
+    }
+
+    if (state.testSession.answeredInStage < currentTarget) return null;
+
+    if (state.testSession.stageIndex < stageOrder.length - 1) {
+        state.testSession.stageIndex += 1;
+        state.testSession.stage = stageOrder[state.testSession.stageIndex];
+        state.testSession.answeredInStage = 0;
+        updateTestStageUI();
+        return {
+            completed: false,
+            message: `Chuyển sang phần ${getCurrentStageLabel()}. Độ khó vẫn được điều chỉnh như phần trước.`
+        };
+    }
+
+    state.testSession.answeredInStage = Math.max(currentTarget - 1, 0);
+    return null;
+}
+
+function getSurveyTotalTarget() {
+    return Object.values(state.testSession.stageTargets).reduce((sum, count) => sum + count, 0);
+}
+
+function recordSurveyAttempt(isCorrect, submittedOption) {
+    const question = state.currentQuestion;
+    if (!question) return;
+
+    state.testSession.attempts.push({
+        questionId: question.id,
+        questionText: question.text,
+        stage: state.testSession.stage,
+        skillId: question.skill_id,
+        skillName: question.skill_name || KNOWLEDGE_GRAPH_LOCAL_NAMES[question.skill_id] || question.skill_id,
+        difficulty: question.difficulty,
+        difficultyLevel: question.difficulty_level || 2,
+        isCorrect,
+        submittedOption,
+        typedAnswer: state.typedAnswer,
+        correctAnswerText: getCorrectAnswerText(question)
+    });
+}
+
+function completeSurvey() {
+    state.surveyCompleted = true;
+    state.testStarted = false;
+    state.isSubmitting = false;
+    setQuestionVisibility(false);
+    setSurveyResultVisibility(true);
+    const banner = document.getElementById("diagnostic-banner");
+    if (banner) banner.style.display = "none";
+    renderSurveyResult();
+}
+
+function groupAttemptsBySkill() {
+    return state.testSession.attempts.reduce((groups, attempt) => {
+        if (!groups[attempt.skillId]) {
+            groups[attempt.skillId] = {
+                skillId: attempt.skillId,
+                skillName: attempt.skillName,
+                total: 0,
+                wrong: 0,
+                attempts: []
+            };
+        }
+        groups[attempt.skillId].total += 1;
+        if (!attempt.isCorrect) groups[attempt.skillId].wrong += 1;
+        groups[attempt.skillId].attempts.push(attempt);
+        return groups;
+    }, {});
+}
+
+function getStageStats() {
+    const labels = {
+        multiple_choice: "Trắc nghiệm",
+        true_false: "Đúng/Sai",
+        short_answer: "Trả lời ngắn"
+    };
+    return Object.entries(state.testSession.stageTargets).map(([stage, target]) => {
+        const attempts = state.testSession.attempts.filter(item => item.stage === stage);
+        const correct = attempts.filter(item => item.isCorrect).length;
+        return {
+            stage,
+            label: labels[stage],
+            total: target,
+            attempted: attempts.length,
+            correct
+        };
+    });
+}
+
+function chooseRootGap(skillGroups) {
+    const gapCandidates = Object.values(skillGroups)
+        .filter(group => group.wrong > 0)
+        .sort((a, b) => {
+            const gradeA = state.knowledgeGraph[a.skillId]?.grade || state.testSession.grade;
+            const gradeB = state.knowledgeGraph[b.skillId]?.grade || state.testSession.grade;
+            if (gradeA !== gradeB) return gradeA - gradeB;
+            return (b.wrong / b.total) - (a.wrong / a.total);
+        });
+
+    if (gapCandidates.length) return gapCandidates[0];
+
+    const targetSkill = state.testSession.targetSkill;
+    return {
+        skillId: targetSkill,
+        skillName: state.knowledgeGraph[targetSkill]?.name || targetSkill,
+        total: 0,
+        wrong: 0,
+        attempts: []
+    };
+}
+
+function buildLearningPathFromRoot(rootSkillId) {
+    const graph = state.knowledgeGraph || {};
+    const targetSkill = state.testSession.targetSkill;
+    if (!graph[rootSkillId] || !graph[targetSkill]) {
+        return [rootSkillId, targetSkill].filter(Boolean);
+    }
+
+    const queue = [[rootSkillId]];
+    const seen = new Set([rootSkillId]);
+    while (queue.length) {
+        const path = queue.shift();
+        const current = path[path.length - 1];
+        if (current === targetSkill) return path;
+
+        const nextSkills = Object.entries(graph)
+            .filter(([, info]) => (info.prerequisites || []).includes(current))
+            .map(([id]) => id);
+
+        for (const next of nextSkills) {
+            if (!seen.has(next)) {
+                seen.add(next);
+                queue.push([...path, next]);
+            }
+        }
+    }
+
+    return rootSkillId === targetSkill ? [targetSkill] : [rootSkillId, targetSkill];
+}
+
+function getNextSkillTowardTarget(currentSkillId) {
+    const targetSkill = state.testSession.targetSkill;
+    if (!currentSkillId || currentSkillId === targetSkill) return targetSkill;
+
+    const path = buildLearningPathFromRoot(currentSkillId);
+    const currentIndex = path.indexOf(currentSkillId);
+    if (currentIndex >= 0 && currentIndex < path.length - 1) {
+        return path[currentIndex + 1];
+    }
+
+    return targetSkill;
+}
+
+function chooseNextSkillAfterSubmit(result, isCorrect) {
+    const currentSkill = state.currentQuestion?.skill_id || state.testSession.currentSkill || state.testSession.targetSkill;
+    if (isCorrect) return getRandomSkillForCurrentSelection(currentSkill);
+    return result?.next_recommended_skill || currentSkill;
+}
+
+function generateSurveyAnalysis() {
+    const attempts = state.testSession.attempts;
+    const correct = attempts.filter(item => item.isCorrect).length;
+    const total = getSurveyTotalTarget();
+    const score = Math.round((correct / total) * 100);
+    const skillGroups = groupAttemptsBySkill();
+    const rootGap = chooseRootGap(skillGroups);
+    const pathSkillIds = buildLearningPathFromRoot(rootGap.skillId);
+    const weakGroups = Object.values(skillGroups)
+        .filter(group => group.wrong > 0)
+        .sort((a, b) => (b.wrong / b.total) - (a.wrong / a.total))
+        .slice(0, 4);
+
+    let level = "Cần củng cố nền tảng";
+    if (score >= 85) level = "Vững kiến thức lớp hiện tại";
+    else if (score >= 65) level = "Đạt mức cơ bản, cần vá vài điểm hổng";
+
+    return {
+        correct,
+        total,
+        score,
+        level,
+        weakGroups,
+        stageStats: getStageStats(),
+        rootGap,
+        pathSkillIds
+    };
+}
+
+function renderSurveyResult() {
+    const resultCard = document.getElementById("survey-result-card");
+    if (!resultCard) return;
+
+    const analysis = generateSurveyAnalysis();
+    const pathHtml = analysis.pathSkillIds.map((skillId, index) => {
+        const info = state.knowledgeGraph[skillId] || {};
+        const name = info.name || KNOWLEDGE_GRAPH_LOCAL_NAMES[skillId] || skillId;
+        const grade = info.grade ? `Lớp ${info.grade}` : "Kỹ năng";
+        const status = index === 0 ? "Gốc cần vá" : index === analysis.pathSkillIds.length - 1 ? "Mục tiêu hiện tại" : "Cầu nối";
+        return `
+            <div class="learning-step">
+                <span class="learning-step-index">${index + 1}</span>
+                <div>
+                    <strong>${escapeHTML(name)}</strong>
+                    <p>${escapeHTML(grade)} · ${status}</p>
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    const weakHtml = analysis.weakGroups.length
+        ? analysis.weakGroups.map(group => `
+            <li><strong>${escapeHTML(group.skillName)}</strong>: sai ${group.wrong}/${group.total} câu, cần luyện lại bằng ví dụ trực quan trước khi làm bài tổng hợp.</li>
+        `).join("")
+        : `<li>Không phát hiện điểm hổng rõ rệt trong phiên này. Có thể chuyển sang luyện vận dụng nâng cao của ${escapeHTML(state.testSession.subject)} lớp ${state.testSession.grade}.</li>`;
+
+    const stageHtml = analysis.stageStats.map(stat => `
+        <div class="survey-stat">
+            <span>${escapeHTML(stat.label)}</span>
+            <strong>${stat.correct}/${stat.total}</strong>
+        </div>
+    `).join("");
+
+    resultCard.innerHTML = `
+        <div class="survey-result-header">
+            <div>
+                <span class="badge badge-skill"><i class="fa-solid fa-wand-magic-sparkles"></i> AI phân tích khảo sát</span>
+                <h3>Kết quả ${escapeHTML(state.testSession.subject)} lớp ${state.testSession.grade}</h3>
+                <p>Hoàn thành ${analysis.total} câu: 12 trắc nghiệm, 4 đúng/sai, 6 trả lời ngắn.</p>
+            </div>
+            <div class="survey-score">
+                <strong>${analysis.score}</strong>
+                <span>/100</span>
+            </div>
+        </div>
+        <div class="survey-stats-grid">${stageHtml}</div>
+        <div class="survey-ai-summary">
+            <h4><i class="fa-solid fa-magnifying-glass-chart"></i> Nhận định</h4>
+            <p>${escapeHTML(analysis.level)}. Gốc cần kiểm tra trước tiên là <strong>${escapeHTML(analysis.rootGap.skillName)}</strong>.</p>
+            <h4><i class="fa-solid fa-triangle-exclamation"></i> Điểm yếu còn thiếu</h4>
+            <ul>${weakHtml}</ul>
+            <h4><i class="fa-solid fa-route"></i> Lộ trình học giả định</h4>
+            <div class="learning-path-list">${pathHtml}</div>
+        </div>
+        <button id="btn-retake-survey" class="btn btn-primary-memphis btn-retake-survey"><i class="fa-solid fa-rotate-right"></i> Làm lại khảo sát</button>
+    `;
+
+    const retakeBtn = document.getElementById("btn-retake-survey");
+    if (retakeBtn) retakeBtn.addEventListener("click", startAdaptiveTest);
+    document.getElementById("mascot-comment").textContent = "AI đã tổng hợp xong kết quả khảo sát và lộ trình học gợi ý.";
+}
+
 // Render Multiple Choice Buttons
 function renderQuestionOptions(options) {
     const optionsContainer = document.getElementById("options-container");
-    optionsContainer.innerHTML = "";
+    optionsContainer.replaceChildren();
     
     options.forEach(opt => {
         const optBtn = document.createElement("button");
         optBtn.className = "option-btn";
         optBtn.setAttribute("data-val", opt.key);
-        optBtn.innerHTML = `<span class="option-letter">${opt.key}</span> ${opt.text}`;
+        const letter = document.createElement("span");
+        letter.className = "option-letter";
+        letter.textContent = opt.label || opt.key;
+        optBtn.append(letter, document.createTextNode(` ${opt.text}`));
         
         optBtn.addEventListener("click", () => {
             if (state.isSubmitting) return;
@@ -254,8 +988,9 @@ function renderQuestionOptions(options) {
 async function submitAnswer() {
     state.isSubmitting = true;
     document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
+    const submittedOption = resolveSubmissionOption();
     
-    showLoadingOverlay("AI đang chấm điểm bài làm...");
+    showLoadingOverlay("Đang chấm điểm và cập nhật chẩn đoán...");
     
     // 1. Submit through backend API
     try {
@@ -264,7 +999,7 @@ async function submitAnswer() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 question_id: state.currentQuestion.id,
-                selected_option: state.selectedOption
+                selected_option: submittedOption
             })
         });
         
@@ -272,13 +1007,18 @@ async function submitAnswer() {
             hideLoadingOverlay();
             const result = await res.json();
             const isCorrect = result.is_correct;
+            const isShortAnswer = state.testSession.stage === "short_answer";
+            const isMultipleChoice = state.testSession.stage === "multiple_choice";
             
             const optionsContainer = document.getElementById("options-container");
             const selectedBtn = optionsContainer.querySelector(`.option-btn[data-val="${state.selectedOption}"]`);
+            recordSurveyAttempt(isCorrect, submittedOption);
+            const stageMessage = advanceQuestionFormatIfNeeded();
+            const nextSkill = chooseNextSkillAfterSubmit(result, isCorrect);
             
             if (isCorrect) {
                 if (selectedBtn) selectedBtn.classList.add("correct-feedback");
-                document.getElementById("mascot-comment").textContent = "Tuyệt vời! Bạn đã làm hoàn toàn chính xác!";
+                document.getElementById("mascot-comment").textContent = isShortAnswer ? buildShortAnswerFeedback(true) : "Tuyệt vời! Bạn đã làm hoàn toàn chính xác!";
                 showToast("Chúc mừng! Bạn đã trả lời đúng!");
                 
                 // Streak & Rewards update
@@ -294,7 +1034,12 @@ async function submitAnswer() {
                 
                 setTimeout(() => {
                     state.isSubmitting = false;
-                    loadStudentQuestion(result.next_recommended_skill);
+                    if (stageMessage?.message) showToast(stageMessage.message);
+                    if (stageMessage?.completed) {
+                        completeSurvey();
+                        return;
+                    }
+                    loadStudentQuestion(nextSkill);
                 }, 2000);
             } else {
                 if (selectedBtn) selectedBtn.classList.add("error-feedback");
@@ -302,27 +1047,34 @@ async function submitAnswer() {
                 updateStudentRewardsUI();
                 
                 // Distractor Socratic feedback
-                let socraticText = "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem sao?";
+                let socraticText = isShortAnswer ? buildShortAnswerFeedback(false) : "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem sao?";
                 if (state.currentQuestion.hint) {
-                    socraticText = `Gợi ý: ${state.currentQuestion.hint}`;
+                    socraticText = isShortAnswer ? buildShortAnswerFeedback(false) : `Gợi ý: ${state.currentQuestion.hint}`;
                 }
                 document.getElementById("mascot-comment").textContent = socraticText;
-                showToast("Chưa chính xác. AI đang hỗ trợ chẩn đoán...");
+                showToast("Chưa chính xác. Hệ thống đang cập nhật chẩn đoán...");
                 
                 // Show distractor explanation
                 const distractorBox = document.getElementById("distractor-feedback-box");
                 const distractorText = document.getElementById("distractor-feedback-text");
                 if (distractorBox && distractorText) {
-                    const expl = (result && result.distractor_explanation) || (state.currentQuestion.distractor_explanations && state.currentQuestion.distractor_explanations[state.selectedOption]);
+                    const expl = isMultipleChoice ? ((result && result.distractor_explanation) || (state.currentQuestion.distractor_explanations && state.currentQuestion.distractor_explanations[state.selectedOption])) : null;
                     if (expl) {
                         distractorText.textContent = expl;
                         distractorBox.style.display = "block";
+                    } else {
+                        distractorBox.style.display = "none";
                     }
                 }
                 
                 setTimeout(() => {
                     state.isSubmitting = false;
-                    loadStudentQuestion(result.next_recommended_skill);
+                    if (stageMessage?.message) showToast(stageMessage.message);
+                    if (stageMessage?.completed) {
+                        completeSurvey();
+                        return;
+                    }
+                    loadStudentQuestion(nextSkill);
                 }, 4000);
             }
             return;
@@ -428,9 +1180,9 @@ function renderPersonalPath() {
     // Render nodes
     nodes.forEach(n => {
         svgHtml += `
-            <g class="web-node" style="cursor: pointer;" onclick="showToast('${n.fullName}')">
+            <g class="web-node" style="cursor: pointer;" data-full-name="${escapeHTML(n.fullName)}">
                 <circle cx="${n.x}" cy="${n.y}" r="22" fill="${n.color}" stroke="#000000" stroke-width="2.5" />
-                <text x="${n.x}" y="${n.y + 4}" font-family="Poppins" font-size="7.5" font-weight="700" text-anchor="middle" fill="#000000">${n.label}</text>
+                <text x="${n.x}" y="${n.y + 4}" font-family="Poppins" font-size="7.5" font-weight="700" text-anchor="middle" fill="#000000">${escapeHTML(n.label)}</text>
             </g>
         `;
     });
@@ -446,6 +1198,9 @@ function renderPersonalPath() {
     `;
     
     flowContainer.innerHTML = `<div style="display: flex; flex-direction: column; align-items: center; width: 100%;">${svgHtml}${legendHtml}</div>`;
+    flowContainer.querySelectorAll(".web-node").forEach(node => {
+        node.addEventListener("click", () => showToast(node.getAttribute("data-full-name")));
+    });
 }
 
 // Render Teacher Dashboard using real API data
@@ -640,15 +1395,14 @@ const OFFLINE_MOCK_QUESTIONS = {
 };
 
 function loadOfflineMockQuestion(skillId) {
+    if (!state.testStarted) return;
+
     const question = OFFLINE_MOCK_QUESTIONS[skillId] || OFFLINE_MOCK_QUESTIONS["MATH_G7"];
     state.currentQuestion = question;
     state.selectedOption = null;
+    state.typedAnswer = "";
     
-    document.getElementById("current-skill-name").textContent = KNOWLEDGE_GRAPH_LOCAL_NAMES[question.skill_id] || question.skill_id;
-    document.getElementById("current-question-difficulty").textContent = `Mức độ: ${question.difficulty}`;
-    document.getElementById("question-text").textContent = question.text;
-    
-    renderQuestionOptions(question.options);
+    renderCurrentQuestion(question);
     
     document.getElementById("hint-content-box").style.display = "none";
     document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
@@ -659,42 +1413,49 @@ function loadOfflineMockQuestion(skillId) {
 
 function submitAnswerOffline() {
     hideLoadingOverlay();
-    const isCorrect = state.selectedOption === state.currentQuestion.correct_answer;
+    const submittedOption = resolveSubmissionOption();
+    const isCorrect = submittedOption === state.currentQuestion.correct_answer;
+    const isShortAnswer = state.testSession.stage === "short_answer";
+    const isMultipleChoice = state.testSession.stage === "multiple_choice";
     const optionsContainer = document.getElementById("options-container");
     const selectedBtn = optionsContainer.querySelector(`.option-btn[data-val="${state.selectedOption}"]`);
     
     const banner = document.getElementById("diagnostic-banner");
+    recordSurveyAttempt(isCorrect, submittedOption);
+    const stageMessage = advanceQuestionFormatIfNeeded();
     
     if (isCorrect) {
         if (selectedBtn) selectedBtn.classList.add("correct-feedback");
-        document.getElementById("mascot-comment").textContent = "Tuyệt vời! Bạn đã làm hoàn toàn chính xác!";
+        document.getElementById("mascot-comment").textContent = isShortAnswer ? buildShortAnswerFeedback(true) : "Tuyệt vời! Bạn đã làm hoàn toàn chính xác!";
         showToast("[MOCK] Trả lời đúng!");
         
         setTimeout(() => {
-            // Shift up logic mock
-            if (state.studentProgress.activeSkill === 'MATH_G5_LCM') {
-                state.studentProgress.activeSkill = 'MATH_G5';
-            } else if (state.studentProgress.activeSkill === 'MATH_G5') {
-                state.studentProgress.activeSkill = 'MATH_G7';
-                if (banner) banner.style.display = "none";
-            }
+            state.studentProgress.activeSkill = getNextSkillTowardTarget(state.currentQuestion.skill_id);
+            if (state.studentProgress.activeSkill === state.testSession.targetSkill && banner) banner.style.display = "none";
             state.isSubmitting = false;
+            if (stageMessage?.message) showToast(stageMessage.message);
+            if (stageMessage?.completed) {
+                completeSurvey();
+                return;
+            }
             loadStudentQuestion(state.studentProgress.activeSkill);
         }, 2000);
     } else {
         if (selectedBtn) selectedBtn.classList.add("error-feedback");
-        document.getElementById("mascot-comment").textContent = "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem?";
+        document.getElementById("mascot-comment").textContent = isShortAnswer ? buildShortAnswerFeedback(false) : "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem?";
         showToast("[MOCK] Chưa chính xác!");
         
         // Show distractor explanation
         const distractorBox = document.getElementById("distractor-feedback-box");
         const distractorText = document.getElementById("distractor-feedback-text");
-        if (distractorBox && distractorText && state.currentQuestion.distractor_explanations) {
+        if (distractorBox && distractorText && state.currentQuestion.distractor_explanations && isMultipleChoice) {
             const expl = state.currentQuestion.distractor_explanations[state.selectedOption];
             if (expl) {
                 distractorText.textContent = expl;
                 distractorBox.style.display = "block";
             }
+        } else if (distractorBox) {
+            distractorBox.style.display = "none";
         }
         
         setTimeout(() => {
@@ -706,6 +1467,11 @@ function submitAnswerOffline() {
                 state.studentProgress.activeSkill = 'MATH_G5_LCM';
             }
             state.isSubmitting = false;
+            if (stageMessage?.message) showToast(stageMessage.message);
+            if (stageMessage?.completed) {
+                completeSurvey();
+                return;
+            }
             loadStudentQuestion(state.studentProgress.activeSkill);
         }, 4000);
     }
@@ -828,7 +1594,7 @@ function initAITutorChat() {
         const userBubble = document.createElement("div");
         userBubble.className = "chat-bubble user-bubble";
         userBubble.innerHTML = `
-            <div class="bubble-content"><p>${msg}</p></div>
+            <div class="bubble-content"><p>${escapeHTML(msg)}</p></div>
             <div class="bubble-avatar"><i class="fa-solid fa-user-ninja"></i></div>
         `;
         chatHistory.appendChild(userBubble);
@@ -840,7 +1606,7 @@ function initAITutorChat() {
             const robotBubble = document.createElement("div");
             robotBubble.className = "chat-bubble robot-bubble";
             
-            let replyText = "Tôi là Gia sư AI. Đang phân tích câu hỏi của bạn...";
+            let replyText = "Tôi là trợ lý học tập VGap. Đang phân tích câu hỏi của bạn...";
             if (msg.toLowerCase().includes("bcnn")) {
                 replyText = "Bội chung nhỏ nhất (BCNN) của hai số là số tự nhiên nhỏ nhất khác 0 chia hết cho cả hai số đó. Ví dụ: BCNN(6, 8) = 24.";
             } else if (msg.toLowerCase().includes("quy đồng")) {
@@ -851,7 +1617,7 @@ function initAITutorChat() {
             
             robotBubble.innerHTML = `
                 <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
-                <div class="bubble-content"><p>${replyText}</p></div>
+                <div class="bubble-content"><p>${escapeHTML(replyText)}</p></div>
             `;
             chatHistory.appendChild(robotBubble);
             chatHistory.scrollTop = chatHistory.scrollHeight;
@@ -868,6 +1634,12 @@ function initAITutorChat() {
     document.querySelectorAll(".quick-pill-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             sendUserMessage(btn.getAttribute("data-prompt") || btn.textContent);
+        });
+    });
+
+    document.querySelectorAll(".demo-action-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            showToast(btn.getAttribute("data-message") || "Đã ghi nhận thao tác.");
         });
     });
 }
@@ -926,11 +1698,11 @@ function initStudentMascotChat() {
         chatHistory.scrollTop = chatHistory.scrollHeight;
 
         chatInput.value = "";
-        commentPara.textContent = "Robot AI đang suy nghĩ...";
+        commentPara.textContent = "Trợ lý đang suy nghĩ...";
 
         // Simulate AI response delay
         setTimeout(() => {
-            let reply = "Tôi là trợ lý AI Socratic. Bạn hãy thử làm tiếp và hỏi tôi nếu có bước nào chưa rõ nhé!";
+            let reply = "Tôi là trợ lý Socratic của VGap. Bạn hãy thử làm tiếp và hỏi tôi nếu có bước nào chưa rõ nhé!";
             const activeSkill = state.studentProgress.activeSkill;
             const textL = text.toLowerCase();
 
@@ -998,7 +1770,7 @@ function initPortalNavigation() {
             studentRewards.style.display = "none";
             teacherTitleWrapper.style.display = "block";
             userDisplayName.textContent = "Thầy Hùng (GV Toán)";
-            btnTogglePortal.innerHTML = `<i class="fa-solid fa-graduation-cap"></i> Học sinh`;
+            setButtonIconLabel(btnTogglePortal, "fa-solid fa-graduation-cap", "Học sinh");
             renderTeacherDashboard();
         } else {
             state.currentPortal = 'student';
@@ -1008,7 +1780,7 @@ function initPortalNavigation() {
             studentRewards.style.display = "flex";
             teacherTitleWrapper.style.display = "none";
             userDisplayName.textContent = "Emma (Lớp 7A)";
-            btnTogglePortal.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> Chuyển Bảng`;
+            setButtonIconLabel(btnTogglePortal, "fa-solid fa-arrows-rotate", "Chuyển Bảng");
         }
     });
     
@@ -1288,9 +2060,8 @@ function generateAILessonPlan(skillName) {
                 ${exercises}
             </ol>
             
-            <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
-                <button class="btn btn-primary-memphis btn-sm" onclick="alert('Đã tải giáo án PDF về máy!')"><i class="fa-solid fa-file-pdf"></i> Tải giáo án PDF</button>
-                <button class="btn btn-secondary btn-sm" onclick="alert('Đã xuất bản giáo án lên hệ thống lớp học!')"><i class="fa-solid fa-cloud-arrow-up"></i> Xuất bản lên lớp học</button>
+            <div style="margin-top: 1.5rem; background: var(--primary-light); border: 2px solid #000; padding: 0.9rem; border-radius: 12px; font-weight: 600;">
+                Gợi ý này được sinh từ nhóm lỗ hổng hiện tại và có thể dùng ngay làm khung kèm cặp 15 phút trên lớp.
             </div>
         </div>
     `;
@@ -1510,5 +2281,5 @@ function resetToolboxForNewQuestion() {
     const sliderContainer = document.getElementById("fraction-slider-container");
     if (sliderContainer) sliderContainer.style.display = "none";
     const hintTextPara = document.getElementById("hint-text");
-    if (hintTextPara) hintTextPara.textContent = "Vui lòng bấm nút Gợi ý từ AI ở bên cạnh bài tập để nhận trợ giúp trực quan.";
+    if (hintTextPara) hintTextPara.textContent = "Vui lòng bấm nút Gợi ý ở bên cạnh bài tập để nhận trợ giúp trực quan.";
 }

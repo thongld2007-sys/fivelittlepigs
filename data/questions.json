@@ -588,6 +588,90 @@
     "visual_hint": "MATH_G6"
   },
   {
+    "id": "q_math_g6_geo_1",
+    "skill_id": "MATH_G6_GEO",
+    "difficulty_level": 1,
+    "difficulty": "Dễ",
+    "text": "Một góc vuông có số đo bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "45"
+      },
+      {
+        "key": "B",
+        "text": "60"
+      },
+      {
+        "key": "C",
+        "text": "90"
+      },
+      {
+        "key": "D",
+        "text": "180"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Góc vuông luôn có số đo 90 độ.",
+    "visual_hint": "MATH_G6_GEO"
+  },
+  {
+    "id": "q_math_g6_geo_2",
+    "skill_id": "MATH_G6_GEO",
+    "difficulty_level": 2,
+    "difficulty": "Vừa",
+    "text": "Hai góc kề bù có tổng số đo bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "90"
+      },
+      {
+        "key": "B",
+        "text": "120"
+      },
+      {
+        "key": "C",
+        "text": "180"
+      },
+      {
+        "key": "D",
+        "text": "360"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Hai góc kề bù tạo thành một góc bẹt nên tổng số đo bằng 180 độ.",
+    "visual_hint": "MATH_G6_GEO"
+  },
+  {
+    "id": "q_math_g6_geo_3",
+    "skill_id": "MATH_G6_GEO",
+    "difficulty_level": 3,
+    "difficulty": "Khó",
+    "text": "Cho hai góc kề bù, một góc bằng 65 độ. Góc còn lại bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "25"
+      },
+      {
+        "key": "B",
+        "text": "65"
+      },
+      {
+        "key": "C",
+        "text": "115"
+      },
+      {
+        "key": "D",
+        "text": "125"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Hai góc kề bù có tổng 180 độ, nên góc còn lại là 180 - 65 = 115 độ.",
+    "visual_hint": "MATH_G6_GEO"
+  },
+  {
     "id": "q_math_g7_1",
     "skill_id": "MATH_G7",
     "difficulty_level": 1,
@@ -670,6 +754,90 @@
     "correct_answer": "D",
     "hint": "Nhóm các số hạng: A = [(-3/4) + 3/4] + [(5/6) - 1/6] - 1/2 = 0 + 4/6 - 1/2 = 2/3 - 1/2 = 4/6 - 3/6 = 1/6.",
     "visual_hint": "MATH_G7"
+  },
+  {
+    "id": "q_math_g7_geo_1",
+    "skill_id": "MATH_G7_GEO",
+    "difficulty_level": 1,
+    "difficulty": "Dễ",
+    "text": "Tổng ba góc trong một tam giác bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "90"
+      },
+      {
+        "key": "B",
+        "text": "120"
+      },
+      {
+        "key": "C",
+        "text": "180"
+      },
+      {
+        "key": "D",
+        "text": "360"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Tổng ba góc trong mọi tam giác luôn bằng 180 độ.",
+    "visual_hint": "MATH_G7_GEO"
+  },
+  {
+    "id": "q_math_g7_geo_2",
+    "skill_id": "MATH_G7_GEO",
+    "difficulty_level": 2,
+    "difficulty": "Vừa",
+    "text": "Một tam giác có hai góc lần lượt là 50 độ và 60 độ. Góc còn lại bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "60"
+      },
+      {
+        "key": "B",
+        "text": "70"
+      },
+      {
+        "key": "C",
+        "text": "80"
+      },
+      {
+        "key": "D",
+        "text": "90"
+      }
+    ],
+    "correct_answer": "B",
+    "hint": "Góc còn lại bằng 180 - 50 - 60 = 70 độ.",
+    "visual_hint": "MATH_G7_GEO"
+  },
+  {
+    "id": "q_math_g7_geo_3",
+    "skill_id": "MATH_G7_GEO",
+    "difficulty_level": 3,
+    "difficulty": "Khó",
+    "text": "Tam giác cân có góc ở đỉnh bằng 40 độ. Mỗi góc ở đáy bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "40"
+      },
+      {
+        "key": "B",
+        "text": "60"
+      },
+      {
+        "key": "C",
+        "text": "70"
+      },
+      {
+        "key": "D",
+        "text": "80"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Hai góc ở đáy tam giác cân bằng nhau. Mỗi góc là (180 - 40) / 2 = 70 độ.",
+    "visual_hint": "MATH_G7_GEO"
   },
   {
     "id": "q_math_g8_1",
@@ -756,6 +924,90 @@
     "visual_hint": "MATH_G8"
   },
   {
+    "id": "q_math_g8_geo_1",
+    "skill_id": "MATH_G8_GEO",
+    "difficulty_level": 1,
+    "difficulty": "Dễ",
+    "text": "Tổng các góc trong một tứ giác bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "180"
+      },
+      {
+        "key": "B",
+        "text": "270"
+      },
+      {
+        "key": "C",
+        "text": "360"
+      },
+      {
+        "key": "D",
+        "text": "540"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Tổng bốn góc trong mọi tứ giác bằng 360 độ.",
+    "visual_hint": "MATH_G8_GEO"
+  },
+  {
+    "id": "q_math_g8_geo_2",
+    "skill_id": "MATH_G8_GEO",
+    "difficulty_level": 2,
+    "difficulty": "Vừa",
+    "text": "Hình bình hành có hai góc kề nhau là 65 độ và bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "65"
+      },
+      {
+        "key": "B",
+        "text": "90"
+      },
+      {
+        "key": "C",
+        "text": "115"
+      },
+      {
+        "key": "D",
+        "text": "130"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Hai góc kề trong hình bình hành bù nhau, nên góc còn lại là 180 - 65 = 115 độ.",
+    "visual_hint": "MATH_G8_GEO"
+  },
+  {
+    "id": "q_math_g8_geo_3",
+    "skill_id": "MATH_G8_GEO",
+    "difficulty_level": 3,
+    "difficulty": "Khó",
+    "text": "Đường trung bình của tam giác song song với cạnh thứ ba và có độ dài bằng bao nhiêu cạnh ấy?",
+    "options": [
+      {
+        "key": "A",
+        "text": "1/2"
+      },
+      {
+        "key": "B",
+        "text": "1/3"
+      },
+      {
+        "key": "C",
+        "text": "2"
+      },
+      {
+        "key": "D",
+        "text": "3/2"
+      }
+    ],
+    "correct_answer": "A",
+    "hint": "Đường trung bình của tam giác song song với cạnh thứ ba và bằng một nửa cạnh ấy.",
+    "visual_hint": "MATH_G8_GEO"
+  },
+  {
     "id": "q_math_g9_1",
     "skill_id": "MATH_G9",
     "difficulty_level": 1,
@@ -838,6 +1090,90 @@
     "correct_answer": "A",
     "hint": "Tính Δ = 5^2 - 4*2*(-3) = 25 + 24 = 49 > 0. Nghiệm x1 = (-5 + 7)/4 = 1/2; x2 = (-5 - 7)/4 = -3.",
     "visual_hint": "MATH_G9"
+  },
+  {
+    "id": "q_math_g9_geo_1",
+    "skill_id": "MATH_G9_GEO",
+    "difficulty_level": 1,
+    "difficulty": "Dễ",
+    "text": "Trong tam giác vuông có hai cạnh góc vuông 3 và 4. Cạnh huyền bằng bao nhiêu?",
+    "options": [
+      {
+        "key": "A",
+        "text": "5"
+      },
+      {
+        "key": "B",
+        "text": "6"
+      },
+      {
+        "key": "C",
+        "text": "7"
+      },
+      {
+        "key": "D",
+        "text": "12"
+      }
+    ],
+    "correct_answer": "A",
+    "hint": "Theo định lý Pythagoras: cạnh huyền bằng căn(3^2 + 4^2) = căn 25 = 5.",
+    "visual_hint": "MATH_G9_GEO"
+  },
+  {
+    "id": "q_math_g9_geo_2",
+    "skill_id": "MATH_G9_GEO",
+    "difficulty_level": 2,
+    "difficulty": "Vừa",
+    "text": "Nếu sin A = 3/5 trong tam giác vuông, giá trị cos A bằng bao nhiêu khi A là góc nhọn?",
+    "options": [
+      {
+        "key": "A",
+        "text": "3/5"
+      },
+      {
+        "key": "B",
+        "text": "4/5"
+      },
+      {
+        "key": "C",
+        "text": "5/3"
+      },
+      {
+        "key": "D",
+        "text": "5/4"
+      }
+    ],
+    "correct_answer": "B",
+    "hint": "Với bộ 3-4-5, nếu sin A = 3/5 thì cạnh kề tương ứng là 4, nên cos A = 4/5.",
+    "visual_hint": "MATH_G9_GEO"
+  },
+  {
+    "id": "q_math_g9_geo_3",
+    "skill_id": "MATH_G9_GEO",
+    "difficulty_level": 3,
+    "difficulty": "Khó",
+    "text": "Một tam giác vuông có cạnh huyền 10 và một cạnh góc vuông 6. Cạnh góc vuông còn lại bằng bao nhiêu?",
+    "options": [
+      {
+        "key": "A",
+        "text": "4"
+      },
+      {
+        "key": "B",
+        "text": "6"
+      },
+      {
+        "key": "C",
+        "text": "8"
+      },
+      {
+        "key": "D",
+        "text": "16"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Cạnh còn lại bằng căn(10^2 - 6^2) = căn(100 - 36) = căn 64 = 8.",
+    "visual_hint": "MATH_G9_GEO"
   },
   {
     "id": "q_lit_g1_1",
@@ -4618,5 +4954,341 @@
     "correct_answer": "B",
     "hint": "Biến `score` có giá trị 85. Điều kiện thứ nhất `score >= 90` sai. Điều kiện thứ hai `score >= 80` đúng (85 >= 80), nên in ra 'B'.",
     "visual_hint": "INFTECH_G9"
+  },
+  {
+    "id": "q_math_g7_extra_1",
+    "skill_id": "MATH_G7",
+    "difficulty_level": 1,
+    "difficulty": "Dễ",
+    "text": "Tính: 3/5 + 1/5 = ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "4/5"
+      },
+      {
+        "key": "B",
+        "text": "3/10"
+      },
+      {
+        "key": "C",
+        "text": "4/10"
+      },
+      {
+        "key": "D",
+        "text": "2/5"
+      }
+    ],
+    "correct_answer": "A",
+    "hint": "Hai phân số cùng mẫu, cộng tử số và giữ nguyên mẫu số.",
+    "visual_hint": "MATH_G7"
+  },
+  {
+    "id": "q_math_g7_extra_2",
+    "skill_id": "MATH_G7",
+    "difficulty_level": 1,
+    "difficulty": "Dễ",
+    "text": "So sánh hai số hữu tỉ: -2/3 và -1/3.",
+    "options": [
+      {
+        "key": "A",
+        "text": "-2/3 < -1/3"
+      },
+      {
+        "key": "B",
+        "text": "-2/3 > -1/3"
+      },
+      {
+        "key": "C",
+        "text": "-2/3 = -1/3"
+      },
+      {
+        "key": "D",
+        "text": "Không so sánh được"
+      }
+    ],
+    "correct_answer": "A",
+    "hint": "Trên trục số, số âm nào xa 0 hơn thì nhỏ hơn.",
+    "visual_hint": "MATH_G7"
+  },
+  {
+    "id": "q_math_g7_extra_3",
+    "skill_id": "MATH_G7",
+    "difficulty_level": 2,
+    "difficulty": "Vừa",
+    "text": "Tính: -0.4 + 3/5 = ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "0.1"
+      },
+      {
+        "key": "B",
+        "text": "0.2"
+      },
+      {
+        "key": "C",
+        "text": "-0.2"
+      },
+      {
+        "key": "D",
+        "text": "1"
+      }
+    ],
+    "correct_answer": "B",
+    "hint": "Đổi 3/5 = 0.6, rồi tính -0.4 + 0.6 = 0.2.",
+    "visual_hint": "MATH_G7"
+  },
+  {
+    "id": "q_math_g7_extra_4",
+    "skill_id": "MATH_G7",
+    "difficulty_level": 2,
+    "difficulty": "Vừa",
+    "text": "Tính: 7/8 - 1/4 = ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "5/8"
+      },
+      {
+        "key": "B",
+        "text": "6/8"
+      },
+      {
+        "key": "C",
+        "text": "3/4"
+      },
+      {
+        "key": "D",
+        "text": "1/2"
+      }
+    ],
+    "correct_answer": "A",
+    "hint": "Quy đồng 1/4 = 2/8, nên 7/8 - 2/8 = 5/8.",
+    "visual_hint": "MATH_G7"
+  },
+  {
+    "id": "q_math_g7_extra_5",
+    "skill_id": "MATH_G7",
+    "difficulty_level": 3,
+    "difficulty": "Khó",
+    "text": "Tính: (-2/3) + 5/9 - 1/6 = ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "-5/18"
+      },
+      {
+        "key": "B",
+        "text": "-1/18"
+      },
+      {
+        "key": "C",
+        "text": "1/18"
+      },
+      {
+        "key": "D",
+        "text": "-7/18"
+      }
+    ],
+    "correct_answer": "A",
+    "hint": "Mẫu chung 18: -12/18 + 10/18 - 3/18 = -5/18.",
+    "visual_hint": "MATH_G7"
+  },
+  {
+    "id": "q_math_g7_extra_6",
+    "skill_id": "MATH_G7",
+    "difficulty_level": 3,
+    "difficulty": "Khó",
+    "text": "Tính nhanh: 2/7 + (-5/6) + 5/6 - 9/7 = ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "-1"
+      },
+      {
+        "key": "B",
+        "text": "1"
+      },
+      {
+        "key": "C",
+        "text": "-7/6"
+      },
+      {
+        "key": "D",
+        "text": "0"
+      }
+    ],
+    "correct_answer": "A",
+    "hint": "Hai số -5/6 và 5/6 triệt tiêu; 2/7 - 9/7 = -7/7 = -1.",
+    "visual_hint": "MATH_G7"
+  },
+  {
+    "id": "q_math_g7_geo_extra_7",
+    "skill_id": "MATH_G7_GEO",
+    "difficulty_level": 1,
+    "difficulty": "Dễ",
+    "text": "Một tam giác có một góc bằng 90 độ. Hai góc còn lại có tổng bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "90"
+      },
+      {
+        "key": "B",
+        "text": "100"
+      },
+      {
+        "key": "C",
+        "text": "180"
+      },
+      {
+        "key": "D",
+        "text": "270"
+      }
+    ],
+    "correct_answer": "A",
+    "hint": "Tổng ba góc tam giác là 180 độ, nên hai góc còn lại có tổng 90 độ.",
+    "visual_hint": "MATH_G7_GEO"
+  },
+  {
+    "id": "q_math_g7_geo_extra_8",
+    "skill_id": "MATH_G7_GEO",
+    "difficulty_level": 1,
+    "difficulty": "Dễ",
+    "text": "Tam giác đều có mỗi góc bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "45"
+      },
+      {
+        "key": "B",
+        "text": "60"
+      },
+      {
+        "key": "C",
+        "text": "90"
+      },
+      {
+        "key": "D",
+        "text": "120"
+      }
+    ],
+    "correct_answer": "B",
+    "hint": "Tam giác đều có 3 góc bằng nhau, mỗi góc là 180/3 = 60 độ.",
+    "visual_hint": "MATH_G7_GEO"
+  },
+  {
+    "id": "q_math_g7_geo_extra_9",
+    "skill_id": "MATH_G7_GEO",
+    "difficulty_level": 2,
+    "difficulty": "Vừa",
+    "text": "Tam giác ABC có góc A = 45 độ, góc B = 55 độ. Góc C bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "70"
+      },
+      {
+        "key": "B",
+        "text": "80"
+      },
+      {
+        "key": "C",
+        "text": "90"
+      },
+      {
+        "key": "D",
+        "text": "100"
+      }
+    ],
+    "correct_answer": "B",
+    "hint": "Góc C = 180 - 45 - 55 = 80 độ.",
+    "visual_hint": "MATH_G7_GEO"
+  },
+  {
+    "id": "q_math_g7_geo_extra_10",
+    "skill_id": "MATH_G7_GEO",
+    "difficulty_level": 2,
+    "difficulty": "Vừa",
+    "text": "Tam giác cân có hai góc ở đáy bằng nhau. Nếu một góc ở đáy là 50 độ, góc ở đỉnh bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "50"
+      },
+      {
+        "key": "B",
+        "text": "60"
+      },
+      {
+        "key": "C",
+        "text": "80"
+      },
+      {
+        "key": "D",
+        "text": "100"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Góc ở đỉnh = 180 - 50 - 50 = 80 độ.",
+    "visual_hint": "MATH_G7_GEO"
+  },
+  {
+    "id": "q_math_g7_geo_extra_11",
+    "skill_id": "MATH_G7_GEO",
+    "difficulty_level": 3,
+    "difficulty": "Khó",
+    "text": "Trong tam giác ABC, góc A gấp đôi góc B, góc C = 60 độ và góc A + góc B = 120 độ. Góc B bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "30"
+      },
+      {
+        "key": "B",
+        "text": "40"
+      },
+      {
+        "key": "C",
+        "text": "60"
+      },
+      {
+        "key": "D",
+        "text": "80"
+      }
+    ],
+    "correct_answer": "B",
+    "hint": "Gọi góc B là x thì góc A = 2x. Ta có 3x = 120 nên x = 40 độ.",
+    "visual_hint": "MATH_G7_GEO"
+  },
+  {
+    "id": "q_math_g7_geo_extra_12",
+    "skill_id": "MATH_G7_GEO",
+    "difficulty_level": 3,
+    "difficulty": "Khó",
+    "text": "Một tam giác có ba góc tỉ lệ 2 : 3 : 4. Góc lớn nhất bằng bao nhiêu độ?",
+    "options": [
+      {
+        "key": "A",
+        "text": "60"
+      },
+      {
+        "key": "B",
+        "text": "70"
+      },
+      {
+        "key": "C",
+        "text": "80"
+      },
+      {
+        "key": "D",
+        "text": "90"
+      }
+    ],
+    "correct_answer": "C",
+    "hint": "Tổng tỉ số là 9 phần, mỗi phần 180/9 = 20 độ. Góc lớn nhất 4 phần = 80 độ.",
+    "visual_hint": "MATH_G7_GEO"
   }
 ]

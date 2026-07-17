@@ -24,7 +24,7 @@
                 <a href="#" class="menu-item active" data-tab="dashboard"><i class="fa-solid fa-house"></i><span>Tổng quan</span></a>
                 <a href="#" class="menu-item" data-tab="courses"><i class="fa-solid fa-book-open"></i><span>Khóa học</span></a>
                 <a href="#" class="menu-item" data-tab="assignments"><i class="fa-solid fa-file-signature"></i><span>Bài tập</span></a>
-                <a href="#" class="menu-item" data-tab="tutor"><i class="fa-solid fa-robot"></i><span>Gia sư AI</span></a>
+                <a href="#" class="menu-item" data-tab="tutor"><i class="fa-solid fa-robot"></i><span>Trợ lý học tập</span></a>
             </nav>
             <div class="sidebar-footer">
                 <button id="btn-toggle-portal" class="btn btn-switch"><i class="fa-solid fa-arrows-rotate"></i> Chuyển Bảng</button>
@@ -87,7 +87,7 @@
                             </div>
                             <div class="question-workspace">
                                 <!-- Selector for Subject and Grade -->
-                                <div class="memphis-card selector-card" style="margin-bottom: 1.2rem; padding: 1.2rem; display: flex; gap: 1.2rem; align-items: center; background: #e8ecff; border: 3px solid #000; border-radius: 16px; box-shadow: var(--shadow-flat-sm);">
+                                <div id="test-setup-card" class="memphis-card selector-card test-setup-card">
                                     <div style="flex: 1;">
                                         <label for="subject-select" style="font-family: Poppins; font-weight: 800; font-size: 0.85rem; display: block; margin-bottom: 0.4rem; color: #000;"><i class="fa-solid fa-book"></i> MÔN HỌC</label>
                                         <select id="subject-select" class="memphis-input-sm" style="width: 100%; font-weight: 700; background: #FFF; border: 2.5px solid #000; border-radius: 8px; padding: 0.4rem;">
@@ -113,8 +113,19 @@
                                             <option value="9">Lớp 9</option>
                                         </select>
                                     </div>
+                                    <div class="test-setup-copy">
+                                        <span class="badge badge-skill"><i class="fa-solid fa-list-check"></i> Bài test thích ứng</span>
+                                        <p>Chọn lớp và môn trước. Câu hỏi chỉ hiện sau khi bắt đầu: trắc nghiệm, đúng/sai, rồi trả lời ngắn.</p>
+                                    </div>
+                                    <button id="btn-start-test" class="btn btn-primary-memphis btn-start-test"><i class="fa-solid fa-play"></i> Bắt đầu</button>
                                 </div>
-                                <div class="memphis-card question-card" style="padding: 1.5rem;">
+                                <div id="test-progress-card" class="test-progress-card" style="display: none;">
+                                    <div class="test-stage-pill active" data-stage="multiple_choice"><i class="fa-solid fa-circle-dot"></i> Trắc nghiệm</div>
+                                    <div class="test-stage-pill" data-stage="true_false"><i class="fa-solid fa-scale-balanced"></i> Đúng/Sai</div>
+                                    <div class="test-stage-pill" data-stage="short_answer"><i class="fa-solid fa-keyboard"></i> Trả lời ngắn</div>
+                                </div>
+                                <div id="survey-result-card" class="memphis-card survey-result-card" style="display: none;"></div>
+                                <div id="question-card" class="memphis-card question-card" style="padding: 1.5rem; display: none;">
                                     <div class="question-card-header" style="display: flex; justify-content: space-between; margin-bottom: 1.2rem;">
                                         <span class="badge badge-skill" id="current-skill-name">Đang tải kỹ năng...</span>
                                         <span class="badge badge-difficulty" id="current-question-difficulty">Mức độ: Vừa</span>
@@ -125,6 +136,8 @@
                                         <div class="question-content-box" style="margin-bottom: 1.5rem; background: #fdfdfd; border: 2.5px solid #000; border-radius: 12px; padding: 1.2rem;">
                                             <p id="question-text" style="font-family: Inter; font-size: 1.05rem; font-weight: 600; line-height: 1.6; margin: 0; color: #000;">Đang tải câu hỏi...</p>
                                         </div>
+
+                                        <div id="question-visual-box" class="question-visual-box" style="display: none;"></div>
 
                                         <!-- Multiple Choice Options Container -->
                                         <div id="options-container" class="options-grid">
@@ -139,7 +152,7 @@
                                         <!-- Distractor Explanation Feedback -->
                                         <div id="distractor-feedback-box" class="distractor-feedback-box" style="display: none; margin-top: 1.2rem;">
                                             <div class="distractor-feedback-header">
-                                                <i class="fa-solid fa-circle-exclamation"></i> Phân tích lỗi sai từ AI
+                                                <i class="fa-solid fa-circle-exclamation"></i> Phân tích lỗi sai
                                             </div>
                                             <p id="distractor-feedback-text">Giải thích lỗi sai...</p>
                                         </div>
@@ -147,7 +160,7 @@
 
                                     <!-- Action Buttons -->
                                     <div class="question-actions" style="display: flex; gap: 0.8rem; margin-top: 1.5rem; border-top: 2.5px dashed #000; padding-top: 1.2rem;">
-                                        <button id="btn-show-hint" class="btn btn-hint-outline" style="flex: 1; padding: 0.6rem; font-weight: 700;"><i class="fa-solid fa-lightbulb"></i> Gợi ý từ AI</button>
+                                        <button id="btn-show-hint" class="btn btn-hint-outline" style="flex: 1; padding: 0.6rem; font-weight: 700;"><i class="fa-solid fa-lightbulb"></i> Gợi ý</button>
                                         <button id="btn-submit-answer" class="btn btn-primary-memphis" disabled style="flex: 1.5; padding: 0.6rem; font-weight: 700;"><i class="fa-solid fa-paper-plane"></i> Gửi đáp án</button>
                                     </div>
                                 </div>
@@ -157,7 +170,7 @@
                             <div class="memphis-card toolbox-card">
                                 <div class="toolbox-tabs" style="display: flex; border-bottom: 3.5px solid #000; background: #e8ecff; border-top-left-radius: 12px; border-top-right-radius: 12px;">
                                     <button class="toolbox-tab-btn active" data-toolbox-tab="scratchpad" style="flex: 1; padding: 0.8rem; font-family: Poppins; font-weight: 800; font-size: 0.8rem; background: none; border: none; border-right: 3.5px solid #000; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"><i class="fa-solid fa-pen-ruler"></i> Bảng Nháp</button>
-                                    <button class="toolbox-tab-btn" data-toolbox-tab="mascot" style="flex: 1; padding: 0.8rem; font-family: Poppins; font-weight: 800; font-size: 0.8rem; background: none; border: none; border-right: 3.5px solid #000; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"><i class="fa-solid fa-robot"></i> Hỏi AI</button>
+                                    <button class="toolbox-tab-btn" data-toolbox-tab="mascot" style="flex: 1; padding: 0.8rem; font-family: Poppins; font-weight: 800; font-size: 0.8rem; background: none; border: none; border-right: 3.5px solid #000; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"><i class="fa-solid fa-robot"></i> Hỏi trợ lý</button>
                                     <button class="toolbox-tab-btn" data-toolbox-tab="hint" style="flex: 1; padding: 0.8rem; font-family: Poppins; font-weight: 800; font-size: 0.8rem; background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"><i class="fa-solid fa-lightbulb"></i> Gợi ý</button>
                                 </div>
 
@@ -200,7 +213,7 @@
                                                 <!-- Dynamic chat logs -->
                                             </div>
                                             <div class="mascot-chat-input-wrapper" style="display: flex; gap: 0.4rem; margin-top: 0.5rem;">
-                                                <input type="text" id="mascot-chat-input" placeholder="Hỏi AI cách giải..." class="memphis-input-sm" style="flex: 1; padding: 0.5rem; border: 2.5px solid #000; border-radius: 8px; height: 38px;">
+                                                <input type="text" id="mascot-chat-input" placeholder="Hỏi cách giải..." class="memphis-input-sm" style="flex: 1; padding: 0.5rem; border: 2.5px solid #000; border-radius: 8px; height: 38px;">
                                                 <button id="btn-send-mascot-chat" class="btn btn-secondary-memphis btn-sm" style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px;"><i class="fa-solid fa-paper-plane"></i></button>
                                             </div>
                                         </div>
@@ -219,7 +232,7 @@
                                                 </label>
                                                 <input type="range" id="fraction-slider" min="2" max="12" value="2" style="width: 100%; cursor: pointer;">
                                             </div>
-                                            <p id="hint-text" class="hint-text-para" style="font-family: Inter; font-size: 0.88rem; line-height: 1.5; color: #333; margin: 0; background: #fdfdfd; border-left: 4px solid var(--secondary); padding-left: 0.8rem; padding-top: 0.4rem; padding-bottom: 0.4rem;">Vui lòng bấm nút Gợi ý từ AI ở bên cạnh bài tập để nhận trợ giúp trực quan.</p>
+                                            <p id="hint-text" class="hint-text-para" style="font-family: Inter; font-size: 0.88rem; line-height: 1.5; color: #333; margin: 0; background: #fdfdfd; border-left: 4px solid var(--secondary); padding-left: 0.8rem; padding-top: 0.4rem; padding-bottom: 0.4rem;">Vui lòng bấm nút Gợi ý ở bên cạnh bài tập để nhận trợ giúp trực quan.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -231,7 +244,7 @@
                     <div id="student-view-courses" class="student-view-panel" style="display: none;">
                         <div class="courses-header mb-4">
                             <h2><i class="fa-solid fa-graduation-cap"></i> Khóa học của tôi</h2>
-                            <p class="card-subtitle-desc">Lộ trình học toán lớp 5, 6, 7 theo chuẩn chương trình GDPT 2018.</p>
+                            <p class="card-subtitle-desc">Lộ trình luyện tập thích ứng theo môn học và lớp học đã chọn.</p>
                         </div>
                         <div class="courses-grid-layout">
                             <!-- Course Card 1 -->
@@ -243,7 +256,7 @@
                                     <span class="progress-percent">Hoàn thành 100%</span>
                                     <div class="progress-track"><div class="progress-fill" style="width: 100%; background: var(--success);"></div></div>
                                 </div>
-                                <button class="btn btn-secondary btn-sm" onclick="alert('Xem lại bài giảng Toán 5!')"><i class="fa-solid fa-eye"></i> Xem lại bài học</button>
+                                <button class="btn btn-secondary btn-sm demo-action-btn" data-message="Đã mở lại lộ trình Toán 5."><i class="fa-solid fa-eye"></i> Xem lại bài học</button>
                             </div>
                             <!-- Course Card 2 -->
                             <div class="memphis-card course-card">
@@ -254,7 +267,7 @@
                                     <span class="progress-percent">Hoàn thành 75%</span>
                                     <div class="progress-track"><div class="progress-fill" style="width: 75%; background: var(--primary);"></div></div>
                                 </div>
-                                <button class="btn btn-primary-memphis btn-sm" onclick="alert('Đang mở bài học Toán 6!')"><i class="fa-solid fa-circle-play"></i> Học tiếp</button>
+                                <button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Đã chuyển sang bài luyện Toán 6."><i class="fa-solid fa-circle-play"></i> Học tiếp</button>
                             </div>
                             <!-- Course Card 3 -->
                             <div class="memphis-card course-card">
@@ -265,7 +278,7 @@
                                     <span class="progress-percent">Hoàn thành 20%</span>
                                     <div class="progress-track"><div class="progress-fill" style="width: 20%; background: var(--accent);"></div></div>
                                 </div>
-                                <button class="btn btn-primary-memphis btn-sm" onclick="alert('Đang mở bài học Toán 7!')"><i class="fa-solid fa-circle-play"></i> Học tiếp</button>
+                                <button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Đã chuyển sang bài luyện Toán 7."><i class="fa-solid fa-circle-play"></i> Học tiếp</button>
                             </div>
                         </div>
                     </div>
@@ -291,28 +304,28 @@
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td><strong>Bài tập 1: Cộng phân số cơ bản</strong></td>
+                                            <td><strong>Ôn tập: Quy đồng phân số cơ bản</strong></td>
                                             <td><span class="badge badge-skill">Quy đồng phân số (L5)</span></td>
                                             <td><span class="badge badge-success">Đã hoàn thành</span></td>
                                             <td><strong>10/10</strong></td>
-                                            <td>12/07/2026</td>
-                                            <td><button class="btn btn-secondary btn-sm" onclick="alert('Xem lại bài làm!')"><i class="fa-solid fa-rotate-left"></i> Xem lại</button></td>
+                                            <td>15/07/2026</td>
+                                            <td><button class="btn btn-secondary btn-sm demo-action-btn" data-message="Đã mở bản xem lại bài làm."><i class="fa-solid fa-rotate-left"></i> Xem lại</button></td>
                                         </tr>
                                         <tr class="priority-pulsing-row">
-                                            <td><strong>Bài tập 2: Số hữu tỉ nâng cao</strong></td>
+                                            <td><strong>Bài test thích ứng: Số hữu tỉ</strong></td>
                                             <td><span class="badge badge-skill">Cộng số hữu tỉ (L7)</span></td>
                                             <td><span class="badge badge-warning">Đang làm</span></td>
                                             <td><strong>3/5 câu</strong></td>
-                                            <td>Hôm nay</td>
-                                            <td><button class="btn btn-primary-memphis btn-sm" onclick="alert('Làm tiếp bài tập!')"><i class="fa-solid fa-play"></i> Làm tiếp</button></td>
+                                            <td>Hôm nay, 17/07/2026</td>
+                                            <td><button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Mở Tổng quan, chọn Toán - Lớp 7 rồi bấm Bắt đầu để làm tiếp bài test thích ứng."><i class="fa-solid fa-play"></i> Làm tiếp</button></td>
                                         </tr>
                                         <tr>
-                                            <td><strong>Bài tập 3: GTTĐ & Cộng số nguyên</strong></td>
+                                            <td><strong>Bổ trợ: GTTĐ & Cộng số nguyên</strong></td>
                                             <td><span class="badge badge-skill">Cộng số nguyên (L6)</span></td>
                                             <td><span class="badge badge-danger">Trễ hạn</span></td>
                                             <td><strong>0/10</strong></td>
-                                            <td>10/07/2026</td>
-                                            <td><button class="btn btn-primary-memphis btn-sm" onclick="alert('Đang nộp bài tập bù!')"><i class="fa-solid fa-triangle-exclamation"></i> Nộp bù</button></td>
+                                            <td>14/07/2026</td>
+                                            <td><button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Đã chuyển sang lộ trình bổ trợ lớp 6 để nộp bù."><i class="fa-solid fa-triangle-exclamation"></i> Nộp bù</button></td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -320,11 +333,11 @@
                         </div>
                     </div>
 
-                    <!-- 4. AI TUTOR CHAT VIEW -->
+                    <!-- 4. LEARNING ASSISTANT CHAT VIEW -->
                     <div id="student-view-tutor" class="student-view-panel" style="display: none;">
                         <div class="tutor-header mb-4">
-                            <h2><i class="fa-solid fa-robot"></i> Gia sư AI của bạn</h2>
-                            <p class="card-subtitle-desc">Chat trực tiếp để hỏi bài, giảng lý thuyết hoặc tự động tạo câu hỏi ôn luyện.</p>
+                            <h2><i class="fa-solid fa-robot"></i> Trợ lý học tập của bạn</h2>
+                            <p class="card-subtitle-desc">Hỏi nhanh các khái niệm nền và nhận gợi ý theo kỹ năng đang luyện.</p>
                         </div>
                         <div class="tutor-chat-layout">
                             <!-- Chat box area -->
@@ -333,7 +346,7 @@
                                     <div class="chat-bubble robot-bubble">
                                         <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
                                         <div class="bubble-content">
-                                            <p>Xin chào Emma! Tôi là Gia sư AI VGap. Hôm nay bạn muốn tìm hiểu hay luyện tập phần kiến thức nào?</p>
+                                            <p>Xin chào Emma! Tôi là trợ lý học tập VGap. Hôm nay bạn muốn tìm hiểu hay luyện tập phần kiến thức nào?</p>
                                         </div>
                                     </div>
                                     <div class="chat-bubble user-bubble">
@@ -361,7 +374,7 @@
                                     </div>
                                 </div>
                                 <div class="chat-input-bar">
-                                    <input type="text" id="tutor-chat-input" placeholder="Hỏi Gia sư AI bất cứ câu hỏi toán nào..." class="memphis-input">
+                                    <input type="text" id="tutor-chat-input" placeholder="Hỏi trợ lý học tập..." class="memphis-input">
                                     <button class="btn btn-primary-memphis" id="btn-send-tutor"><i class="fa-solid fa-paper-plane"></i></button>
                                 </div>
                             </div>
@@ -493,12 +506,12 @@
     </div>
 
     <!-- Modals -->
-    <!-- Modal 1: AI Lesson Planner -->
+    <!-- Modal 1: Lesson Planner -->
     <div class="memphis-modal" id="modal-lesson-plan" style="display: none;">
         <div class="modal-overlay" id="lesson-plan-overlay"></div>
         <div class="modal-card">
             <div class="modal-header">
-                <h3><i class="fa-solid fa-wand-magic-sparkles text-blue"></i> Giáo án Bổ trợ soạn bởi AI</h3>
+                <h3><i class="fa-solid fa-wand-magic-sparkles text-blue"></i> Giáo án bổ trợ gợi ý</h3>
                 <button class="modal-close-btn" id="btn-close-lesson-plan">&times;</button>
             </div>
             <div class="modal-body" id="lesson-plan-modal-body">

@@ -77,7 +77,7 @@ class TestAdaptiveDiagnostics(unittest.TestCase):
         # Should jump down directly to level 1
         self.assertEqual(next_diff, 1)
         
-    def test_incorrect_above_threshold_drops_by_one_level(self):
+    def test_incorrect_above_threshold_keeps_or_drops_by_one_level(self):
         student_id = "test_std_drop_one"
         skill_id = "MATH_G7"
         
@@ -89,9 +89,15 @@ class TestAdaptiveDiagnostics(unittest.TestCase):
         # Student gets a level 3 question wrong
         record_response(student_id, "q_w1", skill_id, 3, False, int(time.time()) + 10)
         
-        _, next_diff = get_next_question_difficulty_and_skill(student_id, skill_id)
-        # Should decrease by 1 level: 3 -> 2
-        self.assertEqual(next_diff, 2)
+        next_difficulties = set()
+        for _ in range(40):
+            _, next_diff = get_next_question_difficulty_and_skill(student_id, skill_id)
+            next_difficulties.add(next_diff)
+
+        # With enough prior correct answers, one slip should keep level 3
+        # or decrease by exactly one level to 2, never jump to level 1.
+        self.assertTrue(next_difficulties.issubset({2, 3}))
+        self.assertNotIn(1, next_difficulties)
         
     def test_incorrect_at_level_1_shifts_to_prerequisite(self):
         student_id = "test_std_prereq"
@@ -104,6 +110,30 @@ class TestAdaptiveDiagnostics(unittest.TestCase):
         next_skill, _ = get_next_question_difficulty_and_skill(student_id, skill_id)
         # Should shift to a prerequisite of MATH_G7: either MATH_G6 or MATH_G5
         self.assertIn(next_skill, ["MATH_G6", "MATH_G5"])
+
+    def test_backend_question_payload_contains_wrong_answer_feedback(self):
+        from backend.app import get_next_question
+
+        payload = get_next_question("emma_std_01", current_skill="MATH_G7")
+        question = payload["question"]
+
+        self.assertIn("distractor_explanations", question)
+        self.assertIn("hint", question)
+        self.assertIn("visual_hint", question)
+        self.assertTrue(question["distractor_explanations"])
+
+    def test_backend_avoids_repeating_answered_question_when_possible(self):
+        from backend.app import get_next_question
+
+        student_id = "emma_std_01"
+        skill_id = "MATH_G7"
+
+        first = get_next_question(student_id, current_skill=skill_id)["question"]
+        record_response(student_id, first["id"], skill_id, first["difficulty_level"], True, 100)
+
+        # Force the next selection rules to stay on the same skill/difficulty level.
+        second = get_next_question(student_id, current_skill=skill_id)["question"]
+        self.assertNotEqual(first["id"], second["id"])
 
 if __name__ == "__main__":
     unittest.main()

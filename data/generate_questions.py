@@ -43,20 +43,40 @@ def generate_questions():
             ("Tính kết quả của phép tính sau: (-12) - (-18) = ?", ["-30", "6", "-6", "30"], "B", "Trừ một số nguyên là cộng với số đối của nó: (-12) - (-18) = -12 + 18 = 6."),
             ("Tính tổng của dãy số sau: S = (-10) + (-9) + ... + 9 + 10 + 11.", ["11", "0", "21", "-11"], "A", "Các cặp số đối nhau từ -10 đến 10 có tổng bằng 0. Số còn lại duy nhất không bị triệt tiêu là 11.")
         ],
+        "MATH_G6_GEO": [
+            ("Một góc vuông có số đo bằng bao nhiêu độ?", ["45", "60", "90", "180"], "C", "Góc vuông luôn có số đo 90 độ."),
+            ("Hai góc kề bù có tổng số đo bằng bao nhiêu độ?", ["90", "120", "180", "360"], "C", "Hai góc kề bù tạo thành một góc bẹt nên tổng số đo bằng 180 độ."),
+            ("Cho hai góc kề bù, một góc bằng 65 độ. Góc còn lại bằng bao nhiêu độ?", ["25", "65", "115", "125"], "C", "Hai góc kề bù có tổng 180 độ, nên góc còn lại là 180 - 65 = 115 độ.")
+        ],
         "MATH_G7": [
             ("Tính kết quả của phép tính sau: 1/2 + (-2/3) = ?", ["-1/6", "1/6", "-7/6", "7/6"], "A", "Quy đồng mẫu số chung là 6 trước: 3/6 + (-4/6) = -1/6."),
             ("Thực hiện phép tính: 0.75 - (-1/2) = ?", ["1/4", "5/4", "-1/4", "1.25"], "D", "Đổi 0.75 = 3/4 và -(-1/2) = 1/2. Quy đồng mẫu chung 4: 3/4 + 2/4 = 5/4 = 1.25."),
             ("Tính nhanh giá trị biểu thức: A = (-3/4) + (5/6) - (1/2) + (3/4) - (1/6).", ["1/3", "1/2", "0", "1/6"], "D", "Nhóm các số hạng: A = [(-3/4) + 3/4] + [(5/6) - 1/6] - 1/2 = 0 + 4/6 - 1/2 = 2/3 - 1/2 = 4/6 - 3/6 = 1/6.")
+        ],
+        "MATH_G7_GEO": [
+            ("Tổng ba góc trong một tam giác bằng bao nhiêu độ?", ["90", "120", "180", "360"], "C", "Tổng ba góc trong mọi tam giác luôn bằng 180 độ."),
+            ("Một tam giác có hai góc lần lượt là 50 độ và 60 độ. Góc còn lại bằng bao nhiêu độ?", ["60", "70", "80", "90"], "B", "Góc còn lại bằng 180 - 50 - 60 = 70 độ."),
+            ("Tam giác cân có góc ở đỉnh bằng 40 độ. Mỗi góc ở đáy bằng bao nhiêu độ?", ["40", "60", "70", "80"], "C", "Hai góc ở đáy tam giác cân bằng nhau. Mỗi góc là (180 - 40) / 2 = 70 độ.")
         ],
         "MATH_G8": [
             ("Khai triển hằng đẳng thức (x + 2)^2 ta được biểu thức nào?", ["x^2 + 4", "x^2 + 4x + 4", "x^2 + 2x + 4", "x^2 + 4x + 2"], "B", "Áp dụng công thức (a+b)^2 = a^2 + 2ab + b^2. Ta có (x+2)^2 = x^2 + 2*x*2 + 2^2 = x^2 + 4x + 4."),
             ("Viết biểu thức sau dưới dạng bình phương của một tổng hoặc một hiệu: x^2 - 6x + 9.", ["(x - 3)^2", "(x + 3)^2", "(x - 9)^2", "(x + 9)^2"], "A", "Nhận xét: x^2 - 2*x*3 + 3^2 chính là dạng a^2 - 2ab + b^2 = (a-b)^2, tương ứng (x - 3)^2."),
             ("Rút gọn biểu thức sau: (x - y)(x + y) - (x^2 - y^2).", ["2y^2", "0", "-2y^2", "2x^2"], "B", "Áp dụng hằng đẳng thức hiệu hai bình phương: (x-y)(x+y) = x^2 - y^2. Do đó biểu thức rút gọn thành (x^2 - y^2) - (x^2 - y^2) = 0.")
         ],
+        "MATH_G8_GEO": [
+            ("Tổng các góc trong một tứ giác bằng bao nhiêu độ?", ["180", "270", "360", "540"], "C", "Tổng bốn góc trong mọi tứ giác bằng 360 độ."),
+            ("Hình bình hành có hai góc kề nhau là 65 độ và bao nhiêu độ?", ["65", "90", "115", "130"], "C", "Hai góc kề trong hình bình hành bù nhau, nên góc còn lại là 180 - 65 = 115 độ."),
+            ("Đường trung bình của tam giác song song với cạnh thứ ba và có độ dài bằng bao nhiêu cạnh ấy?", ["1/2", "1/3", "2", "3/2"], "A", "Đường trung bình của tam giác song song với cạnh thứ ba và bằng một nửa cạnh ấy.")
+        ],
         "MATH_G9": [
             ("Tìm hệ số a, b, c của phương trình bậc hai: 3x^2 - 5x + 2 = 0.", ["a=3, b=5, c=2", "a=3, b=-5, c=2", "a=3, b=-5, c=-2", "a=-3, b=-5, c=2"], "B", "Dạng tổng quát ax^2 + bx + c = 0. Đối chiếu phương trình: a = 3, b = -5, c = 2."),
             ("Tính biệt thức Delta (Δ) của phương trình bậc hai: x^2 - 4x + 3 = 0.", ["Δ = 4", "Δ = 2", "Δ = 0", "Δ = -4"], "A", "Công thức Δ = b^2 - 4ac. Với a = 1, b = -4, c = 3, ta có Δ = (-4)^2 - 4*1*3 = 16 - 12 = 4."),
             ("Phương trình bậc hai 2x^2 + 5x - 3 = 0 có nghiệm là gì?", ["x = 1/2 hoặc x = -3", "x = -1/2 hoặc x = 3", "x = 1 hoặc x = -3", "Phương trình vô nghiệm"], "A", "Tính Δ = 5^2 - 4*2*(-3) = 25 + 24 = 49 > 0. Nghiệm x1 = (-5 + 7)/4 = 1/2; x2 = (-5 - 7)/4 = -3.")
+        ],
+        "MATH_G9_GEO": [
+            ("Trong tam giác vuông có hai cạnh góc vuông 3 và 4. Cạnh huyền bằng bao nhiêu?", ["5", "6", "7", "12"], "A", "Theo định lý Pythagoras: cạnh huyền bằng căn(3^2 + 4^2) = căn 25 = 5."),
+            ("Nếu sin A = 3/5 trong tam giác vuông, giá trị cos A bằng bao nhiêu khi A là góc nhọn?", ["3/5", "4/5", "5/3", "5/4"], "B", "Với bộ 3-4-5, nếu sin A = 3/5 thì cạnh kề tương ứng là 4, nên cos A = 4/5."),
+            ("Một tam giác vuông có cạnh huyền 10 và một cạnh góc vuông 6. Cạnh góc vuông còn lại bằng bao nhiêu?", ["4", "6", "8", "16"], "C", "Cạnh còn lại bằng căn(10^2 - 6^2) = căn(100 - 36) = căn 64 = 8.")
         ]
     }
     
@@ -354,6 +374,35 @@ def generate_questions():
                 "visual_hint": skill_id  # Use skill ID as fallback for frontend visual aid
             })
             q_counter += 1
+
+    extra_questions = [
+        ("MATH_G7", 1, "Tính: 3/5 + 1/5 = ?", ["4/5", "3/10", "4/10", "2/5"], "A", "Hai phân số cùng mẫu, cộng tử số và giữ nguyên mẫu số."),
+        ("MATH_G7", 1, "So sánh hai số hữu tỉ: -2/3 và -1/3.", ["-2/3 < -1/3", "-2/3 > -1/3", "-2/3 = -1/3", "Không so sánh được"], "A", "Trên trục số, số âm nào xa 0 hơn thì nhỏ hơn."),
+        ("MATH_G7", 2, "Tính: -0.4 + 3/5 = ?", ["0.1", "0.2", "-0.2", "1"], "B", "Đổi 3/5 = 0.6, rồi tính -0.4 + 0.6 = 0.2."),
+        ("MATH_G7", 2, "Tính: 7/8 - 1/4 = ?", ["5/8", "6/8", "3/4", "1/2"], "A", "Quy đồng 1/4 = 2/8, nên 7/8 - 2/8 = 5/8."),
+        ("MATH_G7", 3, "Tính: (-2/3) + 5/9 - 1/6 = ?", ["-5/18", "-1/18", "1/18", "-7/18"], "A", "Mẫu chung 18: -12/18 + 10/18 - 3/18 = -5/18."),
+        ("MATH_G7", 3, "Tính nhanh: 2/7 + (-5/6) + 5/6 - 9/7 = ?", ["-1", "1", "-7/6", "0"], "A", "Hai số -5/6 và 5/6 triệt tiêu; 2/7 - 9/7 = -7/7 = -1."),
+        ("MATH_G7_GEO", 1, "Một tam giác có một góc bằng 90 độ. Hai góc còn lại có tổng bằng bao nhiêu độ?", ["90", "100", "180", "270"], "A", "Tổng ba góc tam giác là 180 độ, nên hai góc còn lại có tổng 90 độ."),
+        ("MATH_G7_GEO", 1, "Tam giác đều có mỗi góc bằng bao nhiêu độ?", ["45", "60", "90", "120"], "B", "Tam giác đều có 3 góc bằng nhau, mỗi góc là 180/3 = 60 độ."),
+        ("MATH_G7_GEO", 2, "Tam giác ABC có góc A = 45 độ, góc B = 55 độ. Góc C bằng bao nhiêu độ?", ["70", "80", "90", "100"], "B", "Góc C = 180 - 45 - 55 = 80 độ."),
+        ("MATH_G7_GEO", 2, "Tam giác cân có hai góc ở đáy bằng nhau. Nếu một góc ở đáy là 50 độ, góc ở đỉnh bằng bao nhiêu độ?", ["50", "60", "80", "100"], "C", "Góc ở đỉnh = 180 - 50 - 50 = 80 độ."),
+        ("MATH_G7_GEO", 3, "Trong tam giác ABC, góc A gấp đôi góc B, góc C = 60 độ và góc A + góc B = 120 độ. Góc B bằng bao nhiêu độ?", ["30", "40", "60", "80"], "B", "Gọi góc B là x thì góc A = 2x. Ta có 3x = 120 nên x = 40 độ."),
+        ("MATH_G7_GEO", 3, "Một tam giác có ba góc tỉ lệ 2 : 3 : 4. Góc lớn nhất bằng bao nhiêu độ?", ["60", "70", "80", "90"], "C", "Tổng tỉ số là 9 phần, mỗi phần 180/9 = 20 độ. Góc lớn nhất 4 phần = 80 độ.")
+    ]
+
+    for extra_idx, (skill_id, level, q_text, opts, correct, hint) in enumerate(extra_questions, start=1):
+        level_str = "Dễ" if level == 1 else "Vừa" if level == 2 else "Khó"
+        questions.append({
+            "id": f"q_{skill_id.lower()}_extra_{extra_idx}",
+            "skill_id": skill_id,
+            "difficulty_level": level,
+            "difficulty": level_str,
+            "text": q_text,
+            "options": [{"key": key, "text": opt_text} for key, opt_text in zip(["A", "B", "C", "D"], opts)],
+            "correct_answer": correct,
+            "hint": hint,
+            "visual_hint": skill_id
+        })
             
     # Write to questions.json
     output_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "questions.json")
