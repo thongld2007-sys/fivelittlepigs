@@ -13,12 +13,14 @@ Diem manh hien tai:
 - Co du lieu cuc bo: SQLite luu hoc sinh, responses, mastery; ngan hang 189 cau hoi.
 - Co dashboard giao vien: phan nhom lo hong, danh sach uu tien, heatmap, chart tien trinh lop.
 - Co API co the demo that: `/api/student/{id}/next-question`, `/api/check-answer`, `/api/teacher/dashboard`.
+- Co FPT AI Inference adapter: `/api/ai/student/{student_id}/tutor`, `/api/ai/teacher/lesson-plan`.
+- Co evidence endpoints: `/api/evidence/fpt-ai-coverage`, `/api/evidence/cost-model`, `/api/evidence/safety`.
 
 Rui ro bi tru diem:
 
 - Chua co benchmark tren nguoi dung that.
-- Chua co tich hop FPT AI that su trong code.
-- Chua co evaluation day du: accuracy, precision, recall, latency, cost.
+- FPT AI moi implemented Inference; Knowledge/Speech/OCR/MCP van la adapter roadmap.
+- Evaluation da co smoke benchmark 30 case, nhung chua co pilot truong/lop that.
 - Dang co login demo frontend, chua phai auth production.
 - Ngan hang cau hoi con nho neu trien khai toan truong.
 
@@ -26,17 +28,17 @@ Rui ro bi tru diem:
 
 | Hang muc | Diem toi da | Diem hien tai | Ly do |
 |---|---:|---:|---|
-| Bai toan giao duc | 15 | 10 | Dung van de that: mat goc va qua tai giao vien. Thieu khao sat/so lieu truong that. |
-| AI co can thiet khong | 15 | 9 | BKT + knowledge graph tao gia tri hon chatbot. Can chung minh AI/FPT AI vuot rule engine o dau. |
-| Khai thac FPT AI | 15 | 3 | Hien chua co FPT AI runtime. Can them Agent/Inference/Knowledge/Speech/OCR/MCP vao demo. |
-| AI Engineering | 15 | 8 | Co data schema, BKT, DAG, API. Thieu benchmark, eval set, cost/latency log. |
-| Gia tri giao duc | 15 | 8 | Co lo trinh va dashboard. Thieu pilot truoc/sau de chung minh tang diem/tiet kiem gio. |
-| Kha nang trien khai | 10 | 7 | Offline-first va SQLite tot cho truong hoc. Chua co auth, backup, deployment guide day du. |
-| Kha nang scale | 5 | 3 | FastAPI co the scale, nhung SQLite phu hop local/LAN hon la 10k+ user. |
-| Dao duc va an toan | 5 | 2 | Co chong lo dap an truc tiep o short answer mot phan. Thieu policy hallucination, prompt injection, PII. |
-| Tong | 100 | 50 | Du an co loi san pham that, nhung can bo sung FPT AI va bang chung dinh luong. |
+| Bai toan giao duc | 15 | 11 | Dung van de that: mat goc va qua tai giao vien. Thieu khao sat/so lieu truong that. |
+| AI co can thiet khong | 15 | 11 | BKT + knowledge graph + FPT AI support tao gia tri hon chatbot. Can pilot so sanh rule-only vs AI-assisted. |
+| Khai thac FPT AI | 15 | 10 | Co FPT AI Inference adapter va endpoints, nhung Knowledge/Speech/OCR/MCP moi o muc roadmap. |
+| AI Engineering | 15 | 12 | Co data schema, BKT, DAG, API, FPT adapter, smoke benchmark 30 case, cost/safety endpoints. Thieu eval set that. |
+| Gia tri giao duc | 15 | 9 | Co lo trinh va dashboard. Thieu pilot truoc/sau de chung minh tang diem/tiet kiem gio. |
+| Kha nang trien khai | 10 | 8 | Offline-first va SQLite tot cho pilot/truong nho. Chua co auth, backup, deployment guide day du. |
+| Kha nang scale | 5 | 4 | Core BKT/DAG chi phi thap, co cost model. Can production architecture ngoai SQLite. |
+| Dao duc va an toan | 5 | 4 | Co key isolation, redaction, Socratic prompt, safety evidence. Can moderation/prompt-injection classifier production. |
+| Tong | 100 | 69 | Demo manh, sat nguong co tiem nang; can pilot that va FPT AI Knowledge/Speech/OCR de vuot 75. |
 
-Muc tieu truoc khi nop final: dua tong len 72-78 bang cach them evidence, FPT AI integration mock/real, benchmark va safety story.
+Muc tieu truoc khi nop final: dua tong len 75-80 bang cach them pilot lop hoc, FPT AI Knowledge/Speech/OCR demo that, va cost/latency report dep hon.
 
 ## 3. Dinh Vi Bai Toan
 
@@ -95,7 +97,7 @@ Them mot file CSV/JSON benchmark nho truoc demo:
 | Latency dashboard | p95 API `/teacher/dashboard` | < 500 ms local |
 | Cost | Chi phi AI moi hoc sinh/thang | Co 2 che do: offline rule/BKT gan 0 dong, FPT AI chi goi khi can sinh nhan xet |
 
-Can tao script `tests/benchmark_diagnostics.py` neu con thoi gian.
+Da co script `tests/benchmark_diagnostics.py` voi 30 case smoke benchmark. Can nhan manh day la engineering benchmark, khong phai pilot hoc sinh that.
 
 ## 7. Kich Ban Demo 3 Phut
 
@@ -133,11 +135,10 @@ Ban demo local se sap o cac diem: SQLite khi ghi dong thoi qua nhieu, login demo
 
 ## 9. Checklist Can Lam Truoc Khi Pitch
 
-- [ ] Them benchmark script va ket qua mau.
-- [ ] Them bang cost/latency vao README.
-- [ ] Them FPT AI integration adapter interface, ke ca mock neu chua co key.
-- [ ] Them safety section: PII, prompt injection, hallucination, anti-cheating.
+- [x] Them benchmark script va ket qua mau 30 case.
+- [x] Them bang cost/latency/evidence endpoints vao README.
+- [x] Them FPT AI Inference adapter interface, ke ca fallback offline neu chua co key.
+- [x] Them safety section: hallucination, anti-cheating, key isolation, prompt injection gap.
 - [ ] Demo dashboard giao vien truoc chatbot.
 - [ ] Chuan bi 3 so lieu gia dinh co can cu: thoi gian tiet kiem, p95 latency, cost per student.
 - [ ] Co video offline phong khi Wi-Fi su kien yeu.
-

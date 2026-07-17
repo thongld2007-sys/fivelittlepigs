@@ -26,7 +26,7 @@ from backend.app import AnswerSubmission, SurveySessionRequest, create_survey_se
 from backend.config import Config
 
 
-SCENARIOS = [
+BASE_SCENARIOS = [
     {
         "student_id": "bench_gap_fraction",
         "grade": 7,
@@ -49,6 +49,17 @@ SCENARIOS = [
         "expected_gap": None,
     },
 ]
+
+
+def build_scenarios(repeats: int = 10) -> list[dict]:
+    """Create a 30-case deterministic smoke benchmark from three labeled patterns."""
+    scenarios = []
+    for repeat_index in range(repeats):
+        for base in BASE_SCENARIOS:
+            scenario = dict(base)
+            scenario["student_id"] = f"{base['student_id']}_{repeat_index + 1:02d}"
+            scenarios.append(scenario)
+    return scenarios
 
 
 def cleanup_students(student_ids: list[str]) -> None:
@@ -114,22 +125,27 @@ def compute_metrics(rows: list[dict]) -> dict:
 
     precision = true_positive / (true_positive + false_positive) if true_positive + false_positive else 1.0
     recall = true_positive / (true_positive + false_negative) if true_positive + false_negative else 1.0
+    submit_p95 = statistics.quantiles(submit_latencies, n=20, method="inclusive")[18]
+    next_p95 = statistics.quantiles(next_latencies, n=20, method="inclusive")[18]
 
     return {
         "diagnostic_accuracy": round(correct / len(rows), 4),
         "gap_alert_precision": round(precision, 4),
         "gap_alert_recall": round(recall, 4),
         "submit_latency_ms_avg": round(statistics.mean(submit_latencies), 2),
+        "submit_latency_ms_p95": round(submit_p95, 2),
         "next_question_latency_ms_avg": round(statistics.mean(next_latencies), 2),
+        "next_question_latency_ms_p95": round(next_p95, 2),
         "sample_size": len(rows),
     }
 
 
 def main() -> None:
-    student_ids = [scenario["student_id"] for scenario in SCENARIOS]
+    scenarios = build_scenarios()
+    student_ids = [scenario["student_id"] for scenario in scenarios]
     cleanup_students(student_ids)
     try:
-        rows = [run_scenario(scenario) for scenario in SCENARIOS]
+        rows = [run_scenario(scenario) for scenario in scenarios]
         print(json.dumps({"metrics": compute_metrics(rows), "cases": rows}, ensure_ascii=False, indent=2))
     finally:
         cleanup_students(student_ids)

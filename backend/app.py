@@ -23,6 +23,84 @@ app = FastAPI(title="VGap AI - Adaptive Tutoring Backend")
 # Initialize database
 init_db()
 
+FPT_AI_CAPABILITY_MATRIX = [
+    {
+        "capability": "FPT AI Inference",
+        "status": "implemented",
+        "evidence": ["/api/ai/student/{student_id}/tutor", "/api/ai/teacher/lesson-plan"],
+        "value": "Sinh gợi ý Socratic và giáo án bổ trợ có grounding theo câu hỏi, BKT và Knowledge Graph."
+    },
+    {
+        "capability": "FPT AI Knowledge",
+        "status": "planned_adapter",
+        "evidence": ["Knowledge Graph nội bộ", "question bank 189 câu", "docs/fpt_ai_hackathon_judge_pack.md"],
+        "value": "Đưa chương trình GDPT, rubric kỹ năng và câu hỏi đã kiểm định vào RAG/Knowledge base."
+    },
+    {
+        "capability": "FPT AI Agents",
+        "status": "planned_adapter",
+        "evidence": ["/api/teacher/dashboard", "/api/ai/teacher/lesson-plan"],
+        "value": "Agent giáo viên biến gap groups thành kế hoạch can thiệp và giáo án 15 phút."
+    },
+    {
+        "capability": "FPT AI Speech",
+        "status": "planned_adapter",
+        "evidence": ["frontend read-aloud control", "server-side API key isolation"],
+        "value": "Đọc câu hỏi/gợi ý cho học sinh nhỏ tuổi hoặc học sinh đọc chậm."
+    },
+    {
+        "capability": "FPT AI OCR/Vision",
+        "status": "planned_adapter",
+        "evidence": ["offline-first response schema", "teacher workflow roadmap"],
+        "value": "Cho phép giáo viên chụp bài làm giấy để trích lỗi sai và đưa vào diagnostic events."
+    },
+    {
+        "capability": "FPT AI MCP",
+        "status": "planned_adapter",
+        "evidence": ["dashboard API", "sync-ready SQLite logs"],
+        "value": "Kết nối LMS, bảng điểm và hệ thống báo cáo trường học."
+    }
+]
+
+SAFETY_CONTROLS = [
+    {
+        "risk": "Hallucination",
+        "control": "FPT AI prompt chỉ được dùng ngữ cảnh câu hỏi, kỹ năng, mastery; lỗi provider trả 503 thay vì bịa.",
+        "implemented": True
+    },
+    {
+        "risk": "Gian lận học tập",
+        "control": "Gia sư Socratic không tiết lộ trực tiếp đáp án cuối cùng; core chấm điểm vẫn chạy server-side.",
+        "implemented": True
+    },
+    {
+        "risk": "Lộ dữ liệu/API key",
+        "control": "API key chỉ đọc từ .env server-side, không đưa vào frontend; lỗi provider được redacted.",
+        "implemented": True
+    },
+    {
+        "risk": "Prompt injection",
+        "control": "Đầu vào giới hạn 1000 ký tự, system prompt khóa vai trò; cần bổ sung classifier khi production.",
+        "implemented": False
+    },
+    {
+        "risk": "Nội dung độc hại",
+        "control": "Hiện giới hạn domain giáo dục; production cần moderation trước/sau generation.",
+        "implemented": False
+    }
+]
+
+COST_MODEL_ASSUMPTIONS = {
+    "currency": "VND",
+    "bkt_dag_cost_per_student_month": 0,
+    "default_students": 1000,
+    "ai_calls_per_student_month": 8,
+    "estimated_tokens_per_ai_call": 900,
+    "estimated_vnd_per_1k_tokens": 15,
+    "teacher_ai_lesson_plans_per_month": 40,
+    "estimated_tokens_per_lesson_plan": 1200
+}
+
 
 def build_distractor_explanations(question):
     """Create concise, grounded feedback for every wrong multiple-choice option."""
@@ -448,6 +526,72 @@ def get_teacher_dashboard():
         "groups": groups_list,
         "priority_list": priority_list,
         "class_progress": class_progress
+    }
+
+@app.get("/api/evidence/fpt-ai-coverage")
+def get_fpt_ai_coverage():
+    """Return judge-facing evidence for how the project uses the FPT AI ecosystem."""
+    implemented = [item for item in FPT_AI_CAPABILITY_MATRIX if item["status"] == "implemented"]
+    planned = [item for item in FPT_AI_CAPABILITY_MATRIX if item["status"] != "implemented"]
+    return {
+        "summary": {
+            "implemented_count": len(implemented),
+            "planned_adapter_count": len(planned),
+            "positioning": (
+                "BKT/DAG là lõi chẩn đoán offline; FPT AI là lớp tăng cường cho "
+                "Socratic tutoring, lesson planning, Knowledge/RAG, Speech, OCR và MCP."
+            )
+        },
+        "capabilities": FPT_AI_CAPABILITY_MATRIX
+    }
+
+@app.get("/api/evidence/cost-model")
+def get_cost_model(students: int = 1000):
+    """Estimate monthly AI cost and show why the core system stays cheap at scale."""
+    if students < 1 or students > 1_000_000:
+        raise HTTPException(status_code=422, detail="students must be between 1 and 1,000,000")
+
+    assumptions = dict(COST_MODEL_ASSUMPTIONS)
+    student_ai_tokens = (
+        students
+        * assumptions["ai_calls_per_student_month"]
+        * assumptions["estimated_tokens_per_ai_call"]
+    )
+    teacher_ai_tokens = (
+        assumptions["teacher_ai_lesson_plans_per_month"]
+        * assumptions["estimated_tokens_per_lesson_plan"]
+    )
+    total_tokens = student_ai_tokens + teacher_ai_tokens
+    ai_cost_vnd = round((total_tokens / 1000) * assumptions["estimated_vnd_per_1k_tokens"])
+    cost_per_student_vnd = round(ai_cost_vnd / students, 2)
+
+    return {
+        "students": students,
+        "assumptions": assumptions,
+        "monthly": {
+            "core_bkt_dag_cost_vnd": 0,
+            "estimated_ai_tokens": total_tokens,
+            "estimated_ai_cost_vnd": ai_cost_vnd,
+            "estimated_cost_per_student_vnd": cost_per_student_vnd
+        },
+        "scale_story": {
+            "100_users": "SQLite/local LAN đủ cho pilot; AI chỉ gọi khi cần gợi ý/giao án.",
+            "10k_users": "Chuyển PostgreSQL, cache dashboard, queue diagnostic events, batch AI summaries.",
+            "1m_users": "Multi-tenant services, event streaming, async AI jobs, quota/cost controls theo trường."
+        }
+    }
+
+@app.get("/api/evidence/safety")
+def get_safety_evidence():
+    """Return implemented and planned safety controls for final-round judging."""
+    implemented = sum(1 for item in SAFETY_CONTROLS if item["implemented"])
+    return {
+        "summary": {
+            "implemented_controls": implemented,
+            "total_controls": len(SAFETY_CONTROLS),
+            "production_gap": "Cần thêm moderation, PII policy và prompt-injection classifier trước triển khai thật."
+        },
+        "controls": SAFETY_CONTROLS
     }
 
 # Serve Frontend static assets

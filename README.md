@@ -97,11 +97,19 @@ Chạy smoke benchmark kỹ thuật:
 python tests/benchmark_diagnostics.py
 ```
 
-Lưu ý: benchmark này chỉ kiểm tra kịch bản kỹ thuật có nhãn nhỏ để bảo vệ demo trước ban
+Benchmark hiện tạo 30 case kỹ thuật có nhãn từ 3 mẫu hành vi ổn định: hổng phân số lớp 7,
+hổng số nguyên lớp 6 và học sinh mạnh lớp 7. Output gồm accuracy, precision, recall, latency
+trung bình và p95 cho submit/next-question. Lưu ý: benchmark này chỉ kiểm tra kịch bản kỹ thuật để bảo vệ demo trước ban
 giám khảo. Khi pitch chính thức vẫn cần pilot thật với học sinh/giáo viên.
 
 Kế hoạch khai thác FPT AI nên bám vào Inference, Knowledge, Agents, Speech, OCR và MCP,
 thay vì chỉ gọi một API chat tổng quát.
+
+Các endpoint bằng chứng cho ban giám khảo:
+
+- `GET /api/evidence/fpt-ai-coverage`: FPT AI đang dùng ở đâu và adapter nào còn trong roadmap.
+- `GET /api/evidence/cost-model?students=1000`: ước tính cost/student/month và câu chuyện scale.
+- `GET /api/evidence/safety`: guardrails đã có và khoảng trống production còn lại.
 
 ## FPT AI Factory
 
