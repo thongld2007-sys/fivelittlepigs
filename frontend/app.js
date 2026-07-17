@@ -1,0 +1,1189 @@
+// VGap AI - Frontend Interactive Engine (Memphis Style)
+// Supporting both Offline Fallback Mode and Online API integration.
+
+// Global State
+const state = {
+    currentPortal: 'student', // 'student' | 'teacher'
+    currentTeacherTab: 'grouping', // 'grouping' | 'priority' | 'tree'
+    studentId: 'emma_std_01',
+    selectedStudentForTree: null,
+    currentQuestion: null,
+    selectedOption: null,
+    isSubmitting: false,
+    knowledgeGraph: {},
+    streak: 0,
+    xp: 1200,
+    coins: 350,
+    
+    // Fallback progress state in case backend is offline
+    studentProgress: {
+        completedSkills: [],
+        activeSkill: 'MATH_G7',
+        lockedSkills: []
+    },
+    
+    // Mock Students for Class Analysis Dashboard
+    mockStudents: [
+        { id: 'an_01', name: 'Nguyễn Văn An', currentSkill: 'MATH_G6', nFailed: 4, tStuck: 12, mastery: 0.18 },
+        { id: 'binh_02', name: 'Trần Bình', currentSkill: 'MATH_G5', nFailed: 3, tStuck: 8, mastery: 0.22 },
+        { id: 'chi_03', name: 'Lê Chi', currentSkill: 'MATH_G7', nFailed: 0, tStuck: 2, mastery: 0.78 },
+        { id: 'dung_04', name: 'Nguyễn Dũng', currentSkill: 'MATH_G5_LCM', nFailed: 5, tStuck: 15, mastery: 0.12 },
+        { id: 'giang_05', name: 'Phạm Giang', currentSkill: 'MATH_G4', nFailed: 2, tStuck: 5, mastery: 0.28 },
+        { id: 'hoang_06', name: 'Lê Huy Hoàng', currentSkill: 'MATH_G7', nFailed: 1, tStuck: 3, mastery: 0.65 },
+        { id: 'linh_08', name: 'Phạm Khánh Linh', currentSkill: 'MATH_G6', nFailed: 4, tStuck: 11, mastery: 0.15 }
+    ]
+};
+
+// Reasoning Path Mock for teacher tree tab (can fall back or run dynamically)
+const REASONING_TREES = {
+    "an_01": {
+        student: "Nguyễn Văn An",
+        nodes: [
+            { id: "N1", label: "Cộng số hữu tỉ (L7)", status: "gap", level: 1 },
+            { id: "N2", label: "Cộng số nguyên (L6)", status: "active", level: 2 },
+            { id: "N3", label: "GTTĐ của số nguyên (L4)", status: "completed", level: 3 }
+        ],
+        edges: [
+            { from: "N1", to: "N2", type: "active" },
+            { from: "N2", to: "N3", type: "completed" }
+        ]
+    },
+    "binh_02": {
+        student: "Trần Bình",
+        nodes: [
+            { id: "N1", label: "Cộng số hữu tỉ (L7)", status: "gap", level: 1 },
+            { id: "N2", label: "Quy đồng phân số (L5)", status: "active", level: 2 },
+            { id: "N3", label: "Tìm BCNN (L5)", status: "completed", level: 3 }
+        ],
+        edges: [
+            { from: "N1", to: "N2", type: "active" },
+            { from: "N2", to: "N3", type: "completed" }
+        ]
+    },
+    "chi_03": {
+        student: "Lê Chi",
+        nodes: [
+            { id: "N1", label: "Cộng số hữu tỉ (L7)", status: "active", level: 1 },
+            { id: "N2", label: "Cộng số nguyên (L6)", status: "completed", level: 2 },
+            { id: "N3", label: "Quy đồng phân số (L5)", status: "completed", level: 2 }
+        ],
+        edges: [
+            { from: "N1", to: "N2", type: "completed" },
+            { from: "N1", to: "N3", type: "completed" }
+        ]
+    },
+    "dung_04": {
+        student: "Nguyễn Dũng",
+        nodes: [
+            { id: "N1", label: "Cộng số hữu tỉ (L7)", status: "gap", level: 1 },
+            { id: "N2", label: "Quy đồng phân số (L5)", status: "gap", level: 2 },
+            { id: "N3", label: "Tìm BCNN (L5)", status: "active", level: 3 }
+        ],
+        edges: [
+            { from: "N1", to: "N2", type: "gap" },
+            { from: "N2", to: "N3", type: "active" }
+        ]
+    }
+};
+
+// Initialize Application
+document.addEventListener("DOMContentLoaded", async () => {
+    initPortalNavigation();
+    initTeacherTabs();
+    initAITutorChat();
+    initVirtualScratchpad();
+    initFractionSlider();
+    initTeacherModals();
+    
+    // Load Knowledge Graph DAG
+    await loadKnowledgeGraph();
+    
+    // Bind Subject and Grade Selector Events
+    initSubjectSelectors();
+
+    // Load First Question
+    loadStudentQuestion(state.studentProgress.activeSkill);
+});
+
+// Load Knowledge Graph from backend
+async function loadKnowledgeGraph() {
+    try {
+        const res = await fetch("/api/knowledge-graph");
+        if (res.ok) {
+            state.knowledgeGraph = await res.json();
+            console.log("[+] Knowledge Graph loaded successfully:", state.knowledgeGraph);
+        }
+    } catch (e) {
+        console.warn("[-] Could not connect to API backend. Falling back to offline simulator graph.", e);
+        // Fallback local graph
+        state.knowledgeGraph = {
+            "MATH_G7": { name: "Cộng, trừ số hữu tỉ (Lớp 7)", grade: 7, subject: "Toán", prerequisites: ["MATH_G6", "MATH_G5"] },
+            "MATH_G6": { name: "Cộng, trừ số nguyên (Lớp 6)", grade: 6, subject: "Toán", prerequisites: ["MATH_G4"] },
+            "MATH_G4": { name: "Giá trị tuyệt đối của số nguyên (Lớp 4)", grade: 4, subject: "Toán", prerequisites: [] },
+            "MATH_G5": { name: "Quy đồng mẫu số phân số (Lớp 5)", grade: 5, subject: "Toán", prerequisites: ["MATH_G5_LCM"] },
+            "MATH_G5_LCM": { name: "Tìm Bội chung nhỏ nhất (Lớp 5)", grade: 5, subject: "Toán", prerequisites: [] }
+        };
+    }
+}
+
+// Bind Selectors for Subject & Grade
+function initSubjectSelectors() {
+    const subjectSelect = document.getElementById("subject-select");
+    const gradeSelect = document.getElementById("grade-select");
+    
+    if (subjectSelect && gradeSelect) {
+        const onSelectChange = () => {
+            const subject = subjectSelect.value;
+            const grade = parseInt(gradeSelect.value);
+            const skillId = getSkillIdFromSubjectAndGrade(subject, grade);
+            
+            state.studentProgress.activeSkill = skillId;
+            showToast(`Đã chọn: ${subject} - Lớp ${grade}`);
+            loadStudentQuestion(skillId);
+        };
+        
+        subjectSelect.addEventListener("change", onSelectChange);
+        gradeSelect.addEventListener("change", onSelectChange);
+    }
+}
+
+// Helper mapping UI inputs to Skill ID
+function getSkillIdFromSubjectAndGrade(subject, grade) {
+    if (subject === 'Toán') {
+        if (grade === 5) return 'MATH_G5';
+        return `MATH_G${grade}`;
+    } else if (subject === 'Ngữ văn') {
+        return `LIT_G${grade}`;
+    } else if (subject === 'Ngoại ngữ') {
+        return `ENG_G${grade}`;
+    } else if (subject === 'Khoa học tự nhiên') {
+        return `SCI_G${grade}`;
+    } else if (subject === 'Lịch sử và Địa lý') {
+        return `HISGEO_G${grade}`;
+    } else if (subject === 'Tin học và Công nghệ') {
+        return `INFTECH_G${grade}`;
+    }
+    return 'MATH_G7';
+}
+
+// Load a question from backend API or local mock fallback
+async function loadStudentQuestion(skillId) {
+    state.selectedOption = null;
+    document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
+    
+    try {
+        const res = await fetch(`/api/student/${state.studentId}/next-question?current_skill=${skillId}`);
+        if (res.ok) {
+            const data = await res.json();
+            const question = data.question;
+            state.currentQuestion = question;
+            state.studentProgress.activeSkill = data.active_skill;
+            
+            // Adjust selectors if skill changed due to diagnostic downshift
+            syncSelectorsToActiveSkill(data.active_skill);
+            
+            // Render UI
+            document.getElementById("current-skill-name").textContent = question.skill_name;
+            document.getElementById("current-question-difficulty").textContent = `Mức độ: ${question.difficulty}`;
+            document.getElementById("question-text").textContent = question.text;
+            
+            // Render Options
+            renderQuestionOptions(question.options);
+            
+            // Setup Mascot
+            document.getElementById("mascot-comment").textContent = "Hãy đọc kỹ đề bài nhé! Tôi tin bạn làm được!";
+            document.getElementById("hint-content-box").style.display = "none";
+            
+            // Render the Path
+            renderPersonalPath();
+            return;
+        }
+    } catch (e) {
+        console.warn("[-] Next-question API failed, fallback to offline mock mode simulation.", e);
+    }
+    
+    // Offline Mock fallback simulator
+    loadOfflineMockQuestion(skillId);
+}
+
+// Sync UI Dropdowns to Active Skill (for adaptive path shifts)
+function syncSelectorsToActiveSkill(skillId) {
+    const info = state.knowledgeGraph[skillId];
+    if (!info) return;
+    
+    const subjectSelect = document.getElementById("subject-select");
+    const gradeSelect = document.getElementById("grade-select");
+    
+    if (subjectSelect && gradeSelect) {
+        subjectSelect.value = info.subject || "Toán";
+        gradeSelect.value = info.grade ? info.grade.toString() : "7";
+    }
+}
+
+// Render Multiple Choice Buttons
+function renderQuestionOptions(options) {
+    const optionsContainer = document.getElementById("options-container");
+    optionsContainer.innerHTML = "";
+    
+    options.forEach(opt => {
+        const optBtn = document.createElement("button");
+        optBtn.className = "option-btn";
+        optBtn.setAttribute("data-val", opt.key);
+        optBtn.innerHTML = `<span class="option-letter">${opt.key}</span> ${opt.text}`;
+        
+        optBtn.addEventListener("click", () => {
+            if (state.isSubmitting) return;
+            
+            const allOpts = optionsContainer.querySelectorAll(".option-btn");
+            allOpts.forEach(btn => btn.classList.remove("selected"));
+            
+            optBtn.classList.add("selected");
+            state.selectedOption = opt.key;
+            document.getElementById("btn-submit-answer").removeAttribute("disabled");
+        });
+        
+        optionsContainer.appendChild(optBtn);
+    });
+}
+
+// Submit Answer handler
+async function submitAnswer() {
+    state.isSubmitting = true;
+    document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
+    
+    showLoadingOverlay("AI đang chấm điểm bài làm...");
+    
+    // 1. Submit through backend API
+    try {
+        const res = await fetch(`/api/student/${state.studentId}/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                question_id: state.currentQuestion.id,
+                selected_option: state.selectedOption
+            })
+        });
+        
+        if (res.ok) {
+            hideLoadingOverlay();
+            const result = await res.json();
+            const isCorrect = result.is_correct;
+            
+            const optionsContainer = document.getElementById("options-container");
+            const selectedBtn = optionsContainer.querySelector(`.option-btn[data-val="${state.selectedOption}"]`);
+            
+            if (isCorrect) {
+                if (selectedBtn) selectedBtn.classList.add("correct-feedback");
+                document.getElementById("mascot-comment").textContent = "Tuyệt vời! Bạn đã làm hoàn toàn chính xác!";
+                showToast("Chúc mừng! Bạn đã trả lời đúng!");
+                
+                // Streak & Rewards update
+                if (state.currentQuestion.difficulty_level === 3) {
+                    state.streak += 1;
+                    state.xp += 100;
+                    state.coins += 20;
+                } else {
+                    state.xp += 50;
+                    state.coins += 10;
+                }
+                updateStudentRewardsUI();
+                
+                setTimeout(() => {
+                    state.isSubmitting = false;
+                    loadStudentQuestion(result.next_recommended_skill);
+                }, 2000);
+            } else {
+                if (selectedBtn) selectedBtn.classList.add("error-feedback");
+                state.streak = 0; // Reset streak
+                updateStudentRewardsUI();
+                
+                // Distractor Socratic feedback
+                let socraticText = "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem sao?";
+                if (state.currentQuestion.hint) {
+                    socraticText = `Gợi ý: ${state.currentQuestion.hint}`;
+                }
+                document.getElementById("mascot-comment").textContent = socraticText;
+                showToast("Chưa chính xác. AI đang hỗ trợ chẩn đoán...");
+                
+                setTimeout(() => {
+                    state.isSubmitting = false;
+                    loadStudentQuestion(result.next_recommended_skill);
+                }, 3000);
+            }
+            return;
+        }
+    } catch (e) {
+        console.warn("[-] Submit API failed. Falling back to offline mock mode simulation.", e);
+    }
+    
+    // 2. Offline Mock submission
+    submitAnswerOffline();
+}
+
+// Update Student XP/Coins/Streak tags
+function updateStudentRewardsUI() {
+    const rewardsRow = document.getElementById("student-rewards");
+    if (!rewardsRow) return;
+    
+    rewardsRow.innerHTML = `
+        <span class="reward-tag streak-tag"><i class="fa-solid fa-fire"></i> Chuỗi: ${state.streak}</span>
+        <span class="reward-tag xp-tag"><i class="fa-solid fa-gem"></i> ${state.xp.toLocaleString()} XP</span>
+        <span class="reward-tag coin-tag"><i class="fa-solid fa-coins"></i> ${state.coins} Xu</span>
+    `;
+}
+
+// Render dynamic path based on knowledge graph API structure
+function renderPersonalPath() {
+    const flowContainer = document.getElementById("personal-path-flow");
+    if (!flowContainer) return;
+    flowContainer.innerHTML = "";
+    
+    const graph = state.knowledgeGraph;
+    const activeSkillId = state.studentProgress.activeSkill;
+    if (!graph || !graph[activeSkillId]) {
+        flowContainer.innerHTML = "<p>Đang tải lộ trình...</p>";
+        return;
+    }
+    
+    const activeSkill = graph[activeSkillId];
+    const prereqs = activeSkill.prerequisites || [];
+    
+    // Find next dependent nodes (skills having active as prerequisite)
+    const nextSkills = [];
+    for (const [skId, skVal] of Object.entries(graph)) {
+        if (skVal.prerequisites && skVal.prerequisites.includes(activeSkillId)) {
+            nextSkills.push(skId);
+        }
+    }
+    
+    const svgWidth = 200;
+    const svgHeight = 200;
+    let svgHtml = `<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">`;
+    
+    const nodes = [];
+    const edges = [];
+    
+    // 1. Add active node (Middle)
+    nodes.push({
+        id: activeSkillId,
+        x: 100,
+        y: 90,
+        label: activeSkill.name.split(' ')[0],
+        fullName: activeSkill.name,
+        color: '#FCD075'
+    });
+    
+    // 2. Add prerequisites (Bottom)
+    prereqs.forEach((prereqId, index) => {
+        if (graph[prereqId]) {
+            const x = prereqs.length === 1 ? 100 : (index === 0 ? 50 : 150);
+            nodes.push({
+                id: prereqId,
+                x: x,
+                y: 150,
+                label: graph[prereqId].name.split(' ')[0],
+                fullName: graph[prereqId].name,
+                color: '#4CAF50'
+            });
+            edges.push({ fromX: x, fromY: 150, toX: 100, toY: 90 });
+        }
+    });
+    
+    // 3. Add next/dependent nodes (Top)
+    nextSkills.slice(0, 2).forEach((nextId, index) => {
+        if (graph[nextId]) {
+            const x = nextSkills.length === 1 ? 100 : (index === 0 ? 50 : 150);
+            nodes.push({
+                id: nextId,
+                x: x,
+                y: 35,
+                label: graph[nextId].name.split(' ')[0],
+                fullName: graph[nextId].name,
+                color: '#cbd5e1'
+            });
+            edges.push({ fromX: 100, fromY: 90, toX: x, toY: 35 });
+        }
+    });
+    
+    // Render links
+    edges.forEach(e => {
+        svgHtml += `<line x1="${e.fromX}" y1="${e.fromY}" x2="${e.toX}" y2="${e.toY}" stroke="#0f172a" stroke-width="2.5" />`;
+    });
+    
+    // Render nodes
+    nodes.forEach(n => {
+        svgHtml += `
+            <g class="web-node" style="cursor: pointer;" onclick="showToast('${n.fullName}')">
+                <circle cx="${n.x}" cy="${n.y}" r="22" fill="${n.color}" stroke="#000000" stroke-width="2.5" />
+                <text x="${n.x}" y="${n.y + 4}" font-family="Poppins" font-size="7.5" font-weight="700" text-anchor="middle" fill="#000000">${n.label}</text>
+            </g>
+        `;
+    });
+    
+    svgHtml += `</svg>`;
+    
+    const legendHtml = `
+        <div style="display: flex; justify-content: space-around; font-size: 0.68rem; font-family: Poppins; font-weight: 700; border-top: 2px dashed #000; padding-top: 0.6rem; margin-top: 0.5rem; width: 100%;">
+            <div><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#4CAF50; border:1.5px solid #000; margin-right:3px; vertical-align:middle;"></span>Đạt</div>
+            <div><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#FCD075; border:1.5px solid #000; margin-right:3px; vertical-align:middle;"></span>Đang học</div>
+            <div><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#cbd5e1; border:1.5px solid #000; margin-right:3px; vertical-align:middle;"></span>Chưa học</div>
+        </div>
+    `;
+    
+    flowContainer.innerHTML = `<div style="display: flex; flex-direction: column; align-items: center; width: 100%;">${svgHtml}${legendHtml}</div>`;
+}
+
+// Render Teacher Dashboard using real API data
+async function renderTeacherDashboard() {
+    try {
+        const res = await fetch('/api/teacher/dashboard');
+        if (res.ok) {
+            const data = await res.json();
+            
+            // 1. Render Metrics
+            document.getElementById("total-gap-groups-count").textContent = data.metrics.gap_groups_count;
+            
+            const reTeachAlert = data.metrics.re_teach_alert;
+            const reteachBanner = document.getElementById("class-reteach-banner");
+            if (reTeachAlert) {
+                reteachBanner.style.display = "flex";
+                document.getElementById("class-reteach-skill-name").textContent = reTeachAlert;
+            } else {
+                reteachBanner.style.display = "none";
+            }
+            
+            // 2. Render Groups Grid
+            const groupsGrid = document.getElementById("groups-grid-container");
+            groupsGrid.innerHTML = "";
+            
+            data.groups.forEach(grp => {
+                const card = document.createElement("div");
+                card.className = "group-card";
+                let membersTags = grp.members.map(m => `<span class="member-tag">${m}</span>`).join("");
+                
+                card.innerHTML = `
+                    <div class="group-card-header">
+                        <h4>Nhóm hổng: ${KNOWLEDGE_GRAPH_LOCAL_NAMES[grp.skill_id] || grp.skill_id}</h4>
+                        <span class="student-count">${grp.count} học sinh</span>
+                    </div>
+                    <div class="group-members">
+                        ${membersTags}
+                    </div>
+                    <div class="group-action">
+                        <button class="btn btn-hint-outline btn-sm" onclick="alert('Đã gửi tài liệu bổ trợ chuyên biệt!')">
+                            <i class="fa-solid fa-share-nodes"></i> Gửi tài liệu ôn tập
+                        </button>
+                    </div>
+                `;
+                groupsGrid.appendChild(card);
+            });
+            
+            // 3. Render Priority Table
+            const tableBody = document.getElementById("priority-table-body");
+            tableBody.innerHTML = "";
+            
+            data.priority_list.forEach((std, index) => {
+                const row = document.createElement("tr");
+                if (index < 2) row.className = "priority-pulsing-row";
+                
+                row.innerHTML = `
+                    <td><strong>${std.name}</strong></td>
+                    <td><span class="badge badge-skill">${std.current_skill}</span></td>
+                    <td><span class="badge badge-danger">${std.n_failed} câu</span></td>
+                    <td><span class="badge badge-warning">${std.t_stuck} phút</span></td>
+                    <td><strong>${std.priority_score}</strong></td>
+                    <td>
+                        <button class="btn btn-primary-memphis btn-sm" onclick="openDiagnosticInspector('${std.id}')">
+                            <i class="fa-solid fa-hand-holding-hand"></i> Kèm cặp ngay
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            
+            renderClassroomHeatmap();
+            return;
+        }
+    } catch (e) {
+        console.warn("[-] Teacher dashboard API failed. Using simulated mock panels.", e);
+    }
+    
+    // Offline Mock dashboard fallback
+    renderOfflineTeacherDashboard();
+}
+
+const KNOWLEDGE_GRAPH_LOCAL_NAMES = {
+    "MATH_G7": "Cộng số hữu tỉ (L7)",
+    "MATH_G6": "Cộng số nguyên (L6)",
+    "MATH_G4": "GTTĐ của số nguyên (L4)",
+    "MATH_G5": "Quy đồng phân số (L5)",
+    "MATH_G5_LCM": "Tìm BCNN (L5)"
+};
+
+// Heatmap Renderer
+function renderClassroomHeatmap() {
+    const container = document.getElementById("heatmap-grid-container");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    for (let i = 1; i <= 40; i++) {
+        const box = document.createElement("div");
+        box.className = "heatmap-box";
+        box.textContent = i;
+        
+        if (i === 1) {
+            box.className += " danger";
+            box.title = "Nguyễn Văn An - Cần kèm gấp!";
+            box.addEventListener("click", () => openDiagnosticInspector("an_01"));
+        } else if (i === 2) {
+            box.className += " warning";
+            box.title = "Trần Bình - Đang chẩn đoán";
+            box.addEventListener("click", () => openDiagnosticInspector("binh_02"));
+        } else if (i === 4) {
+            box.className += " danger";
+            box.title = "Lê Công Hoàng - Cần kèm gấp!";
+            box.addEventListener("click", () => openDiagnosticInspector("hoang_04"));
+        } else {
+            box.className += " normal";
+            box.title = `Học sinh số ${i} - Đang học tập ổn định`;
+            box.addEventListener("click", () => showToast(`Học sinh số ${i} đang tiến bộ tốt.`));
+        }
+        container.appendChild(box);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// OFFLINE SIMULATION FALLBACKS (In case API is disconnected)
+// -----------------------------------------------------------------------------
+
+const OFFLINE_MOCK_QUESTIONS = {
+    "MATH_G7": {
+        id: "q_math_g7_2",
+        skill_id: "MATH_G7",
+        difficulty_level: 2,
+        difficulty: "Vừa",
+        text: "Tính kết quả của phép tính sau: 1/2 + (-2/3)",
+        options: [{key:"A",text:"-1/6"}, {key:"B",text:"1/6"}, {key:"C",text:"-7/6"}, {key:"D",text:"7/6"}],
+        correct_answer: "A",
+        hint: "Quy đồng mẫu số của 2 phân số trước khi cộng. Mẫu chung là 6."
+    },
+    "MATH_G6": {
+        id: "q_math_g6_2",
+        skill_id: "MATH_G6",
+        difficulty_level: 2,
+        difficulty: "Vừa",
+        text: "Tính kết quả của phép tính sau: (-15) + 8",
+        options: [{key:"A",text:"7"}, {key:"B",text:"-7"}, {key:"C",text:"-23"}, {key:"D",text:"23"}],
+        correct_answer: "B",
+        hint: "Hai số trái dấu, lấy trị tuyệt đối lớn trừ nhỏ, đặt dấu của số lớn trước kết quả."
+    },
+    "MATH_G5": {
+        id: "q_math_g5_2",
+        skill_id: "MATH_G5",
+        difficulty_level: 2,
+        difficulty: "Vừa",
+        text: "Quy đồng mẫu số 3/4 và 5/6. Mẫu chung nhỏ nhất của chúng là bao nhiêu?",
+        options: [{key:"A",text:"24"}, {key:"B",text:"12"}, {key:"C",text:"10"}, {key:"D",text:"8"}],
+        correct_answer: "B",
+        hint: "Tìm số tự nhiên nhỏ nhất chia hết cho cả 4 và 6, chính là BCNN(4, 6) = 12."
+    },
+    "MATH_G5_LCM": {
+        id: "q_math_g5_lcm_2",
+        skill_id: "MATH_G5_LCM",
+        difficulty_level: 2,
+        difficulty: "Vừa",
+        text: "Tìm Bội chung nhỏ nhất của hai số 6 và 8. BCNN(6, 8) = ?",
+        options: [{key:"A",text:"48"}, {key:"B",text:"24"}, {key:"C",text:"12"}, {key:"D",text:"18"}],
+        correct_answer: "B",
+        hint: "Tìm số nhỏ nhất chia hết cho cả 6 và 8."
+    }
+};
+
+function loadOfflineMockQuestion(skillId) {
+    const question = OFFLINE_MOCK_QUESTIONS[skillId] || OFFLINE_MOCK_QUESTIONS["MATH_G7"];
+    state.currentQuestion = question;
+    state.selectedOption = null;
+    
+    document.getElementById("current-skill-name").textContent = KNOWLEDGE_GRAPH_LOCAL_NAMES[question.skill_id] || question.skill_id;
+    document.getElementById("current-question-difficulty").textContent = `Mức độ: ${question.difficulty}`;
+    document.getElementById("question-text").textContent = question.text;
+    
+    renderQuestionOptions(question.options);
+    
+    document.getElementById("hint-content-box").style.display = "none";
+    document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
+    document.getElementById("mascot-comment").textContent = "[MOCK] Hãy đọc kỹ đề bài nhé! Tôi tin bạn làm được!";
+    renderPersonalPath();
+}
+
+function submitAnswerOffline() {
+    hideLoadingOverlay();
+    const isCorrect = state.selectedOption === state.currentQuestion.correct_answer;
+    const optionsContainer = document.getElementById("options-container");
+    const selectedBtn = optionsContainer.querySelector(`.option-btn[data-val="${state.selectedOption}"]`);
+    
+    const banner = document.getElementById("diagnostic-banner");
+    
+    if (isCorrect) {
+        if (selectedBtn) selectedBtn.classList.add("correct-feedback");
+        document.getElementById("mascot-comment").textContent = "Tuyệt vời! Bạn đã làm hoàn toàn chính xác!";
+        showToast("[MOCK] Trả lời đúng!");
+        
+        setTimeout(() => {
+            // Shift up logic mock
+            if (state.studentProgress.activeSkill === 'MATH_G5_LCM') {
+                state.studentProgress.activeSkill = 'MATH_G5';
+            } else if (state.studentProgress.activeSkill === 'MATH_G5') {
+                state.studentProgress.activeSkill = 'MATH_G7';
+                if (banner) banner.style.display = "none";
+            }
+            state.isSubmitting = false;
+            loadStudentQuestion(state.studentProgress.activeSkill);
+        }, 2000);
+    } else {
+        if (selectedBtn) selectedBtn.classList.add("error-feedback");
+        document.getElementById("mascot-comment").textContent = "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem?";
+        showToast("[MOCK] Chưa chính xác!");
+        
+        setTimeout(() => {
+            // Shift down logic mock
+            if (state.studentProgress.activeSkill === 'MATH_G7') {
+                state.studentProgress.activeSkill = 'MATH_G5';
+                if (banner) banner.style.display = "flex";
+            } else if (state.studentProgress.activeSkill === 'MATH_G5') {
+                state.studentProgress.activeSkill = 'MATH_G5_LCM';
+            }
+            state.isSubmitting = false;
+            loadStudentQuestion(state.studentProgress.activeSkill);
+        }, 2500);
+    }
+}
+
+function renderOfflineTeacherDashboard() {
+    const reteachBanner = document.getElementById("class-reteach-banner");
+    reteachBanner.style.display = "flex";
+    document.getElementById("class-reteach-skill-name").textContent = "Quy đồng mẫu số phân số (Lớp 5)";
+    
+    const groupsGrid = document.getElementById("groups-grid-container");
+    groupsGrid.innerHTML = "";
+    
+    const mockGroups = [
+        { title: "Nhóm hổng: Quy đồng phân số (Lớp 5)", count: 12, members: ["Trần Bình", "Trần Minh Khánh", "+10 học sinh khác"] },
+        { title: "Nhóm hổng: Cộng trừ số nguyên (Lớp 6)", count: 8, members: ["Nguyễn Văn An", "Phạm Khánh Linh", "+6 học sinh khác"] }
+    ];
+    
+    mockGroups.forEach(grp => {
+        const card = document.createElement("div");
+        card.className = "group-card";
+        let membersTags = grp.members.map(m => `<span class="member-tag">${m}</span>`).join("");
+        
+        card.innerHTML = `
+            <div class="group-card-header">
+                <h4>${grp.title}</h4>
+                <span class="student-count">${grp.count} học sinh</span>
+            </div>
+            <div class="group-members">${membersTags}</div>
+            <div class="group-action">
+                <button class="btn btn-hint-outline btn-sm" onclick="alert('Đã gửi tài liệu!')"><i class="fa-solid fa-share-nodes"></i> Gửi tài liệu</button>
+            </div>
+        `;
+        groupsGrid.appendChild(card);
+    });
+    
+    const tableBody = document.getElementById("priority-table-body");
+    tableBody.innerHTML = "";
+    state.mockStudents.forEach((std, index) => {
+        const row = document.createElement("tr");
+        if (index < 2) row.className = "priority-pulsing-row";
+        
+        row.innerHTML = `
+            <td><strong>${std.name}</strong></td>
+            <td><span class="badge badge-skill">${std.currentSkill}</span></td>
+            <td><span class="badge badge-danger">${std.nFailed} câu</span></td>
+            <td><span class="badge badge-warning">${std.tStuck} phút</span></td>
+            <td><strong>${(1.5 + index * 0.1).toFixed(2)}</strong></td>
+            <td><button class="btn btn-primary-memphis btn-sm" onclick="openDiagnosticInspector('${std.id}')"><i class="fa-solid fa-hand-holding-hand"></i> Kèm cặp</button></td>
+        `;
+        tableBody.appendChild(row);
+    });
+    
+    renderClassroomHeatmap();
+}
+
+// -----------------------------------------------------------------------------
+// CHAT, MODALS, HEATMAP, SCRATCHPAD, SLIDER LOGIC
+// -----------------------------------------------------------------------------
+
+function initAITutorChat() {
+    const chatInput = document.getElementById("tutor-chat-input");
+    const sendBtn = document.getElementById("btn-send-tutor");
+    const chatHistory = document.getElementById("chat-history-box");
+    
+    function sendUserMessage(msg) {
+        if (!msg.trim()) return;
+        
+        const userBubble = document.createElement("div");
+        userBubble.className = "chat-bubble user-bubble";
+        userBubble.innerHTML = `
+            <div class="bubble-content"><p>${msg}</p></div>
+            <div class="bubble-avatar"><i class="fa-solid fa-user-ninja"></i></div>
+        `;
+        chatHistory.appendChild(userBubble);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+        
+        if (chatInput) chatInput.value = "";
+        
+        setTimeout(() => {
+            const robotBubble = document.createElement("div");
+            robotBubble.className = "chat-bubble robot-bubble";
+            
+            let replyText = "Tôi là Gia sư AI. Đang phân tích câu hỏi của bạn...";
+            if (msg.toLowerCase().includes("bcnn")) {
+                replyText = "Bội chung nhỏ nhất (BCNN) của hai số là số tự nhiên nhỏ nhất khác 0 chia hết cho cả hai số đó. Ví dụ: BCNN(6, 8) = 24.";
+            } else if (msg.toLowerCase().includes("quy đồng")) {
+                replyText = "Để quy đồng mẫu số, ta tìm BCNN của các mẫu số làm mẫu chung, rồi nhân cả tử và mẫu với nhân tử phụ tương ứng.";
+            } else if (msg.toLowerCase().includes("số hữu tỉ")) {
+                replyText = "Số hữu tỉ là số viết được dưới dạng phân số a/b (a, b thuộc Z, b khác 0). Ví dụ: 0.5, -3/4, 2.";
+            }
+            
+            robotBubble.innerHTML = `
+                <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
+                <div class="bubble-content"><p>${replyText}</p></div>
+            `;
+            chatHistory.appendChild(robotBubble);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }, 1000);
+    }
+    
+    if (sendBtn && chatInput) {
+        sendBtn.addEventListener("click", () => sendUserMessage(chatInput.value));
+        chatInput.addEventListener("keypress", (e) => {
+            if (e.key === 'Enter') sendUserMessage(chatInput.value);
+        });
+    }
+    
+    document.querySelectorAll(".quick-pill-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            sendUserMessage(btn.getAttribute("data-prompt") || btn.textContent);
+        });
+    });
+}
+
+function initPortalNavigation() {
+    const btnTogglePortal = document.getElementById("btn-toggle-portal");
+    const portalStudent = document.getElementById("portal-student");
+    const portalTeacher = document.getElementById("portal-teacher");
+    const progressWrapper = document.getElementById("student-progress-wrapper");
+    const teacherTitleWrapper = document.getElementById("teacher-title-wrapper");
+    const studentRewards = document.getElementById("student-rewards");
+    const userDisplayName = document.getElementById("user-display-name");
+    
+    btnTogglePortal.addEventListener("click", () => {
+        if (state.currentPortal === 'student') {
+            state.currentPortal = 'teacher';
+            portalStudent.classList.remove("active");
+            portalTeacher.classList.add("active");
+            progressWrapper.style.display = "none";
+            studentRewards.style.display = "none";
+            teacherTitleWrapper.style.display = "block";
+            userDisplayName.textContent = "Thầy Hùng (GV Toán)";
+            btnTogglePortal.innerHTML = `<i class="fa-solid fa-graduation-cap"></i> Học sinh`;
+            renderTeacherDashboard();
+        } else {
+            state.currentPortal = 'student';
+            portalTeacher.classList.remove("active");
+            portalStudent.classList.add("active");
+            progressWrapper.style.display = "block";
+            studentRewards.style.display = "flex";
+            teacherTitleWrapper.style.display = "none";
+            userDisplayName.textContent = "Emma (Lớp 7A)";
+            btnTogglePortal.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> Chuyển Bảng`;
+        }
+    });
+    
+    const menuItems = document.querySelectorAll(".menu-item");
+    menuItems.forEach(item => {
+        item.addEventListener("click", (e) => {
+            e.preventDefault();
+            menuItems.forEach(i => i.classList.remove("active"));
+            item.classList.add("active");
+            
+            const tabName = item.getAttribute("data-tab");
+            if (state.currentPortal === 'teacher') btnTogglePortal.click();
+            
+            document.querySelectorAll(".student-view-panel").forEach(p => p.style.display = "none");
+            const activePanel = document.getElementById(`student-view-${tabName}`);
+            if (activePanel) activePanel.style.display = "block";
+            
+            showToast(`Đang mở: ${item.querySelector('span').textContent}`);
+        });
+    });
+}
+
+function initTeacherTabs() {
+    const tabBtns = document.querySelectorAll(".teacher-tab-btn");
+    const panels = document.querySelectorAll(".teacher-tab-panel");
+    
+    tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            
+            const tabName = btn.getAttribute("data-teacher-tab");
+            state.currentTeacherTab = tabName;
+            
+            panels.forEach(p => p.classList.remove("active"));
+            document.getElementById(`teacher-tab-${tabName}`).classList.add("active");
+            
+            if (tabName === 'tree') renderReasoningTreeVisualizer();
+        });
+    });
+}
+
+function initVirtualScratchpad() {
+    const canvas = document.getElementById("scratchpad-canvas");
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext("2d");
+    const penBtn = document.getElementById("btn-scratchpad-pen");
+    const eraserBtn = document.getElementById("btn-scratchpad-eraser");
+    const clearBtn = document.getElementById("btn-scratchpad-clear");
+    
+    let isDrawing = false;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#000000";
+    
+    canvas.addEventListener("mousedown", startDrawing);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", stopDrawing);
+    canvas.addEventListener("mouseout", stopDrawing);
+    
+    function startDrawing(e) {
+        isDrawing = true;
+        ctx.beginPath();
+        const rect = canvas.getBoundingClientRect();
+        ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    }
+    function draw(e) {
+        if (!isDrawing) return;
+        const rect = canvas.getBoundingClientRect();
+        ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+        ctx.stroke();
+    }
+    function stopDrawing() {
+        isDrawing = false;
+        ctx.closePath();
+    }
+    
+    penBtn.addEventListener("click", () => {
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 3;
+        penBtn.classList.add("active");
+        eraserBtn.classList.remove("active");
+    });
+    eraserBtn.addEventListener("click", () => {
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 15;
+        eraserBtn.classList.add("active");
+        penBtn.classList.remove("active");
+    });
+    clearBtn.addEventListener("click", () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        showToast("Đã xóa bảng nháp!");
+    });
+}
+
+function initFractionSlider() {
+    const slider = document.getElementById("fraction-slider");
+    const sliderVal = document.getElementById("fraction-slider-val");
+    const sliderContainer = document.getElementById("fraction-slider-container");
+    const btnShowHint = document.getElementById("btn-show-hint");
+    
+    if (!slider || !sliderVal || !sliderContainer) return;
+    
+    btnShowHint.addEventListener("click", () => {
+        const isVisible = document.getElementById("hint-content-box").style.display !== "none";
+        const skill = state.studentProgress.activeSkill;
+        
+        if (isVisible && (skill === "MATH_G7" || skill === "MATH_G5")) {
+            sliderContainer.style.display = "block";
+            drawInteractiveFractionCircle(parseInt(slider.value));
+        } else {
+            sliderContainer.style.display = "none";
+        }
+    });
+    
+    slider.addEventListener("input", (e) => {
+        const val = parseInt(e.target.value);
+        sliderVal.textContent = val;
+        drawInteractiveFractionCircle(val);
+    });
+    
+    // Wire up hint text render
+    btnShowHint.addEventListener("click", () => {
+        const hintBox = document.getElementById("hint-content-box");
+        if (hintBox.style.display === "none") {
+            hintBox.style.display = "block";
+            document.getElementById("hint-text").textContent = state.currentQuestion.hint || "Đọc kỹ phần gợi ý bên trên.";
+        } else {
+            hintBox.style.display = "none";
+        }
+    });
+}
+
+function drawInteractiveFractionCircle(segments) {
+    const container = document.getElementById("hint-visual-representation");
+    if (!container) return;
+    
+    const size = 160;
+    const center = size / 2;
+    const radius = 65;
+    
+    let svgHtml = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="background: #FFF; border-radius: 50%; border: 3px solid #000;">`;
+    const sliceAngle = (2 * Math.PI) / segments;
+    const coloredCount = Math.round(segments / 2);
+    
+    for (let i = 0; i < coloredCount; i++) {
+        const startAngle = i * sliceAngle - Math.PI / 2;
+        const endAngle = (i + 1) * sliceAngle - Math.PI / 2;
+        const x1 = center + radius * Math.cos(startAngle);
+        const y1 = center + radius * Math.sin(startAngle);
+        const x2 = center + radius * Math.cos(endAngle);
+        const y2 = center + radius * Math.sin(endAngle);
+        svgHtml += `<path d="M ${center} ${center} L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z" fill="#FCD075" stroke="#000" stroke-width="1.5" />`;
+    }
+    for (let i = coloredCount; i < segments; i++) {
+        const startAngle = i * sliceAngle - Math.PI / 2;
+        const endAngle = (i + 1) * sliceAngle - Math.PI / 2;
+        const x1 = center + radius * Math.cos(startAngle);
+        const y1 = center + radius * Math.sin(startAngle);
+        const x2 = center + radius * Math.cos(endAngle);
+        const y2 = center + radius * Math.sin(endAngle);
+        svgHtml += `<path d="M ${center} ${center} L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z" fill="#FFF" stroke="#000" stroke-width="1.5" />`;
+    }
+    
+    svgHtml += `</svg>`;
+    container.innerHTML = svgHtml + `<p style="font-family: Poppins; font-weight: 700; margin-top: 0.5rem; font-size: 0.85rem; text-align: center;">Cắt hình tròn thành ${segments} phần. Tô màu: ${coloredCount}/${segments} = 1/2</p>`;
+}
+
+function initTeacherModals() {
+    const btnCreatePlan = document.getElementById("btn-create-lesson-plan");
+    const lpModal = document.getElementById("modal-lesson-plan");
+    const lpOverlay = document.getElementById("lesson-plan-overlay");
+    const lpCloseBtn = document.getElementById("btn-close-lesson-plan");
+    
+    const diagModal = document.getElementById("modal-diagnostic-inspector");
+    const diagOverlay = document.getElementById("diagnostic-overlay");
+    const diagCloseBtn = document.getElementById("btn-close-diagnostic");
+    
+    if (btnCreatePlan) {
+        btnCreatePlan.addEventListener("click", () => {
+            generateAILessonPlan();
+            lpModal.style.display = "flex";
+        });
+    }
+    if (lpCloseBtn) lpCloseBtn.addEventListener("click", () => lpModal.style.display = "none");
+    if (lpOverlay) lpOverlay.addEventListener("click", () => lpModal.style.display = "none");
+    
+    if (diagCloseBtn) diagCloseBtn.addEventListener("click", () => diagModal.style.display = "none");
+    if (diagOverlay) diagOverlay.addEventListener("click", () => diagModal.style.display = "none");
+}
+
+function generateAILessonPlan() {
+    const container = document.getElementById("lesson-plan-modal-body");
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div style="font-family: Inter; line-height: 1.6;">
+            <div style="background: var(--secondary-light); border: 2px solid #000; padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;">
+                <strong>📚 Giáo án bổ trợ:</strong> Quy đồng mẫu số phân số (Kiến thức nền gốc Lớp 5) <br>
+                <strong>🎯 Đối tượng áp dụng:</strong> Các học sinh hổng kiến thức cốt lõi.
+            </div>
+            <h4>1. Mục tiêu bài học (Objectives)</h4>
+            <ul>
+                <li>Giúp học sinh nắm vững cách tìm Bội chung nhỏ nhất (BCNN) của các mẫu số.</li>
+                <li>Biết cách tìm nhân tử phụ và nhân cả tử và mẫu để quy đồng mẫu số thành công.</li>
+            </ul>
+            <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+                <button class="btn btn-primary-memphis btn-sm" onclick="alert('Đã tải giáo án PDF về máy!')"><i class="fa-solid fa-file-pdf"></i> Tải giáo án PDF</button>
+            </div>
+        </div>
+    `;
+}
+
+function renderReasoningTreeVisualizer() {
+    const listContainer = document.getElementById("student-select-list");
+    listContainer.innerHTML = "";
+    
+    Object.keys(REASONING_TREES).forEach(key => {
+        const std = REASONING_TREES[key];
+        const item = document.createElement("div");
+        item.className = `student-select-item ${state.selectedStudentForTree === key ? 'selected' : ''}`;
+        item.textContent = std.student;
+        
+        item.addEventListener("click", () => {
+            listContainer.querySelectorAll(".student-select-item").forEach(i => i.classList.remove("selected"));
+            item.classList.add("selected");
+            state.selectedStudentForTree = key;
+            drawSVGTree(std);
+        });
+        listContainer.appendChild(item);
+    });
+}
+
+function drawSVGTree(treeData) {
+    const container = document.getElementById("dag-visualizer-container");
+    container.innerHTML = "";
+    
+    document.getElementById("tree-student-desc").innerHTML = `Đang hiển thị phân tích cây quyết định chẩn đoán của học sinh <strong>${treeData.student}</strong>`;
+    
+    const svgWidth = 500;
+    const svgHeight = 350;
+    
+    let svgHtml = `<svg class="dag-svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">`;
+    svgHtml += `
+        <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="28" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f172a" />
+            </marker>
+        </defs>
+    `;
+    
+    const nodeCoords = {};
+    treeData.nodes.forEach((node, idx) => {
+        const x = svgWidth / 2;
+        const y = 50 + (idx * 110);
+        nodeCoords[node.id] = { x, y };
+        
+        let strokeColor = "#0f172a";
+        let fillColor = "#FFFFFF";
+        let glowStyle = "";
+        
+        if (node.status === 'gap') {
+            strokeColor = "#EF5350";
+            fillColor = "#ffebee";
+            glowStyle = "filter: drop-shadow(2px 2px 0px #0f172a);";
+        } else if (node.status === 'active') {
+            strokeColor = "#557AFA";
+            fillColor = "#e8ecff";
+            glowStyle = "filter: drop-shadow(4px 4px 0px #0f172a);";
+        } else if (node.status === 'completed') {
+            strokeColor = "#4CAF50";
+            fillColor = "#e8f5e9";
+            glowStyle = "filter: drop-shadow(2px 2px 0px #0f172a);";
+        }
+        
+        svgHtml += `
+            <g class="dag-node ${node.status}" transform="translate(${x - 90}, ${y - 25})" style="${glowStyle}">
+                <rect class="dag-node-rect" width="180" height="50" rx="16" fill="${fillColor}" stroke="${strokeColor}" stroke-width="2" />
+                <text x="90" y="28" class="dag-node-text" text-anchor="middle" font-size="11" font-family="Poppins" font-weight="700" fill="#0f172a">${node.label}</text>
+            </g>
+        `;
+    });
+    
+    treeData.edges.forEach(edge => {
+        const from = nodeCoords[edge.from];
+        const to = nodeCoords[edge.to];
+        if (from && to) {
+            svgHtml += `<line x1="${from.x}" y1="${from.y + 25}" x2="${to.x}" y2="${to.y - 25}" class="dag-edge" marker-end="url(#arrow)" />`;
+        }
+    });
+    
+    svgHtml += `</svg>`;
+    container.innerHTML = svgHtml;
+}
+
+function showToast(message) {
+    const toast = document.getElementById("notification-toast");
+    document.getElementById("toast-message").textContent = message;
+    toast.style.display = "block";
+    setTimeout(() => { toast.style.display = "none"; }, 3000);
+}
+
+function showLoadingOverlay(text = "Đang tải...") {
+    document.getElementById("loading-text").textContent = text;
+    document.getElementById("loading-overlay").style.display = "flex";
+}
+function hideLoadingOverlay() {
+    document.getElementById("loading-overlay").style.display = "none";
+}
+
+function openDiagnosticInspector(studentId) {
+    const modal = document.getElementById("modal-diagnostic-inspector");
+    const container = document.getElementById("diagnostic-inspector-body");
+    if (!modal || !container) return;
+    
+    let name = "Học sinh";
+    let activeSkill = "Cộng số hữu tỉ (L7)";
+    let diagnosedError = "Không tìm thấy lỗi hệ thống.";
+    let attempts = [];
+    
+    if (studentId === "an_01") {
+        name = "Nguyễn Văn An";
+        activeSkill = "Cộng số nguyên (Lớp 6)";
+        diagnosedError = "Học sinh thường sai ở bước tính tổng hai số nguyên trái dấu có trị tuyệt đối khác nhau (ví dụ: lấy -15 + 8 ra -23 thay vì -7).";
+        attempts = [
+            { question: "(-15) + 8", answer: "-23", status: "Incorrect", time: "10 phút trước" },
+            { question: "(-15) + 8", answer: "23", status: "Incorrect", time: "15 phút trước" }
+        ];
+    } else if (studentId === "binh_02") {
+        name = "Trần Bình";
+        activeSkill = "Quy đồng mẫu số (Lớp 5)";
+        diagnosedError = "Học sinh gặp khó khăn trong việc tìm Bội chung nhỏ nhất (BCNN) của hai mẫu số chẵn khác nhau (ví dụ: BCNN của 4 và 6 tính ra 24 thay vì mẫu số chung nhỏ nhất 12).";
+        attempts = [
+            { question: "Quy đồng 3/4 và 5/6", answer: "24", status: "Incorrect", time: "5 phút trước" }
+        ];
+    } else {
+        name = `Học sinh ${studentId}`;
+        diagnosedError = "Tiến độ học bình thường, đã vượt qua các bài kiểm tra chẩn đoán.";
+    }
+    
+    let attemptsRows = attempts.map(att => `
+        <tr>
+            <td><code>${att.question}</code></td>
+            <td style="color: ${att.status === 'Correct' ? 'var(--success)' : 'var(--danger)'}; font-weight: 700;">${att.answer}</td>
+            <td><span class="badge ${att.status === 'Correct' ? 'badge-success' : 'badge-danger'}">${att.status === 'Correct' ? 'Đúng' : 'Sai'}</span></td>
+            <td>${att.time}</td>
+        </tr>
+    `).join("");
+    
+    container.innerHTML = `
+        <div style="font-family: Inter;">
+            <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+                <strong>👤 Học sinh:</strong> ${name} <br>
+                <strong>🎯 Kỹ năng đang kẹt:</strong> <span class="badge badge-skill">${activeSkill}</span>
+            </p>
+            <div style="background: rgba(239, 83, 80, 0.1); border: 2px solid var(--danger); padding: 1.2rem; border-radius: 16px; margin-bottom: 1.5rem;">
+                <h4 style="color: var(--danger); margin-top: 0;"><i class="fa-solid fa-bug"></i> Phân tích lỗi sai gốc rễ (Root Cause):</h4>
+                <p style="margin: 0; font-weight: 500;">${diagnosedError}</p>
+            </div>
+            <h4 style="margin-bottom: 0.8rem;"><i class="fa-solid fa-clock-rotate-left"></i> Nhật ký làm bài gần đây</h4>
+            <div class="table-container">
+                <table class="memphis-table" style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Câu hỏi</th>
+                            <th>Học sinh nhập</th>
+                            <th>Trạng thái</th>
+                            <th>Thời gian</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${attemptsRows || `<tr><td colspan="4" style="text-align: center;">Chưa có nhật ký làm bài gần đây.</td></tr>`}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    modal.style.display = "flex";
+}
+
+// Bind Submit Button Click
+const submitBtn = document.getElementById("btn-submit-answer");
+if (submitBtn) {
+    submitBtn.onclick = () => {
+        if (!state.selectedOption || state.isSubmitting) return;
+        submitAnswer();
+    };
+}
