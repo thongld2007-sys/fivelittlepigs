@@ -88,6 +88,7 @@ const REASONING_TREES = {
 
 // Initialize Application
 document.addEventListener("DOMContentLoaded", async () => {
+    initAuthFlow();
     initPortalNavigation();
     initTeacherTabs();
     initAITutorChat();
@@ -980,36 +981,59 @@ function initStudentMascotChat() {
     });
 }
 
-function initPortalNavigation() {
-    const btnTogglePortal = document.getElementById("btn-toggle-portal");
+function switchPortalUI(targetRole) {
     const portalStudent = document.getElementById("portal-student");
     const portalTeacher = document.getElementById("portal-teacher");
     const progressWrapper = document.getElementById("student-progress-wrapper");
     const teacherTitleWrapper = document.getElementById("teacher-title-wrapper");
     const studentRewards = document.getElementById("student-rewards");
+    const btnTogglePortal = document.getElementById("btn-toggle-portal");
     const userDisplayName = document.getElementById("user-display-name");
+    const userAvatarImg = document.getElementById("user-avatar-img");
+    
+    if (targetRole === 'teacher') {
+        state.currentPortal = 'teacher';
+        if (portalStudent) portalStudent.classList.remove("active");
+        if (portalTeacher) portalTeacher.classList.add("active");
+        if (progressWrapper) progressWrapper.style.display = "none";
+        if (studentRewards) studentRewards.style.display = "none";
+        if (teacherTitleWrapper) teacherTitleWrapper.style.display = "block";
+        if (userDisplayName) userDisplayName.textContent = "Thầy Hùng (GV Toán)";
+        if (userAvatarImg) userAvatarImg.src = "https://api.dicebear.com/7.x/adventurer/svg?seed=TeacherHung";
+        if (btnTogglePortal) btnTogglePortal.innerHTML = `<i class="fa-solid fa-graduation-cap"></i> Học sinh`;
+        renderTeacherDashboard();
+    } else {
+        state.currentPortal = 'student';
+        if (portalTeacher) portalTeacher.classList.remove("active");
+        if (portalStudent) portalStudent.classList.add("active");
+        if (progressWrapper) progressWrapper.style.display = "block";
+        if (studentRewards) studentRewards.style.display = "flex";
+        if (teacherTitleWrapper) teacherTitleWrapper.style.display = "none";
+        
+        // Load details from student ID
+        let name = "Emma (Lớp 7A)";
+        let avatar = "Emma";
+        if (state.studentId === "an_01") {
+            name = "Nguyễn Văn An";
+            avatar = "An";
+        } else if (state.studentId === "binh_02") {
+            name = "Trần Bình";
+            avatar = "Binh";
+        } else if (state.studentId === "hoang_06") {
+            name = "Lê Huy Hoàng";
+            avatar = "Hoang";
+        }
+        if (userDisplayName) userDisplayName.textContent = name;
+        if (userAvatarImg) userAvatarImg.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${avatar}`;
+        if (btnTogglePortal) btnTogglePortal.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> Chuyển Bảng`;
+    }
+}
+
+function initPortalNavigation() {
+    const btnTogglePortal = document.getElementById("btn-toggle-portal");
     
     btnTogglePortal.addEventListener("click", () => {
-        if (state.currentPortal === 'student') {
-            state.currentPortal = 'teacher';
-            portalStudent.classList.remove("active");
-            portalTeacher.classList.add("active");
-            progressWrapper.style.display = "none";
-            studentRewards.style.display = "none";
-            teacherTitleWrapper.style.display = "block";
-            userDisplayName.textContent = "Thầy Hùng (GV Toán)";
-            btnTogglePortal.innerHTML = `<i class="fa-solid fa-graduation-cap"></i> Học sinh`;
-            renderTeacherDashboard();
-        } else {
-            state.currentPortal = 'student';
-            portalTeacher.classList.remove("active");
-            portalStudent.classList.add("active");
-            progressWrapper.style.display = "block";
-            studentRewards.style.display = "flex";
-            teacherTitleWrapper.style.display = "none";
-            userDisplayName.textContent = "Emma (Lớp 7A)";
-            btnTogglePortal.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> Chuyển Bảng`;
-        }
+        switchPortalUI(state.currentPortal === 'student' ? 'teacher' : 'student');
     });
     
     const menuItems = document.querySelectorAll(".menu-item");
@@ -1511,4 +1535,165 @@ function resetToolboxForNewQuestion() {
     if (sliderContainer) sliderContainer.style.display = "none";
     const hintTextPara = document.getElementById("hint-text");
     if (hintTextPara) hintTextPara.textContent = "Vui lòng bấm nút Gợi ý từ AI ở bên cạnh bài tập để nhận trợ giúp trực quan.";
+}
+
+// Authentication Flow Manager
+function initAuthFlow() {
+    const loginOverlay = document.getElementById("login-overlay");
+    const tabBtns = document.querySelectorAll(".login-tab-btn");
+    const formPanels = document.querySelectorAll(".login-form-panel");
+    const loginSubmitBtn = document.getElementById("btn-login-submit");
+    const logoutBtn = document.getElementById("btn-logout");
+    const errorMsg = document.getElementById("login-error-msg");
+    
+    let activeRole = "student"; // default role on tab
+    
+    // Switch between student & teacher login tabs
+    tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            
+            const role = btn.getAttribute("data-login-role");
+            activeRole = role;
+            
+            formPanels.forEach(panel => {
+                panel.classList.remove("active");
+            });
+            document.getElementById(`login-form-${role}`).classList.add("active");
+            
+            if (errorMsg) errorMsg.style.display = "none";
+        });
+    });
+    
+    // Handle submission click
+    if (loginSubmitBtn) {
+        loginSubmitBtn.addEventListener("click", () => {
+            if (errorMsg) errorMsg.style.display = "none";
+            
+            if (activeRole === "student") {
+                const selectEl = document.getElementById("student-select-login");
+                const studentId = selectEl.value;
+                const password = document.getElementById("student-pass").value;
+                
+                if (!password.trim()) {
+                    if (errorMsg) {
+                        errorMsg.textContent = "Vui lòng nhập mật khẩu!";
+                        errorMsg.style.display = "flex";
+                    }
+                    return;
+                }
+                
+                // Successful student login mock
+                state.studentId = studentId;
+                state.isLoggedIn = true;
+                state.loggedInRole = "student";
+                
+                // Customize student profile
+                let xp = 1200, coins = 350, streak = 5, activeSkill = "MATH_G7";
+                if (studentId === "an_01") {
+                    xp = 850; coins = 150; streak = 2; activeSkill = "MATH_G6";
+                } else if (studentId === "binh_02") {
+                    xp = 920; coins = 210; streak = 3; activeSkill = "MATH_G5";
+                } else if (studentId === "hoang_06") {
+                    xp = 1050; coins = 280; streak = 4; activeSkill = "MATH_G7";
+                }
+                state.xp = xp;
+                state.coins = coins;
+                state.streak = streak;
+                state.studentProgress.activeSkill = activeSkill;
+                
+                // Save to localStorage
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "student");
+                localStorage.setItem("studentId", studentId);
+                
+                // Hide overlay
+                if (loginOverlay) loginOverlay.classList.add("hidden");
+                
+                // Update UI layout
+                switchPortalUI("student");
+                updateStudentRewardsUI();
+                loadStudentQuestion(activeSkill);
+                showToast(`Đăng nhập thành công! Chào mừng học sinh.`);
+                
+            } else {
+                const password = document.getElementById("teacher-pass").value;
+                if (password !== "123456" && password.trim() !== "123456") {
+                    if (errorMsg) {
+                        errorMsg.textContent = "Mật khẩu giáo viên mặc định là 123456!";
+                        errorMsg.style.display = "flex";
+                    }
+                    return;
+                }
+                
+                // Successful teacher login mock
+                state.isLoggedIn = true;
+                state.loggedInRole = "teacher";
+                
+                // Save to localStorage
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "teacher");
+                
+                // Hide overlay
+                if (loginOverlay) loginOverlay.classList.add("hidden");
+                
+                // Update UI layout
+                switchPortalUI("teacher");
+                showToast("Đăng nhập thành công! Chào mừng Giáo viên.");
+            }
+        });
+    }
+    
+    // Handle logout button click
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+            localStorage.removeItem("isLoggedIn");
+            localStorage.removeItem("loggedInRole");
+            localStorage.removeItem("studentId");
+            
+            state.isLoggedIn = false;
+            state.loggedInRole = null;
+            
+            // Show overlay
+            if (loginOverlay) loginOverlay.classList.remove("hidden");
+            showToast("Đã đăng xuất khỏi hệ thống.");
+        });
+    }
+    
+    // Restore session from localStorage if exists
+    const storedLoggedIn = localStorage.getItem("isLoggedIn");
+    const storedRole = localStorage.getItem("loggedInRole");
+    const storedStudentId = localStorage.getItem("studentId");
+    
+    if (storedLoggedIn === "true" && storedRole) {
+        state.isLoggedIn = true;
+        state.loggedInRole = storedRole;
+        if (storedRole === "student") {
+            state.studentId = storedStudentId || "emma_std_01";
+            
+            // Restore details
+            let xp = 1200, coins = 350, streak = 5, activeSkill = "MATH_G7";
+            if (state.studentId === "an_01") {
+                xp = 850; coins = 150; streak = 2; activeSkill = "MATH_G6";
+            } else if (state.studentId === "binh_02") {
+                xp = 920; coins = 210; streak = 3; activeSkill = "MATH_G5";
+            } else if (state.studentId === "hoang_06") {
+                xp = 1050; coins = 280; streak = 4; activeSkill = "MATH_G7";
+            }
+            state.xp = xp;
+            state.coins = coins;
+            state.streak = streak;
+            state.studentProgress.activeSkill = activeSkill;
+            
+            switchPortalUI("student");
+            updateStudentRewardsUI();
+        } else {
+            switchPortalUI("teacher");
+        }
+        if (loginOverlay) loginOverlay.classList.add("hidden");
+    } else {
+        // Force show login overlay if not authenticated
+        if (loginOverlay) loginOverlay.classList.remove("hidden");
+    }
 }
