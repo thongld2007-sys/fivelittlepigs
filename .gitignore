@@ -11,5 +11,8 @@ backend/__pycache__/
 tests/__pycache__/
 .pytest_cache/
 .venv/
+.env
+.env.*
+!.env.example
 data/*.db-shm
 data/*.db-wal

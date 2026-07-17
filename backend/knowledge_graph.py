@@ -451,3 +451,31 @@ def get_prerequisites(skill_id):
 
 def get_all_skills():
     return list(KNOWLEDGE_GRAPH.keys())
+
+
+def validate_knowledge_graph():
+    """Fail fast when a prerequisite is missing or the graph contains a cycle."""
+    for skill_id, info in KNOWLEDGE_GRAPH.items():
+        for prerequisite in info.get("prerequisites", []):
+            if prerequisite not in KNOWLEDGE_GRAPH:
+                raise ValueError(f"Unknown prerequisite {prerequisite!r} for {skill_id!r}")
+
+    visiting = set()
+    visited = set()
+
+    def visit(skill_id):
+        if skill_id in visiting:
+            raise ValueError(f"Cycle detected at skill {skill_id!r}")
+        if skill_id in visited:
+            return
+        visiting.add(skill_id)
+        for prerequisite in get_prerequisites(skill_id):
+            visit(prerequisite)
+        visiting.remove(skill_id)
+        visited.add(skill_id)
+
+    for skill_id in KNOWLEDGE_GRAPH:
+        visit(skill_id)
+
+
+validate_knowledge_graph()

@@ -102,3 +102,28 @@ giám khảo. Khi pitch chính thức vẫn cần pilot thật với học sinh/
 
 Kế hoạch khai thác FPT AI nên bám vào Inference, Knowledge, Agents, Speech, OCR và MCP,
 thay vì chỉ gọi một API chat tổng quát.
+
+## FPT AI Factory
+
+FPT AI được dùng như lớp tăng cường online cho gia sư Socratic và sinh giáo án. BKT, chấm
+đáp án và điều hướng kỹ năng vẫn chạy offline khi FPT AI không khả dụng.
+
+1. Sao chép `.env.example` thành `.env`.
+2. Điền `FPT_AI_API_KEY` và tên model đã enable trong `FPT_AI_MODEL`.
+3. Khởi động lại server và kiểm tra `GET /api/ai/status`.
+
+```dotenv
+FPT_AI_API_KEY=your-local-secret
+FPT_AI_MODEL=your-enabled-model-name
+FPT_AI_BASE_URL=https://mkp-api.fptcloud.com
+```
+
+Không đưa `.env` hoặc API key vào frontend, commit hay ảnh chụp màn hình. `.env` đã được
+Git ignore. Các endpoint tích hợp:
+
+- `GET /api/ai/status`: trạng thái cấu hình, không trả API key.
+- `POST /api/ai/student/{student_id}/tutor`: gợi ý Socratic có grounding theo câu hỏi/BKT.
+- `POST /api/ai/teacher/lesson-plan`: sinh giáo án theo node Knowledge Graph.
+
+Tham khảo [FPT AI Factory Quickstart](https://ai-docs.fptcloud.com/fpt-ai-marketplace/fpt-ai-inference/quickstart)
+và [LLM API Reference](https://github.com/fpt-corp/ai-marketplace/blob/main/API%20Integration%20-%20Large%20Language%20Model.md).
