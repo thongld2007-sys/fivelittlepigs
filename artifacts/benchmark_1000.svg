@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="360" viewBox="0 0 760 360">
+<rect width="760" height="360" fill="#fffaf0"/><text x="40" y="45" font-family="Arial" font-size="24" font-weight="700">1,000-student diagnostic simulation</text>
+<text x="40" y="72" font-family="Arial" font-size="14">Average questions to identify the root knowledge gap (lower is better)</text>
+<text x="40" y="145" font-family="Arial" font-size="16">Adaptive BKT + KG</text><rect x="220" y="115" width="151.9" height="45" rx="8" fill="#557AFA"/><text x="386.9" y="145" font-family="Arial" font-size="18">6.33</text>
+<text x="40" y="225" font-family="Arial" font-size="16">Traditional linear test</text><rect x="220" y="195" width="360.0" height="45" rx="8" fill="#EF5350"/><text x="595.0" y="225" font-family="Arial" font-size="18">15.00</text>
+<text x="40" y="305" font-family="Arial" font-size="18" font-weight="700">Question reduction: 57.77%</text>
+<text x="40" y="332" font-family="Arial" font-size="12">Engineering simulation; not evidence from a real-school pilot.</text></svg>

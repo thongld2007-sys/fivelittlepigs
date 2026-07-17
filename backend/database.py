@@ -4,13 +4,16 @@ import json
 from backend.config import Config
 
 def get_db_connection():
-    conn = sqlite3.connect(Config.DB_PATH)
+    conn = sqlite3.connect(Config.DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 10000")
+    conn.execute("PRAGMA synchronous = NORMAL")
     return conn
 
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute("PRAGMA journal_mode = WAL")
     
     # Create students table
     cursor.execute("""
@@ -43,6 +46,19 @@ def init_db():
             is_correct INTEGER,
             timestamp INTEGER,
             FOREIGN KEY (student_id) REFERENCES students(id)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ai_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            operation TEXT NOT NULL,
+            model TEXT,
+            prompt_tokens INTEGER DEFAULT 0,
+            completion_tokens INTEGER DEFAULT 0,
+            total_tokens INTEGER DEFAULT 0,
+            latency_ms REAL DEFAULT 0,
+            timestamp INTEGER NOT NULL
         )
     """)
     
@@ -188,3 +204,39 @@ def get_stuck_time_minutes(student_id, skill_id):
         diff_secs = failures_time[0] - failures_time[-1]
         return max(2, int(diff_secs / 60))
     return 2
+
+
+def record_ai_usage(operation, model, usage, latency_ms):
+    usage = usage or {}
+    prompt = int(usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0)
+    completion = int(usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0)
+    total = int(usage.get("total_tokens", prompt + completion) or 0)
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            "INSERT INTO ai_usage (operation, model, prompt_tokens, completion_tokens, total_tokens, latency_ms, timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (operation, model, prompt, completion, total, float(latency_ms), int(__import__("time").time())),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_ai_usage_summary():
+    conn = get_db_connection()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*), AVG(total_tokens), AVG(latency_ms), SUM(total_tokens) FROM ai_usage"
+        ).fetchone()
+        operations = conn.execute(
+            "SELECT operation, COUNT(*) AS calls, AVG(total_tokens) AS avg_tokens, AVG(latency_ms) AS avg_latency "
+            "FROM ai_usage GROUP BY operation ORDER BY operation"
+        ).fetchall()
+    finally:
+        conn.close()
+    return {
+        "calls": row[0], "avg_tokens_per_call": round(row[1] or 0, 2),
+        "avg_latency_ms": round(row[2] or 0, 2), "total_tokens": row[3] or 0,
+        "by_operation": [dict(item) for item in operations],
+    }

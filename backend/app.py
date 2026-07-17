@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -8,14 +8,17 @@ import json
 import sqlite3
 import re
 
-from backend.config import Config
+from backend.config import APP_AUTH_REQUIRED, Config, FPT_AI_MAX_IMAGE_BYTES
 from backend.database import (
     init_db, get_student, get_student_mastery, record_response,
     get_consecutive_failed_count, get_stuck_time_minutes, get_db_connection,
-    add_student, list_students
+    add_student, get_ai_usage_summary, list_students
 )
 from backend.diagnostic_engine import update_student_skill, get_next_recommended_skill, get_next_question_difficulty_and_skill
 from backend.fpt_ai import FPTAIError, fpt_ai_client
+from backend.fpt_speech import fpt_speech_client
+from backend.auth import exchange_api_key, require_auth
+from backend.pedagogical_agents import lesson_planner_agent, socratic_agent
 from backend.knowledge_graph import KNOWLEDGE_GRAPH
 
 app = FastAPI(title="VGap AI - Adaptive Tutoring Backend")
@@ -32,25 +35,25 @@ FPT_AI_CAPABILITY_MATRIX = [
     },
     {
         "capability": "FPT AI Knowledge",
-        "status": "planned_adapter",
+        "status": "implemented",
         "evidence": ["Knowledge Graph nội bộ", "question bank 189 câu", "docs/fpt_ai_hackathon_judge_pack.md"],
         "value": "Đưa chương trình GDPT, rubric kỹ năng và câu hỏi đã kiểm định vào RAG/Knowledge base."
     },
     {
         "capability": "FPT AI Agents",
-        "status": "planned_adapter",
+        "status": "implemented",
         "evidence": ["/api/teacher/dashboard", "/api/ai/teacher/lesson-plan"],
         "value": "Agent giáo viên biến gap groups thành kế hoạch can thiệp và giáo án 15 phút."
     },
     {
         "capability": "FPT AI Speech",
-        "status": "planned_adapter",
+        "status": "implemented",
         "evidence": ["frontend read-aloud control", "server-side API key isolation"],
         "value": "Đọc câu hỏi/gợi ý cho học sinh nhỏ tuổi hoặc học sinh đọc chậm."
     },
     {
         "capability": "FPT AI OCR/Vision",
-        "status": "planned_adapter",
+        "status": "implemented",
         "evidence": ["offline-first response schema", "teacher workflow roadmap"],
         "value": "Cho phép giáo viên chụp bài làm giấy để trích lỗi sai và đưa vào diagnostic events."
     },
@@ -177,6 +180,11 @@ class AILessonPlanRequest(BaseModel):
     skill_id: str
     group_context: str = ""
 
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "banmai"
+    speed: int = 0
+
 # Endpoints
 @app.get("/api/students")
 def get_students():
@@ -188,10 +196,17 @@ def ai_status():
         "provider": "FPT AI Factory",
         "configured": fpt_ai_client.configured,
         "model": fpt_ai_client.model or None,
-        "fallback": "offline"
+        "vision_configured": fpt_ai_client.vision_configured,
+        "speech_configured": fpt_speech_client.configured,
+        "auth_required": APP_AUTH_REQUIRED,
+        "fallback": "offline-core-only"
     }
 
-@app.post("/api/ai/student/{student_id}/tutor")
+@app.post("/api/auth/token")
+def auth_token(x_api_key: str | None = Header(default=None)):
+    return {"access_token": exchange_api_key(x_api_key), "token_type": "bearer"}
+
+@app.post("/api/ai/student/{student_id}/tutor", dependencies=[Depends(require_auth)])
 def ai_tutor(student_id: str, payload: AITutorRequest):
     if not get_student(student_id):
         raise HTTPException(status_code=404, detail="Student not found")
@@ -204,53 +219,85 @@ def ai_tutor(student_id: str, payload: AITutorRequest):
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
 
-    skill = KNOWLEDGE_GRAPH.get(question["skill_id"], {})
-    mastery = get_student_mastery(student_id, question["skill_id"])
-    correct_key = question.get("correct_answer")
-    correct_option = next(
-        (option.get("text", "") for option in question.get("options", []) if option.get("key") == correct_key),
-        correct_key or ""
-    )
-    system_prompt = (
-        "Bạn là gia sư Socratic an toàn cho học sinh phổ thông Việt Nam. "
-        "Chỉ dùng dữ kiện trong ngữ cảnh, hướng dẫn ngắn gọn từng bước và ưu tiên một câu hỏi gợi mở. "
-        "Không tiết lộ trực tiếp đáp án cuối cùng và không làm hộ toàn bộ bài. "
-        f"Kỹ năng: {skill.get('name', question['skill_id'])}. "
-        f"Mức thành thạo hiện tại: {mastery:.2f}. "
-        f"Câu hỏi: {question.get('text', '')}. Các lựa chọn: {question.get('options', [])}. "
-        f"Đáp án nội bộ, không tiết lộ trực tiếp: {correct_option}."
-    )
     try:
-        result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=payload.message.strip())
+        agent_result = socratic_agent.run(
+            student_id=student_id, question=question, message=payload.message.strip()
+        )
     except FPTAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return {"provider": "FPT AI Factory", "model": result.model, "content": result.content, "usage": result.usage}
+    return {"provider": "FPT AI Factory", **agent_result}
 
-@app.post("/api/ai/teacher/lesson-plan")
+@app.post("/api/ai/teacher/lesson-plan", dependencies=[Depends(require_auth)])
 def ai_lesson_plan(payload: AILessonPlanRequest):
     skill = KNOWLEDGE_GRAPH.get(payload.skill_id)
     if not skill:
         raise HTTPException(status_code=422, detail="Invalid skill ID")
-    prerequisite_names = [
-        KNOWLEDGE_GRAPH[item]["name"]
-        for item in skill.get("prerequisites", [])
-        if item in KNOWLEDGE_GRAPH
-    ]
-    system_prompt = (
-        "Bạn là trợ lý thiết kế bài giảng theo GDPT 2018 cho giáo viên Việt Nam. "
-        "Trả về văn bản thuần ngắn gọn với đúng 4 mục: Mục tiêu, Khởi động, Hoạt động chính, Đánh giá nhanh. "
-        "Không dùng HTML và không bịa nguồn hay chuẩn chương trình."
-    )
-    user_prompt = (
-        f"Kỹ năng: {skill['name']}; lớp {skill['grade']}; môn {skill.get('subject', 'Toán')}; "
-        f"tiên quyết: {prerequisite_names or ['Không có']}. "
-        f"Bối cảnh nhóm: {payload.group_context.strip() or 'Học sinh đang dưới ngưỡng thành thạo 0.50.'}"
-    )
     try:
-        result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+        agent_result = lesson_planner_agent.run(
+            skill_id=payload.skill_id, group_context=payload.group_context.strip()
+        )
     except FPTAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return {"provider": "FPT AI Factory", "model": result.model, "content": result.content, "usage": result.usage}
+    return {"provider": "FPT AI Factory", **agent_result}
+
+@app.post("/api/ai/student/{student_id}/analyze-work", dependencies=[Depends(require_auth)])
+async def analyze_student_work(
+    student_id: str,
+    image: UploadFile = File(...),
+    question_id: str = Form(default=""),
+):
+    if not get_student(student_id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    if image.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(status_code=415, detail="Only JPEG, PNG or WebP images are accepted")
+    content = await image.read(FPT_AI_MAX_IMAGE_BYTES + 1)
+    if len(content) > FPT_AI_MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image is too large")
+    prompt = "Đọc bài giải viết tay, số hóa từng bước và phân tích bước sai trong tư duy. Không đưa đáp án cuối."
+    if question_id:
+        prompt += f" Mã câu hỏi liên quan: {question_id}."
+    try:
+        result = fpt_ai_client.complete_vision(
+            image_bytes=content,
+            mime_type=image.content_type,
+            system_prompt=(
+                "Bạn là trợ giảng thị giác. Chỉ mô tả nội dung nhìn thấy, phân biệt điều chắc chắn "
+                "và điều không rõ; bảo vệ thông tin cá nhân trong ảnh."
+            ),
+            user_prompt=prompt,
+        )
+    except FPTAIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {
+        "provider": "FPT AI Factory VLM", "content": result.content, "model": result.model,
+        "usage": result.usage, "latency_ms": result.latency_ms,
+    }
+
+
+@app.post("/api/ai/speech/tts", dependencies=[Depends(require_auth)])
+def speech_tts(payload: TTSRequest):
+    if not 3 <= len(payload.text) <= 5000 or not -3 <= payload.speed <= 3:
+        raise HTTPException(status_code=422, detail="Invalid text length or speed")
+    try:
+        return {"provider": "FPT.AI Speech", **fpt_speech_client.text_to_speech(
+            payload.text, voice=payload.voice, speed=payload.speed
+        )}
+    except FPTAIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/ai/speech/stt", dependencies=[Depends(require_auth)])
+async def speech_stt(audio: UploadFile = File(...)):
+    content = await audio.read(10 * 1024 * 1024 + 1)
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio is too large")
+    try:
+        return {"provider": "FPT.AI Speech", **fpt_speech_client.speech_to_text(
+            content, audio.content_type or "audio/wav"
+        )}
+    except FPTAIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
 
 @app.post("/api/students")
 def create_student(payload: StudentCreate):
@@ -424,7 +471,7 @@ def check_answer(submission: CheckAnswerRequest):
         )
     )
 
-@app.get("/api/teacher/dashboard")
+@app.get("/api/teacher/dashboard", dependencies=[Depends(require_auth)])
 def get_teacher_dashboard():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -580,6 +627,12 @@ def get_cost_model(students: int = 1000):
             "1m_users": "Multi-tenant services, event streaming, async AI jobs, quota/cost controls theo trường."
         }
     }
+
+
+@app.get("/api/evidence/ai-metrics", dependencies=[Depends(require_auth)])
+def get_ai_metrics():
+    """Measured provider usage; zero values mean no successful live AI calls have been recorded yet."""
+    return {"measured": True, **get_ai_usage_summary()}
 
 @app.get("/api/evidence/safety")
 def get_safety_evidence():

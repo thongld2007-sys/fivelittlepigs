@@ -135,3 +135,28 @@ Git ignore. Các endpoint tích hợp:
 
 Tham khảo [FPT AI Factory Quickstart](https://ai-docs.fptcloud.com/fpt-ai-marketplace/fpt-ai-inference/quickstart)
 và [LLM API Reference](https://github.com/fpt-corp/ai-marketplace/blob/main/API%20Integration%20-%20Large%20Language%20Model.md).
+
+## Finalist architecture upgrades
+
+- **Grounded Socratic Agent:** `backend/pedagogical_agents.py` retrieves cited notes from
+  `data/rag_knowledge.json`, combines BKT mastery and recent mistakes, then returns an inspectable
+  `agent_trace` and `sources`. It never intentionally exposes the final answer.
+- **AI Lesson Planner Agent:** scans the real gap cohort and aggregates common wrong questions before
+  generating a 15-minute intervention plan; it is no longer a static template.
+- **Handwritten-work analysis:** `POST /api/ai/student/{student_id}/analyze-work` sends a validated
+  JPEG/PNG/WebP image to an enabled FPT AI Marketplace VLM.
+- **Vietnamese speech:** `POST /api/ai/speech/tts` and `/api/ai/speech/stt` use the separate key from
+  FPT.AI Console. The browser does not receive either provider key.
+- **Production mode:** SQLite uses WAL, a 10-second busy timeout and normal synchronous mode. Set
+  `APP_AUTH_REQUIRED=true`, `APP_API_KEYS` and a strong random `APP_JWT_SECRET` to require API key or
+  short-lived HS256 bearer tokens on AI endpoints.
+- **One-command startup:** run `py -3 run.py`; the default bind address is `0.0.0.0:8000`, configurable
+  with `APP_HOST` and `APP_PORT`.
+- **Evaluation:** `python tests/simulate_1000_students.py` writes
+  `artifacts/benchmark_1000.json` and `artifacts/benchmark_1000.svg`. The report is explicitly an
+  engineering simulation—not a claim about a real-school pilot—and records the deterministic seed,
+  slip/guess assumptions, accuracy, question reduction and latency.
+
+FPT references used by these adapters: [Marketplace VLM](https://ai-docs.fptcloud.com/api-reference/ai-marketplace/api-reference/api-integration-vision-language-model-md),
+[FPT TTS v5](https://docs.fpt.ai/docs/vi/speech/api/text-to-speech.html), and
+[FPT STT](https://docs.fpt.ai/docs/vi/speech/api/speech-to-text/).

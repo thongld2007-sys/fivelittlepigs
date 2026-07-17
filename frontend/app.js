@@ -144,6 +144,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initFinalReportModal();
     initTeacherClassSwitcher();
     initMascotReadAloud();
+    initMultimodalLearning();
     
     // Load Knowledge Graph DAG
     await loadKnowledgeGraph();
@@ -2044,26 +2045,13 @@ function initAITutorChat() {
         
         if (chatInput) chatInput.value = "";
         
-        setTimeout(() => {
+        requestSocraticTutor(msg).then(result => {
             const robotBubble = document.createElement("div");
             robotBubble.className = "chat-bubble robot-bubble";
-            
-            let replyText = "Tôi là trợ lý học tập VGap. Đang phân tích câu hỏi của bạn...";
-            if (msg.toLowerCase().includes("bcnn")) {
-                replyText = "Bội chung nhỏ nhất (BCNN) của hai số là số tự nhiên nhỏ nhất khác 0 chia hết cho cả hai số đó. Ví dụ: BCNN(6, 8) = 24.";
-            } else if (msg.toLowerCase().includes("quy đồng")) {
-                replyText = "Để quy đồng mẫu số, ta tìm BCNN của các mẫu số làm mẫu chung, rồi nhân cả tử và mẫu với nhân tử phụ tương ứng.";
-            } else if (msg.toLowerCase().includes("số hữu tỉ")) {
-                replyText = "Số hữu tỉ là số viết được dưới dạng phân số a/b (a, b thuộc Z, b khác 0). Ví dụ: 0.5, -3/4, 2.";
-            }
-            
-            robotBubble.innerHTML = `
-                <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
-                <div class="bubble-content"><p>${escapeHTML(replyText)}</p></div>
-            `;
+            robotBubble.textContent = result.content;
             chatHistory.appendChild(robotBubble);
             chatHistory.scrollTop = chatHistory.scrollHeight;
-        }, 1000);
+        }).catch(error => showToast(error.message));
     }
     
     if (sendBtn && chatInput) {
@@ -2171,48 +2159,162 @@ function initStudentMascotChat() {
             }
         }
 
-        // Deterministic offline fallback
-        setTimeout(() => {
-            let reply = "Tôi là trợ lý Socratic của VGap. Bạn hãy thử làm tiếp và hỏi tôi nếu có bước nào chưa rõ nhé!";
-            const activeSkill = state.studentProgress.activeSkill;
-            const textL = text.toLowerCase();
-
-            if (activeSkill === 'MATH_G7') {
-                if (textL.includes("quy đồng") || textL.includes("mẫu số") || textL.includes("làm sao") || textL.includes("mẫu chung")) {
-                    reply = "Để quy đồng 1/2 và -2/3, ta tìm mẫu số chung nhỏ nhất của 2 và 3. Đó chính là 6. Bạn hãy nhân cả tử và mẫu của 1/2 với 3, và nhân cả tử và mẫu của -2/3 với 2 nhé.";
-                } else if (textL.includes("dấu") || textL.includes("âm")) {
-                    reply = "Khi cộng hai số trái dấu ở tử số (3 và -4), bạn lấy trị tuyệt đối lớn trừ nhỏ: 4 - 3 = 1, rồi lấy dấu âm của số lớn hơn. Kết quả tử số là -1.";
-                } else {
-                    reply = "Gợi ý: Mẫu số chung nhỏ nhất là 6. Bạn hãy quy đồng hai phân số này rồi thực hiện phép cộng các tử số nhé.";
-                }
-            } else if (activeSkill === 'MATH_G6') {
-                if (textL.includes("trái dấu") || textL.includes("cộng") || textL.includes("làm sao")) {
-                    reply = "Để cộng (-15) và 8 (hai số trái dấu), bạn hãy tìm hiệu hai giá trị tuyệt đối: 15 - 8 = 7, sau đó đặt dấu âm của số -15 trước kết quả.";
-                } else {
-                    reply = "Gợi ý: Đây là phép cộng hai số nguyên trái dấu. Bạn hãy lấy hiệu hai trị tuyệt đối rồi lấy dấu của số có trị tuyệt đối lớn hơn.";
-                }
-            } else if (activeSkill === 'MATH_G5') {
-                if (textL.includes("bcnn") || textL.includes("mẫu chung") || textL.includes("nhỏ nhất")) {
-                    reply = "Bội chung nhỏ nhất của 4 và 6 là số nhỏ nhất chia hết cho cả hai số này. Bội của 4 là 4, 8, 12... Bội của 6 là 6, 12... Vậy số nhỏ nhất là 12.";
-                } else {
-                    reply = "Gợi ý: Hãy liệt kê các bội số của 4 và 6, sau đó tìm số nhỏ nhất xuất hiện ở cả hai danh sách nhé.";
-                }
-            } else if (activeSkill === 'MATH_G5_LCM') {
-                if (textL.includes("bcnn") || textL.includes("bội chung") || textL.includes("làm thế nào")) {
-                    reply = "BCNN của 6 và 8 là số nhỏ nhất chia hết cho cả hai. Bạn thử tìm xem bội nào của 8 chia hết cho 6 nhé (8, 16, 24...). Số 24 chính là số cần tìm.";
-                } else {
-                    reply = "Gợi ý: BCNN(6, 8) là số nhỏ nhất khác 0 chia hết cho cả 6 và 8. Hãy thử nhân nhẩm bội của 8 xem số nào đầu tiên chia hết cho 6 nhé.";
-                }
-            }
-
-            appendTutorReply(reply);
-        }, 1200);
+        appendTutorReply("FPT AI hiện không khả dụng; hệ thống không tạo câu trả lời mô phỏng.");
     }
 
     sendBtn.addEventListener("click", handleSend);
     chatInput.addEventListener("keypress", (e) => {
         if (e.key === "Enter") handleSend();
     });
+}
+
+// Production AI chat overrides the legacy demo handlers above. It never fabricates an AI answer.
+async function requestSocraticTutor(message) {
+    if (!state.currentQuestion || !state.isLoggedIn) {
+        throw new Error("Hãy đăng nhập và mở một câu hỏi trước khi hỏi trợ giảng.");
+    }
+    const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question_id: state.currentQuestion.id, message })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || "FPT AI hiện không khả dụng.");
+    return payload;
+}
+
+function initAITutorChat() {
+    const input = document.getElementById("tutor-chat-input");
+    const button = document.getElementById("btn-send-tutor");
+    const history = document.getElementById("chat-history-box");
+    if (!input || !button || !history) return;
+    const send = async () => {
+        const message = input.value.trim();
+        if (!message) return;
+        input.value = "";
+        const user = document.createElement("div");
+        user.className = "chat-bubble user-bubble";
+        user.textContent = message;
+        history.appendChild(user);
+        try {
+            const result = await requestSocraticTutor(message);
+            const bot = document.createElement("div");
+            bot.className = "chat-bubble robot-bubble";
+            bot.textContent = result.content;
+            history.appendChild(bot);
+        } catch (error) {
+            const notice = document.createElement("div");
+            notice.className = "chat-bubble robot-bubble";
+            notice.textContent = error.message;
+            history.appendChild(notice);
+        }
+        history.scrollTop = history.scrollHeight;
+    };
+    button.addEventListener("click", send);
+    input.addEventListener("keypress", event => { if (event.key === "Enter") send(); });
+}
+
+function initStudentMascotChat() {
+    const input = document.getElementById("mascot-chat-input");
+    const button = document.getElementById("btn-send-mascot-chat");
+    const history = document.getElementById("mascot-chat-history");
+    const comment = document.getElementById("mascot-comment");
+    if (!input || !button || !history || !comment) return;
+    const append = (text, role) => {
+        const item = document.createElement("div");
+        item.className = `mascot-msg ${role}`;
+        item.textContent = text;
+        history.appendChild(item);
+        history.style.display = "flex";
+        history.scrollTop = history.scrollHeight;
+    };
+    const send = async () => {
+        const message = input.value.trim();
+        if (!message) return;
+        input.value = "";
+        append(message, "user");
+        comment.textContent = "FPT AI đang truy xuất kiến thức và phân tích...";
+        try {
+            const result = await requestSocraticTutor(message);
+            append(result.content, "bot");
+            comment.textContent = result.content;
+        } catch (error) {
+            append(error.message, "bot");
+            comment.textContent = "Không tạo câu trả lời giả khi AI không khả dụng.";
+        }
+    };
+    button.addEventListener("click", send);
+    input.addEventListener("keypress", event => { if (event.key === "Enter") send(); });
+}
+
+function initMascotReadAloud() {
+    const button = document.getElementById("btn-read-aloud");
+    if (!button) return;
+    button.addEventListener("click", async () => {
+        const text = document.getElementById("mascot-comment")?.textContent?.trim();
+        if (!text) return;
+        try {
+            const response = await fetch("/api/ai/speech/tts", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text, voice: "banmai", speed: -1 })
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.detail || "FPT TTS unavailable");
+            const audio = new Audio(payload.audio_url);
+            await audio.play();
+        } catch (error) {
+            showToast("FPT Speech chưa được cấu hình; không phát giọng giả lập.");
+        }
+    });
+}
+
+function initMultimodalLearning() {
+    const imageInput = document.getElementById("student-work-image");
+    const imageButton = document.getElementById("btn-analyze-student-work");
+    const voiceButton = document.getElementById("btn-record-answer");
+    const chatInput = document.getElementById("mascot-chat-input");
+    const comment = document.getElementById("mascot-comment");
+    if (imageButton && imageInput) imageButton.addEventListener("click", async () => {
+        const file = imageInput.files?.[0];
+        if (!file || !state.isLoggedIn) return showToast("Hãy đăng nhập và chọn ảnh bài làm.");
+        const form = new FormData();
+        form.append("image", file);
+        form.append("question_id", state.currentQuestion?.id || "");
+        comment.textContent = "FPT Vision đang đọc bài giải viết tay...";
+        try {
+            const response = await fetch(`/api/ai/student/${state.studentId}/analyze-work`, { method: "POST", body: form });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.detail);
+            comment.textContent = payload.content;
+        } catch (error) { comment.textContent = error.message || "Không phân tích được ảnh."; }
+    });
+    if (voiceButton && navigator.mediaDevices) {
+        let recorder;
+        let chunks = [];
+        voiceButton.addEventListener("click", async () => {
+            if (!recorder || recorder.state === "inactive") {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                recorder = new MediaRecorder(stream);
+                chunks = [];
+                recorder.ondataavailable = event => chunks.push(event.data);
+                recorder.onstop = async () => {
+                    const blob = new Blob(chunks, { type: recorder.mimeType });
+                    const form = new FormData();
+                    form.append("audio", blob, "answer.webm");
+                    const response = await fetch("/api/ai/speech/stt", { method: "POST", body: form });
+                    const payload = await response.json();
+                    if (response.ok && chatInput) chatInput.value = payload.text;
+                    else showToast(payload.detail || "Không nhận dạng được giọng nói.");
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                recorder.start();
+                voiceButton.textContent = "Dừng ghi";
+            } else {
+                recorder.stop();
+                voiceButton.textContent = "Trả lời bằng giọng nói";
+            }
+        });
+    }
 }
 
 function getStudentLoginProfile(studentId) {

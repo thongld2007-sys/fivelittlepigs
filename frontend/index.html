@@ -285,6 +285,12 @@
                                                 <input type="text" id="mascot-chat-input" placeholder="Hỏi cách giải..." class="memphis-input-sm" style="flex: 1; padding: 0.5rem; border: 2.5px solid #000; border-radius: 8px; height: 38px;">
                                                 <button id="btn-send-mascot-chat" class="btn btn-secondary-memphis btn-sm" style="width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px;"><i class="fa-solid fa-paper-plane"></i></button>
                                             </div>
+                                            <div class="multimodal-learning-controls" style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
+                                                <label class="btn btn-hint-outline btn-sm" for="student-work-image"><i class="fa-solid fa-camera"></i> Chọn ảnh bài làm</label>
+                                                <input id="student-work-image" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
+                                                <button id="btn-analyze-student-work" class="btn btn-secondary-memphis btn-sm"><i class="fa-solid fa-eye"></i> FPT Vision phân tích</button>
+                                                <button id="btn-record-answer" class="btn btn-hint-outline btn-sm" style="grid-column:1/-1;"><i class="fa-solid fa-microphone"></i> Trả lời bằng giọng nói</button>
+                                            </div>
                                         </div>
                                     </div>
 
