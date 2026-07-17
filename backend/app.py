@@ -11,7 +11,8 @@ import re
 from backend.config import Config
 from backend.database import (
     init_db, get_student, get_student_mastery, record_response,
-    get_consecutive_failed_count, get_stuck_time_minutes, get_db_connection
+    get_consecutive_failed_count, get_stuck_time_minutes, get_db_connection,
+    add_student, list_students
 )
 from backend.diagnostic_engine import update_student_skill, get_next_recommended_skill, get_next_question_difficulty_and_skill
 from backend.knowledge_graph import KNOWLEDGE_GRAPH
@@ -74,12 +75,27 @@ class AnswerSubmission(BaseModel):
     question_id: str
     selected_option: str
 
+class StudentCreate(BaseModel):
+    student_id: str
+    name: str
+    grade: int
+
 class SurveySessionRequest(BaseModel):
     student_id: str
     name: str = "Học sinh khảo sát"
     grade: int = 7
 
 # Endpoints
+@app.get("/api/students")
+def get_students():
+    return list_students()
+
+@app.post("/api/students")
+def create_student(payload: StudentCreate):
+    if not (1 <= payload.grade <= 12):
+        raise HTTPException(status_code=422, detail="Grade must be between 1 and 12")
+    return add_student(payload.student_id, payload.name.strip() or payload.student_id, payload.grade)
+
 @app.post("/api/student/session")
 def create_survey_session(payload: SurveySessionRequest):
     """Create a clean student profile for one adaptive survey attempt."""

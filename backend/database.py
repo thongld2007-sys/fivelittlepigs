@@ -99,6 +99,26 @@ def get_student(student_id):
     conn.close()
     return dict(row) if row else None
 
+def add_student(student_id, name, grade):
+    conn = get_db_connection()
+    conn.execute("""
+        INSERT OR REPLACE INTO students (id, name, grade)
+        VALUES (?, ?, ?)
+    """, (student_id, name, grade))
+    conn.commit()
+    conn.close()
+    return get_student(student_id)
+
+def list_students():
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT id AS student_id, name, grade
+        FROM students
+        ORDER BY grade, name
+    """).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
 def get_student_mastery(student_id, skill_id):
     conn = get_db_connection()
     row = conn.execute("""

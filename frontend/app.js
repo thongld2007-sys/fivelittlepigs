@@ -6,6 +6,8 @@ const state = {
     currentPortal: 'student', // 'student' | 'teacher'
     currentTeacherTab: 'grouping', // 'grouping' | 'priority' | 'tree'
     studentId: 'emma_std_01',
+    isLoggedIn: false,
+    loggedInRole: null,
     selectedStudentForTree: null,
     currentQuestion: null,
     selectedOption: null,
@@ -124,6 +126,7 @@ const REASONING_TREES = {
 
 // Initialize Application
 document.addEventListener("DOMContentLoaded", async () => {
+    initAuthFlow();
     initPortalNavigation();
     initTeacherTabs();
     initAITutorChat();
@@ -395,7 +398,7 @@ function buildTrueFalsePrompt(question) {
 }
 
 function buildShortAnswerPrompt(question) {
-    return `${question.text}\n\nNhập đáp án ngắn bằng số, cụm từ hoặc kết quả cuối cùng.`;
+    return `${question.text}\n\nNhập đáp án ngắn bằng đúng một số, một phân số, số thập phân, phần trăm hoặc ký hiệu <, >, =.`;
 }
 
 function renderQuestionVisual(question) {
@@ -1752,7 +1755,33 @@ function initStudentMascotChat() {
     });
 }
 
-function initPortalNavigation() {
+function getStudentLoginProfile(studentId) {
+    const profiles = {
+        emma_std_01: { name: "Emma (Lớp 7A)", avatar: "Emma", grade: 7, skill: "MATH_G7", xp: 1200, coins: 350, streak: 5 },
+        an_01: { name: "Nguyễn Văn An", avatar: "An", grade: 6, skill: "MATH_G6", xp: 850, coins: 150, streak: 2 },
+        binh_02: { name: "Trần Bình", avatar: "Binh", grade: 5, skill: "MATH_G5", xp: 920, coins: 210, streak: 3 },
+        hoang_06: { name: "Lê Huy Hoàng", avatar: "Hoang", grade: 7, skill: "MATH_G7", xp: 1050, coins: 280, streak: 4 }
+    };
+    return profiles[studentId] || profiles.emma_std_01;
+}
+
+async function ensureStudentProfileForLogin(studentId, profile) {
+    try {
+        await fetch("/api/students", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                student_id: studentId,
+                name: profile.name,
+                grade: profile.grade
+            })
+        });
+    } catch (e) {
+        console.warn("[-] Student profile API unavailable; login will continue locally.", e);
+    }
+}
+
+function switchPortalUI(targetRole) {
     const btnTogglePortal = document.getElementById("btn-toggle-portal");
     const portalStudent = document.getElementById("portal-student");
     const portalTeacher = document.getElementById("portal-teacher");
@@ -1760,28 +1789,162 @@ function initPortalNavigation() {
     const teacherTitleWrapper = document.getElementById("teacher-title-wrapper");
     const studentRewards = document.getElementById("student-rewards");
     const userDisplayName = document.getElementById("user-display-name");
+    const userAvatarImg = document.getElementById("user-avatar-img");
+
+    if (targetRole === "teacher") {
+        state.currentPortal = "teacher";
+        if (portalStudent) portalStudent.classList.remove("active");
+        if (portalTeacher) portalTeacher.classList.add("active");
+        if (progressWrapper) progressWrapper.style.display = "none";
+        if (studentRewards) studentRewards.style.display = "none";
+        if (teacherTitleWrapper) teacherTitleWrapper.style.display = "block";
+        if (userDisplayName) userDisplayName.textContent = "Thầy Hùng (GV Toán)";
+        if (userAvatarImg) userAvatarImg.src = "https://api.dicebear.com/7.x/adventurer/svg?seed=TeacherHung";
+        if (btnTogglePortal) setButtonIconLabel(btnTogglePortal, "fa-solid fa-graduation-cap", "Học sinh");
+        renderTeacherDashboard();
+        return;
+    }
+
+    const profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
+    state.currentPortal = "student";
+    if (portalTeacher) portalTeacher.classList.remove("active");
+    if (portalStudent) portalStudent.classList.add("active");
+    if (progressWrapper) progressWrapper.style.display = "block";
+    if (studentRewards) studentRewards.style.display = "flex";
+    if (teacherTitleWrapper) teacherTitleWrapper.style.display = "none";
+    if (userDisplayName) userDisplayName.textContent = profile.name;
+    if (userAvatarImg) userAvatarImg.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${profile.avatar}`;
+    if (btnTogglePortal) setButtonIconLabel(btnTogglePortal, "fa-solid fa-arrows-rotate", "Chuyển Bảng");
+}
+
+function initAuthFlow() {
+    const loginOverlay = document.getElementById("login-overlay");
+    const tabBtns = document.querySelectorAll(".login-tab-btn");
+    const formPanels = document.querySelectorAll(".login-form-panel");
+    const loginSubmitBtn = document.getElementById("btn-login-submit");
+    const logoutBtn = document.getElementById("btn-logout");
+    const errorMsg = document.getElementById("login-error-msg");
+    let activeRole = "student";
+
+    const showError = (message) => {
+        if (!errorMsg) return;
+        errorMsg.textContent = message;
+        errorMsg.style.display = "flex";
+    };
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            activeRole = btn.getAttribute("data-login-role") || "student";
+            formPanels.forEach(panel => panel.classList.remove("active"));
+            const panel = document.getElementById(`login-form-${activeRole}`);
+            if (panel) panel.classList.add("active");
+            if (errorMsg) errorMsg.style.display = "none";
+        });
+    });
+
+    if (loginSubmitBtn) {
+        loginSubmitBtn.addEventListener("click", async () => {
+            if (errorMsg) errorMsg.style.display = "none";
+
+            if (activeRole === "teacher") {
+                const password = document.getElementById("teacher-pass")?.value || "";
+                if (password.trim() !== "123456") {
+                    showError("Mật khẩu giáo viên mặc định là 123456.");
+                    return;
+                }
+                state.isLoggedIn = true;
+                state.loggedInRole = "teacher";
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "teacher");
+                localStorage.removeItem("studentId");
+                if (loginOverlay) loginOverlay.classList.add("hidden");
+                switchPortalUI("teacher");
+                showToast("Đăng nhập giáo viên thành công.");
+                return;
+            }
+
+            const selectEl = document.getElementById("student-select-login");
+            const studentId = selectEl?.value || "emma_std_01";
+            const password = document.getElementById("student-pass")?.value || "";
+            if (!password.trim()) {
+                showError("Vui lòng nhập mật khẩu.");
+                return;
+            }
+
+            const profile = getStudentLoginProfile(studentId);
+            state.isLoggedIn = true;
+            state.loggedInRole = "student";
+            state.baseStudentId = studentId;
+            state.studentId = studentId;
+            state.xp = profile.xp;
+            state.coins = profile.coins;
+            state.streak = profile.streak;
+            state.studentProgress.activeSkill = profile.skill;
+
+            localStorage.setItem("isLoggedIn", "true");
+            localStorage.setItem("loggedInRole", "student");
+            localStorage.setItem("studentId", studentId);
+            await ensureStudentProfileForLogin(studentId, profile);
+            if (loginOverlay) loginOverlay.classList.add("hidden");
+            switchPortalUI("student");
+            updateStudentRewardsUI();
+
+            const subjectSelect = document.getElementById("subject-select");
+            const gradeSelect = document.getElementById("grade-select");
+            if (subjectSelect) subjectSelect.value = "Toán";
+            if (gradeSelect) gradeSelect.value = String(profile.grade);
+            prepareTestSetup();
+            showToast(`Đăng nhập thành công. Chọn lớp/môn rồi bấm Bắt đầu để làm bài test.`);
+        });
+    }
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+            localStorage.removeItem("isLoggedIn");
+            localStorage.removeItem("loggedInRole");
+            localStorage.removeItem("studentId");
+            state.isLoggedIn = false;
+            state.loggedInRole = null;
+            state.studentId = "emma_std_01";
+            state.baseStudentId = "emma_std_01";
+            prepareTestSetup();
+            if (loginOverlay) loginOverlay.classList.remove("hidden");
+            showToast("Đã đăng xuất.");
+        });
+    }
+
+    const storedLoggedIn = localStorage.getItem("isLoggedIn");
+    const storedRole = localStorage.getItem("loggedInRole");
+    const storedStudentId = localStorage.getItem("studentId") || "emma_std_01";
+    if (storedLoggedIn === "true" && storedRole) {
+        state.isLoggedIn = true;
+        state.loggedInRole = storedRole;
+        if (storedRole === "student") {
+            const profile = getStudentLoginProfile(storedStudentId);
+            state.baseStudentId = storedStudentId;
+            state.studentId = storedStudentId;
+            state.xp = profile.xp;
+            state.coins = profile.coins;
+            state.streak = profile.streak;
+            state.studentProgress.activeSkill = profile.skill;
+            switchPortalUI("student");
+            updateStudentRewardsUI();
+        } else {
+            switchPortalUI("teacher");
+        }
+        if (loginOverlay) loginOverlay.classList.add("hidden");
+    } else if (loginOverlay) {
+        loginOverlay.classList.remove("hidden");
+    }
+}
+
+function initPortalNavigation() {
+    const btnTogglePortal = document.getElementById("btn-toggle-portal");
     
     btnTogglePortal.addEventListener("click", () => {
-        if (state.currentPortal === 'student') {
-            state.currentPortal = 'teacher';
-            portalStudent.classList.remove("active");
-            portalTeacher.classList.add("active");
-            progressWrapper.style.display = "none";
-            studentRewards.style.display = "none";
-            teacherTitleWrapper.style.display = "block";
-            userDisplayName.textContent = "Thầy Hùng (GV Toán)";
-            setButtonIconLabel(btnTogglePortal, "fa-solid fa-graduation-cap", "Học sinh");
-            renderTeacherDashboard();
-        } else {
-            state.currentPortal = 'student';
-            portalTeacher.classList.remove("active");
-            portalStudent.classList.add("active");
-            progressWrapper.style.display = "block";
-            studentRewards.style.display = "flex";
-            teacherTitleWrapper.style.display = "none";
-            userDisplayName.textContent = "Emma (Lớp 7A)";
-            setButtonIconLabel(btnTogglePortal, "fa-solid fa-arrows-rotate", "Chuyển Bảng");
-        }
+        switchPortalUI(state.currentPortal === 'student' ? 'teacher' : 'student');
     });
     
     const menuItems = document.querySelectorAll(".menu-item");
