@@ -125,8 +125,9 @@
                                     <!-- Robot Mascot & Socratic AI Chat Panel -->
                                     <div class="question-layout-grid">
                                         <div class="mascot-container">
-                                            <div class="robot-mascot">
+                                            <div class="robot-mascot" style="position: relative;">
                                                 <i class="fa-solid fa-robot robot-icon-face animate-bounce-slow"></i>
+                                                <button id="btn-read-aloud" class="btn-read-aloud" title="Đọc tiếng gợi ý" style="position: absolute; bottom: -5px; right: -5px; background: var(--secondary); border: 2px solid var(--border-color); border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; box-shadow: var(--shadow-flat-sm);"><i class="fa-solid fa-volume-high"></i></button>
                                             </div>
                                             <div class="mascot-chat-panel">
                                                 <div class="mascot-speech-bubble">
@@ -196,10 +197,19 @@
                             <!-- Column 3: Virtual Scratchpad -->
                             <div class="memphis-card scratchpad-card">
                                 <h3 class="card-header-title"><i class="fa-solid fa-pen-ruler"></i> Bảng nháp số</h3>
-                                <div class="scratchpad-controls">
-                                    <button class="btn btn-secondary btn-sm active" id="btn-scratchpad-pen" title="Bút vẽ"><i class="fa-solid fa-pen"></i></button>
-                                    <button class="btn btn-secondary btn-sm" id="btn-scratchpad-eraser" title="Tẩy xóa"><i class="fa-solid fa-eraser"></i></button>
-                                    <button class="btn btn-secondary btn-sm" id="btn-scratchpad-clear" title="Xóa toàn bộ"><i class="fa-solid fa-trash-can"></i> Xóa</button>
+                                <div class="scratchpad-controls" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                    <div style="display: flex; gap: 0.3rem;">
+                                        <button class="btn btn-secondary btn-sm active" id="btn-scratchpad-pen" title="Bút vẽ"><i class="fa-solid fa-pen"></i></button>
+                                        <button class="btn btn-secondary btn-sm" id="btn-scratchpad-eraser" title="Tẩy xóa"><i class="fa-solid fa-eraser"></i></button>
+                                        <button class="btn btn-secondary btn-sm" id="btn-scratchpad-clear" title="Xóa toàn bộ"><i class="fa-solid fa-trash-can"></i> Xóa</button>
+                                    </div>
+                                    <div class="scratchpad-colors" style="display: flex; gap: 0.4rem; padding: 0.2rem; background: #FFF; border: 2px solid #000; border-radius: 8px; justify-content: center; align-items: center;">
+                                        <span style="font-family: Poppins; font-size: 0.72rem; font-weight: 800; margin-right: auto; margin-left: 0.2rem;">MÀU VẼ:</span>
+                                        <button class="color-btn active" data-color="#000000" style="width: 16px; height: 16px; border-radius: 50%; background: #000000; border: 1.5px solid #000; cursor: pointer; padding: 0;"></button>
+                                        <button class="color-btn" data-color="#EF5350" style="width: 16px; height: 16px; border-radius: 50%; background: #EF5350; border: 1.5px solid #000; cursor: pointer; padding: 0;"></button>
+                                        <button class="color-btn" data-color="#4CAF50" style="width: 16px; height: 16px; border-radius: 50%; background: #4CAF50; border: 1.5px solid #000; cursor: pointer; padding: 0;"></button>
+                                        <button class="color-btn" data-color="#557AFA" style="width: 16px; height: 16px; border-radius: 50%; background: #557AFA; border: 1.5px solid #000; cursor: pointer; padding: 0;"></button>
+                                    </div>
                                 </div>
                                 <div class="canvas-container">
                                     <canvas id="scratchpad-canvas" width="280" height="280"></canvas>

@@ -34,7 +34,7 @@ const state = {
     ]
 };
 
-// Reasoning Path Mock for teacher tree tab (can fall back or run dynamically)
+// Reasoning Path Mock for teacher tree tab
 const REASONING_TREES = {
     "an_01": {
         student: "Nguyễn Văn An",
@@ -94,6 +94,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initVirtualScratchpad();
     initFractionSlider();
     initTeacherModals();
+    initMascotReadAloud();
     
     // Load Knowledge Graph DAG
     await loadKnowledgeGraph();
@@ -470,8 +471,8 @@ async function renderTeacherDashboard() {
                         ${membersTags}
                     </div>
                     <div class="group-action">
-                        <button class="btn btn-hint-outline btn-sm" onclick="alert('Đã gửi tài liệu bổ trợ chuyên biệt!')">
-                            <i class="fa-solid fa-share-nodes"></i> Gửi tài liệu ôn tập
+                        <button class="btn btn-hint-outline btn-sm" onclick="triggerLessonPlanForSkill('${grp.skill_id}', '${grp.title}')">
+                            <i class="fa-solid fa-share-nodes"></i> Xem giáo án bổ trợ
                         </button>
                     </div>
                 `;
@@ -512,6 +513,11 @@ async function renderTeacherDashboard() {
     renderOfflineTeacherDashboard();
 }
 
+function triggerLessonPlanForSkill(skillId, title) {
+    generateAILessonPlan(title || skillId);
+    document.getElementById("modal-lesson-plan").style.display = "flex";
+}
+
 const KNOWLEDGE_GRAPH_LOCAL_NAMES = {
     "MATH_G7": "Cộng số hữu tỉ (L7)",
     "MATH_G6": "Cộng số nguyên (L6)",
@@ -546,7 +552,7 @@ function renderClassroomHeatmap() {
         } else {
             box.className += " normal";
             box.title = `Học sinh số ${i} - Đang học tập ổn định`;
-            box.addEventListener("click", () => showToast(`Học sinh số ${i} đang tiến bộ tốt.`));
+            box.addEventListener("click", () => openDiagnosticInspector(`std_${i}`));
         }
         container.appendChild(box);
     }
@@ -668,8 +674,8 @@ function renderOfflineTeacherDashboard() {
     groupsGrid.innerHTML = "";
     
     const mockGroups = [
-        { title: "Nhóm hổng: Quy đồng phân số (Lớp 5)", count: 12, members: ["Trần Bình", "Trần Minh Khánh", "+10 học sinh khác"] },
-        { title: "Nhóm hổng: Cộng trừ số nguyên (Lớp 6)", count: 8, members: ["Nguyễn Văn An", "Phạm Khánh Linh", "+6 học sinh khác"] }
+        { title: "Nhóm hổng: Quy đồng phân số (Lớp 5)", count: 12, members: ["Trần Bình", "Trần Minh Khánh", "+10 học sinh khác"], skill_id: "MATH_G5" },
+        { title: "Nhóm hổng: Cộng trừ số nguyên (Lớp 6)", count: 8, members: ["Nguyễn Văn An", "Phạm Khánh Linh", "+6 học sinh khác"], skill_id: "MATH_G6" }
     ];
     
     mockGroups.forEach(grp => {
@@ -684,7 +690,7 @@ function renderOfflineTeacherDashboard() {
             </div>
             <div class="group-members">${membersTags}</div>
             <div class="group-action">
-                <button class="btn btn-hint-outline btn-sm" onclick="alert('Đã gửi tài liệu!')"><i class="fa-solid fa-share-nodes"></i> Gửi tài liệu</button>
+                <button class="btn btn-hint-outline btn-sm" onclick="triggerLessonPlanForSkill('${grp.skill_id}', '${grp.title}')"><i class="fa-solid fa-share-nodes"></i> Xem giáo án</button>
             </div>
         `;
         groupsGrid.appendChild(card);
@@ -713,6 +719,57 @@ function renderOfflineTeacherDashboard() {
 // -----------------------------------------------------------------------------
 // CHAT, MODALS, HEATMAP, SCRATCHPAD, SLIDER LOGIC
 // -----------------------------------------------------------------------------
+
+function initMascotReadAloud() {
+    const speakBtn = document.getElementById("btn-read-aloud");
+    if (!speakBtn) return;
+    
+    speakBtn.addEventListener("click", () => {
+        const textToSpeak = document.getElementById("mascot-comment").textContent;
+        if (!textToSpeak) return;
+        
+        // Stop any currently speaking voice
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = "vi-VN";
+        
+        const robotIcon = document.querySelector(".robot-icon-face");
+        
+        utterance.onstart = () => {
+            if (robotIcon) {
+                robotIcon.classList.add("fa-beat");
+                robotIcon.classList.remove("animate-bounce-slow");
+            }
+            speakBtn.style.color = "var(--danger)";
+        };
+        
+        utterance.onend = () => {
+            if (robotIcon) {
+                robotIcon.classList.remove("fa-beat");
+                robotIcon.classList.add("animate-bounce-slow");
+            }
+            speakBtn.style.color = "";
+        };
+        
+        utterance.onerror = () => {
+            if (robotIcon) {
+                robotIcon.classList.remove("fa-beat");
+                robotIcon.classList.add("animate-bounce-slow");
+            }
+            speakBtn.style.color = "";
+        };
+        
+        // Find Vietnamese voice if possible
+        const voices = window.speechSynthesis.getVoices();
+        const viVoice = voices.find(voice => voice.lang.includes("vi") || voice.lang.includes("VI"));
+        if (viVoice) {
+            utterance.voice = viVoice;
+        }
+        
+        window.speechSynthesis.speak(utterance);
+    });
+}
 
 function initAITutorChat() {
     const chatInput = document.getElementById("tutor-chat-input");
@@ -848,16 +905,39 @@ function initVirtualScratchpad() {
     const penBtn = document.getElementById("btn-scratchpad-pen");
     const eraserBtn = document.getElementById("btn-scratchpad-eraser");
     const clearBtn = document.getElementById("btn-scratchpad-clear");
+    const colorBtns = document.querySelectorAll(".color-btn");
     
     let isDrawing = false;
+    let currentColor = "#000000";
+    
+    // Setup initial canvas dimensions
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
-    ctx.strokeStyle = "#000000";
+    ctx.strokeStyle = currentColor;
     
     canvas.addEventListener("mousedown", startDrawing);
     canvas.addEventListener("mousemove", draw);
     canvas.addEventListener("mouseup", stopDrawing);
     canvas.addEventListener("mouseout", stopDrawing);
+    
+    // Touch Events for mobile/tablet
+    canvas.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        isDrawing = true;
+        ctx.beginPath();
+        ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    });
+    canvas.addEventListener("touchmove", (e) => {
+        e.preventDefault();
+        if (!isDrawing) return;
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+        ctx.stroke();
+    });
+    canvas.addEventListener("touchend", stopDrawing);
     
     function startDrawing(e) {
         isDrawing = true;
@@ -877,7 +957,7 @@ function initVirtualScratchpad() {
     }
     
     penBtn.addEventListener("click", () => {
-        ctx.strokeStyle = "#000000";
+        ctx.strokeStyle = currentColor;
         ctx.lineWidth = 3;
         penBtn.classList.add("active");
         eraserBtn.classList.remove("active");
@@ -891,6 +971,17 @@ function initVirtualScratchpad() {
     clearBtn.addEventListener("click", () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         showToast("Đã xóa bảng nháp!");
+    });
+    
+    colorBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            colorBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            currentColor = btn.getAttribute("data-color");
+            
+            // Auto switch back to Pen mode
+            penBtn.click();
+        });
     });
 }
 
@@ -979,7 +1070,8 @@ function initTeacherModals() {
     
     if (btnCreatePlan) {
         btnCreatePlan.addEventListener("click", () => {
-            generateAILessonPlan();
+            const warningSkillName = document.getElementById("class-reteach-skill-name").textContent;
+            generateAILessonPlan(warningSkillName);
             lpModal.style.display = "flex";
         });
     }
@@ -990,23 +1082,64 @@ function initTeacherModals() {
     if (diagOverlay) diagOverlay.addEventListener("click", () => diagModal.style.display = "none");
 }
 
-function generateAILessonPlan() {
+function generateAILessonPlan(skillName) {
     const container = document.getElementById("lesson-plan-modal-body");
     if (!container) return;
+    
+    let topic = skillName || "Quy đồng mẫu số phân số (Kiến thức nền gốc Lớp 5)";
+    let targetGroup = "Nhóm học sinh bị hổng kiến thức nền tương ứng.";
+    let objectives = "";
+    let activity = "";
+    let exercises = "";
+    
+    if (topic.includes("Quy đồng") || topic.includes("MATH_G5")) {
+        topic = "Quy đồng mẫu số phân số (Kiến thức nền gốc Lớp 5)";
+        objectives = "<ul><li>Nắm vững cách tìm BCNN để chọn mẫu số chung.</li><li>Tìm nhân tử phụ chính xác và nhân cả tử và mẫu.</li></ul>";
+        activity = "<strong>Trò chơi 'Cắt bánh Pizza':</strong> Sử dụng hình tròn cắt lát trực quan giúp học sinh nhận diện sự tương đương giữa 1/2 và 3/6, 2/4.";
+        exercises = "<li>Quy đồng 1/3 và 1/4 (MSC = 12)</li><li>Quy đồng 3/8 và 5/6 (MSC = 24)</li>";
+    } else if (topic.includes("Số nguyên") || topic.includes("MATH_G6")) {
+        topic = "Cộng, trừ số nguyên trái dấu (Kiến thức Lớp 6)";
+        objectives = "<ul><li>Hiểu rõ quy tắc cộng hai số nguyên khác dấu.</li><li>Biết so sánh trị tuyệt đối để đặt dấu phù hợp trước kết quả.</li></ul>";
+        activity = "<strong>Trò chơi 'Leo cầu thang':</strong> Học sinh bước tiến (số dương) và bước lùi (số âm) trên vạch kẻ sàn lớp để hình dung trục số.";
+        exercises = "<li>Tính (-15) + 8</li><li>Tính 12 - (-18)</li>";
+    } else if (topic.includes("BCNN") || topic.includes("MATH_G5_LCM")) {
+        topic = "Tìm Bội chung nhỏ nhất - BCNN (Kiến thức Lớp 5)";
+        objectives = "<ul><li>Biết phân tích các số ra thừa số nguyên tố.</li><li>Tìm các thừa số chung và riêng với số mũ lớn nhất.</li></ul>";
+        activity = "<strong>Hộp số nhấp nháy:</strong> Học sinh viết danh sách các bội số của hai số và khoanh tròn số đầu tiên trùng nhau khác 0.";
+        exercises = "<li>Tìm BCNN(6, 8)</li><li>Tìm BCNN(4, 6, 9)</li>";
+    } else if (topic.includes("hữu tỉ") || topic.includes("MATH_G7")) {
+        topic = "Cộng, trừ số hữu tỉ trái dấu (Kiến thức Lớp 7)";
+        objectives = "<ul><li>Quy đồng mẫu số các số hữu tỉ ở dạng phân số hoặc đổi về dạng số thập phân.</li><li>Thực hiện đúng quy tắc cộng trừ số nguyên với phần tử số.</li></ul>";
+        activity = "<strong>Chiếc cân cân bằng:</strong> Học sinh đặt các miếng khối lượng đại diện cho số hữu tỉ dương và âm lên hai đĩa cân để trực quan hóa phép cộng.";
+        exercises = "<li>Tính 1/2 + (-2/3)</li><li>Tính 0.75 - (-1/2)</li>";
+    } else {
+        topic = `${topic} (Giáo án Bổ trợ Chuyên sâu)`;
+        objectives = "<ul><li>Tái thiết lập các khái niệm cơ bản còn hổng trong chu kỳ chẩn đoán trước.</li><li>Giúp học sinh rèn luyện và tự tin vượt qua bài kiểm tra bù.</li></ul>";
+        activity = "<strong>Kèm cặp 1-1:</strong> Phân chia học sinh khá kèm học sinh yếu trong nhóm làm bài tập dự án nhóm.";
+        exercises = "<li>Bài tập ôn luyện trọng tâm cấp độ dễ (Level 1)</li><li>Bài tập thực hành củng cố trung bình (Level 2)</li>";
+    }
     
     container.innerHTML = `
         <div style="font-family: Inter; line-height: 1.6;">
             <div style="background: var(--secondary-light); border: 2px solid #000; padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;">
-                <strong>📚 Giáo án bổ trợ:</strong> Quy đồng mẫu số phân số (Kiến thức nền gốc Lớp 5) <br>
-                <strong>🎯 Đối tượng áp dụng:</strong> Các học sinh hổng kiến thức cốt lõi.
+                <strong>📚 Giáo án bổ trợ:</strong> ${topic} <br>
+                <strong>🎯 Đối tượng áp dụng:</strong> ${targetGroup}
             </div>
+            
             <h4>1. Mục tiêu bài học (Objectives)</h4>
-            <ul>
-                <li>Giúp học sinh nắm vững cách tìm Bội chung nhỏ nhất (BCNN) của các mẫu số.</li>
-                <li>Biết cách tìm nhân tử phụ và nhân cả tử và mẫu để quy đồng mẫu số thành công.</li>
-            </ul>
+            ${objectives}
+            
+            <h4>2. Hoạt động khởi động (Warm-up Activity)</h4>
+            <p>${activity}</p>
+            
+            <h4>3. Bài tập ôn tập trọng tâm (Core Practice)</h4>
+            <ol>
+                ${exercises}
+            </ol>
+            
             <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
                 <button class="btn btn-primary-memphis btn-sm" onclick="alert('Đã tải giáo án PDF về máy!')"><i class="fa-solid fa-file-pdf"></i> Tải giáo án PDF</button>
+                <button class="btn btn-secondary btn-sm" onclick="alert('Đã xuất bản giáo án lên hệ thống lớp học!')"><i class="fa-solid fa-cloud-arrow-up"></i> Xuất bản lên lớp học</button>
             </div>
         </div>
     `;
@@ -1115,8 +1248,8 @@ function openDiagnosticInspector(studentId) {
     if (!modal || !container) return;
     
     let name = "Học sinh";
-    let activeSkill = "Cộng số hữu tỉ (L7)";
-    let diagnosedError = "Không tìm thấy lỗi hệ thống.";
+    let activeSkill = "Đang học ổn định";
+    let diagnosedError = "Học sinh học tập tốt, chưa phát hiện lỗ hổng kiến thức.";
     let attempts = [];
     
     if (studentId === "an_01") {
@@ -1134,9 +1267,23 @@ function openDiagnosticInspector(studentId) {
         attempts = [
             { question: "Quy đồng 3/4 và 5/6", answer: "24", status: "Incorrect", time: "5 phút trước" }
         ];
+    } else if (studentId === "hoang_04") {
+        name = "Lê Công Hoàng";
+        activeSkill = "Cộng số hữu tỉ (Lớp 7)";
+        diagnosedError = "Học sinh bị hổng kiến thức nền về phép cộng phân số âm cùng mẫu số, dẫn tới việc cộng sai số hữu tỉ trái dấu.";
+        attempts = [
+            { question: "1/2 + (-2/3)", answer: "-7/6", status: "Incorrect", time: "2 phút trước" }
+        ];
     } else {
-        name = `Học sinh ${studentId}`;
-        diagnosedError = "Tiến độ học bình thường, đã vượt qua các bài kiểm tra chẩn đoán.";
+        // Standard normal student
+        const num = studentId.replace("std_", "");
+        name = `Học sinh số ${num}`;
+        activeSkill = "Đạt chuẩn tiến trình";
+        diagnosedError = "Tiến độ học tập bình thường. Học sinh đạt tỷ lệ làm đúng trên 85% ở tất cả các kỹ năng môn học hiện tại.";
+        attempts = [
+            { question: "Luyện tập bài học", answer: "Chính xác", status: "Correct", time: "1 giờ trước" },
+            { question: "Kiểm tra định kỳ", answer: "Chính xác", status: "Correct", time: "Hôm qua" }
+        ];
     }
     
     let attemptsRows = attempts.map(att => `
