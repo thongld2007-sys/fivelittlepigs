@@ -67,3 +67,38 @@ Priority List, Auto-Grouping, Gap Alert cùng Reasoning Tree. Demo dùng databas
 
 Đây chỉ là luồng đăng nhập trình diễn phía frontend, chưa phải cơ chế xác thực dùng trong
 production. Khi triển khai thực tế cần bổ sung tài khoản, mật khẩu băm và phân quyền API.
+
+## Chuẩn bị FPT AI Hackathon Final
+
+Tài liệu phản biện theo góc nhìn ban giám khảo khó tính nằm tại
+[`docs/fpt_ai_hackathon_judge_pack.md`](docs/fpt_ai_hackathon_judge_pack.md).
+
+Khi pitch, không định vị sản phẩm như một chatbot. Hãy định vị là hệ thống chẩn đoán lỗ
+hổng kiến thức gốc, có:
+
+- Knowledge Graph theo kỹ năng và lớp học.
+- Bayesian Knowledge Tracing để cập nhật xác suất thành thạo.
+- Dashboard giáo viên gồm phân nhóm, danh sách ưu tiên, heatmap và biểu đồ tiến trình lớp.
+- Offline-first backend để demo được trong môi trường mạng yếu.
+
+Các bằng chứng cần có trước vòng final:
+
+| Bằng chứng | Mục tiêu tối thiểu |
+|---|---|
+| Diagnostic accuracy | >= 70% trên bộ kiểm thử nhỏ có nhãn giáo viên |
+| Precision/Recall cảnh báo học sinh cần kèm | >= 75% / >= 70% |
+| p95 latency `/next-question` | < 300 ms local |
+| p95 latency `/teacher/dashboard` | < 500 ms local |
+| Cost story | BKT/DAG gần như 0 đồng; chỉ gọi FPT AI khi sinh nhận xét/gợi ý/giao án |
+
+Chạy smoke benchmark kỹ thuật:
+
+```powershell
+python tests/benchmark_diagnostics.py
+```
+
+Lưu ý: benchmark này chỉ kiểm tra kịch bản kỹ thuật có nhãn nhỏ để bảo vệ demo trước ban
+giám khảo. Khi pitch chính thức vẫn cần pilot thật với học sinh/giáo viên.
+
+Kế hoạch khai thác FPT AI nên bám vào Inference, Knowledge, Agents, Speech, OCR và MCP,
+thay vì chỉ gọi một API chat tổng quát.
