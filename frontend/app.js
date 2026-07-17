@@ -98,6 +98,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initFractionSlider();
     initTeacherModals();
     initMascotReadAloud();
+    initDiagnosticTestFlow();
     
     // Load Knowledge Graph DAG
     await loadKnowledgeGraph();
@@ -1601,21 +1602,27 @@ function initAuthFlow() {
                 state.xp = xp;
                 state.coins = coins;
                 state.streak = streak;
-                state.studentProgress.activeSkill = activeSkill;
                 
-                // Save to localStorage
-                localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("loggedInRole", "student");
-                localStorage.setItem("studentId", studentId);
-                
-                // Hide overlay
-                if (loginOverlay) loginOverlay.classList.add("hidden");
-                
-                // Update UI layout
-                switchPortalUI("student");
-                updateStudentRewardsUI();
-                loadStudentQuestion(activeSkill);
-                showToast(`Đăng nhập thành công! Chào mừng học sinh.`);
+                if (studentId === "emma_std_01") {
+                    // Trigger entry diagnostic test for Emma
+                    startDiagnosticEntryTest();
+                } else {
+                    state.studentProgress.activeSkill = activeSkill;
+                    
+                    // Save to localStorage
+                    localStorage.setItem("isLoggedIn", "true");
+                    localStorage.setItem("loggedInRole", "student");
+                    localStorage.setItem("studentId", studentId);
+                    
+                    // Hide overlay
+                    if (loginOverlay) loginOverlay.classList.add("hidden");
+                    
+                    // Update UI layout
+                    switchPortalUI("student");
+                    updateStudentRewardsUI();
+                    loadStudentQuestion(activeSkill);
+                    showToast(`Đăng nhập thành công! Chào mừng học sinh.`);
+                }
                 
             } else {
                 const password = document.getElementById("teacher-pass").value;
@@ -1696,4 +1703,172 @@ function initAuthFlow() {
         // Force show login overlay if not authenticated
         if (loginOverlay) loginOverlay.classList.remove("hidden");
     }
+}
+
+// -----------------------------------------------------------------------------
+// DIAGNOSTIC ENTRY TEST LOGIC (Entrance Assessment)
+// -----------------------------------------------------------------------------
+let diagnosticState = {
+    currentQuestionIndex: 0,
+    answers: [],
+    selectedOption: null
+};
+
+const DIAGNOSTIC_QUESTIONS = [
+    {
+        skillId: "MATH_G5_LCM",
+        text: "Câu hỏi 1 (Đánh giá BCNN): Tìm Bội chung nhỏ nhất của 6 và 8. BCNN(6, 8) = ?",
+        options: [{key:"A", text:"48"}, {key:"B", text:"24"}, {key:"C", text:"12"}, {key:"D", text:"18"}],
+        correct: "B"
+    },
+    {
+        skillId: "MATH_G5",
+        text: "Câu hỏi 2 (Đánh giá Quy đồng): Tìm mẫu số chung nhỏ nhất để quy đồng hai phân số 3/4 và 5/6.",
+        options: [{key:"A", text:"24"}, {key:"B", text:"12"}, {key:"C", text:"10"}, {key:"D", text:"8"}],
+        correct: "B"
+    },
+    {
+        skillId: "MATH_G6",
+        text: "Câu hỏi 3 (Đánh giá Số nguyên): Tính kết quả của phép cộng số nguyên sau: (-15) + 8 = ?",
+        options: [{key:"A", text:"-7"}, {key:"B", text:"7"}, {key:"C", text:"-23"}, {key:"D", text:"23"}],
+        correct: "A"
+    }
+];
+
+function initDiagnosticTestFlow() {
+    const nextBtn = document.getElementById("btn-diagnostic-next");
+    if (!nextBtn) return;
+    
+    nextBtn.addEventListener("click", () => {
+        diagnosticState.answers.push({
+            skillId: DIAGNOSTIC_QUESTIONS[diagnosticState.currentQuestionIndex].skillId,
+            selected: diagnosticState.selectedOption,
+            isCorrect: diagnosticState.selectedOption === DIAGNOSTIC_QUESTIONS[diagnosticState.currentQuestionIndex].correct
+        });
+        
+        diagnosticState.currentQuestionIndex += 1;
+        
+        if (diagnosticState.currentQuestionIndex < DIAGNOSTIC_QUESTIONS.length) {
+            renderDiagnosticQuestion();
+        } else {
+            // End of test: show result card
+            document.getElementById("login-card-diagnostic").style.display = "none";
+            document.getElementById("login-card-diagnostic-result").style.display = "block";
+            showDiagnosticResult();
+        }
+    });
+}
+
+function startDiagnosticEntryTest() {
+    document.getElementById("login-card-main").style.display = "none";
+    document.getElementById("login-card-diagnostic").style.display = "block";
+    document.getElementById("login-card-diagnostic-result").style.display = "none";
+    
+    diagnosticState.currentQuestionIndex = 0;
+    diagnosticState.answers = [];
+    diagnosticState.selectedOption = null;
+    
+    renderDiagnosticQuestion();
+}
+
+function renderDiagnosticQuestion() {
+    const nextBtn = document.getElementById("btn-diagnostic-next");
+    const progressText = document.getElementById("diagnostic-progress");
+    const progressFill = document.getElementById("diagnostic-progress-fill");
+    const questionBox = document.getElementById("diagnostic-question-box");
+    const optionsBox = document.getElementById("diagnostic-options-box");
+    
+    if (!nextBtn || !progressText || !progressFill || !questionBox || !optionsBox) return;
+    
+    nextBtn.setAttribute("disabled", "true");
+    diagnosticState.selectedOption = null;
+    
+    const q = DIAGNOSTIC_QUESTIONS[diagnosticState.currentQuestionIndex];
+    progressText.textContent = `CÂU HỎI ${diagnosticState.currentQuestionIndex + 1}/3`;
+    progressFill.style.width = `${((diagnosticState.currentQuestionIndex + 1) / 3) * 100}%`;
+    questionBox.textContent = q.text;
+    
+    optionsBox.innerHTML = "";
+    q.options.forEach(opt => {
+        const btn = document.createElement("button");
+        btn.className = "option-btn";
+        btn.style.width = "100%";
+        btn.style.margin = "0";
+        btn.style.textAlign = "left";
+        btn.innerHTML = `<span class="option-letter">${opt.key}</span> ${opt.text}`;
+        
+        btn.addEventListener("click", () => {
+            optionsBox.querySelectorAll(".option-btn").forEach(b => b.classList.remove("selected"));
+            btn.classList.add("selected");
+            diagnosticState.selectedOption = opt.key;
+            nextBtn.removeAttribute("disabled");
+        });
+        
+        optionsBox.appendChild(btn);
+    });
+}
+
+function showDiagnosticResult() {
+    const analysisPara = document.getElementById("diagnostic-result-analysis");
+    const skillPathSpan = document.getElementById("diagnostic-result-skill-path");
+    const startBtn = document.getElementById("btn-diagnostic-start");
+    
+    if (!analysisPara || !skillPathSpan || !startBtn) return;
+    
+    const q1 = diagnosticState.answers[0]; // BCNN
+    const q2 = diagnosticState.answers[1]; // Quy đồng
+    const q3 = diagnosticState.answers[2]; // Cộng số nguyên
+    
+    let targetSkill = "MATH_G7";
+    let analysisText = "";
+    let skillPathText = "";
+    
+    if (!q1.isCorrect) {
+        targetSkill = "MATH_G5_LCM";
+        analysisText = "Hệ thống chẩn đoán: Bạn chưa nắm vững cách tìm Bội chung nhỏ nhất (BCNN). Đây là lỗ hổng cốt lõi khiến bạn không thể Quy đồng mẫu số và Cộng số hữu tỉ. AI đề xuất vá lỗ hổng này trước.";
+        skillPathText = "Tìm Bội chung nhỏ nhất (Lớp 5)";
+    } else if (!q2.isCorrect) {
+        targetSkill = "MATH_G5";
+        analysisText = "Hệ thống chẩn đoán: Bạn tính được BCNN nhưng kỹ năng nhân quy đồng tử số và mẫu số còn yếu. Bạn nên củng cố lại bài toán quy đồng mẫu số phân số.";
+        skillPathText = "Quy đồng mẫu số phân số (Lớp 5)";
+    } else if (!q3.isCorrect) {
+        targetSkill = "MATH_G6";
+        analysisText = "Hệ thống chẩn đoán: Bạn quy đồng mẫu số rất tốt. Nhưng bạn đang bị sai ở khâu tính toán cộng trừ số nguyên khác dấu. Lộ trình tối ưu là củng cố phép cộng số nguyên.";
+        skillPathText = "Cộng, trừ số nguyên (Lớp 6)";
+    } else {
+        targetSkill = "MATH_G7";
+        analysisText = "Hệ thống chẩn đoán: Tuyệt vời! Bạn nắm rất vững tất cả các kỹ năng nền tảng (BCNN, Quy đồng, Số nguyên). AI đề xuất bạn học thẳng bài Cộng số hữu tỉ Lớp 7.";
+        skillPathText = "Cộng, trừ số hữu tỉ (Lớp 7)";
+    }
+    
+    analysisPara.textContent = analysisText;
+    skillPathSpan.textContent = skillPathText;
+    
+    // Clear previous event listeners
+    const newStartBtn = startBtn.cloneNode(true);
+    startBtn.parentNode.replaceChild(newStartBtn, startBtn);
+    
+    newStartBtn.addEventListener("click", () => {
+        const loginOverlay = document.getElementById("login-overlay");
+        const mainCard = document.getElementById("login-card-main");
+        const resultCard = document.getElementById("login-card-diagnostic-result");
+        
+        state.studentProgress.activeSkill = targetSkill;
+        
+        // Save to localStorage
+        localStorage.setItem("isLoggedIn", "true");
+        localStorage.setItem("loggedInRole", "student");
+        localStorage.setItem("studentId", state.studentId);
+        
+        // Hide overlay and reset views
+        if (loginOverlay) loginOverlay.classList.add("hidden");
+        mainCard.style.display = "block";
+        resultCard.style.display = "none";
+        
+        // Update UI layout
+        switchPortalUI("student");
+        updateStudentRewardsUI();
+        loadStudentQuestion(targetSkill);
+        showToast(`Bắt đầu học lộ trình chẩn đoán: ${skillPathText}`);
+    });
 }
