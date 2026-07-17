@@ -75,6 +75,11 @@ class AnswerSubmission(BaseModel):
     question_id: str
     selected_option: str
 
+class CheckAnswerRequest(BaseModel):
+    question_id: str
+    selected_option: str
+    student_id: str = "emma_std_01"
+
 class StudentCreate(BaseModel):
     student_id: str
     name: str
@@ -249,6 +254,19 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
         "next_recommended_difficulty": next_diff
     }
 
+@app.post("/api/check-answer")
+def check_answer(submission: CheckAnswerRequest):
+    """Compatibility endpoint for frontend modules that submit answers globally."""
+    if not get_student(submission.student_id):
+        add_student(submission.student_id, "Học sinh demo", 7)
+    return submit_answer(
+        submission.student_id,
+        AnswerSubmission(
+            question_id=submission.question_id,
+            selected_option=submission.selected_option
+        )
+    )
+
 @app.get("/api/teacher/dashboard")
 def get_teacher_dashboard():
     conn = get_db_connection()
@@ -282,6 +300,22 @@ def get_teacher_dashboard():
             
     # Convert groups dict to list
     groups_list = list(groups.values())
+
+    class_progress = []
+    for skill_id, skill_info in KNOWLEDGE_GRAPH.items():
+        cursor.execute("""
+            SELECT AVG(mastery_probability) FROM student_mastery
+            WHERE skill_id = ?
+        """, (skill_id,))
+        mastery_ratio = cursor.fetchone()[0]
+        if mastery_ratio is None:
+            continue
+        class_progress.append({
+            "skill_id": skill_id,
+            "label": skill_info["name"],
+            "percent": max(0, min(100, int(round(mastery_ratio * 100))))
+        })
+    class_progress = sorted(class_progress, key=lambda item: item["skill_id"])[:8]
     
     # Check if a class-wide re-teach is required (> 20% of class in gap)
     reteach_recommendation = None
@@ -333,7 +367,8 @@ def get_teacher_dashboard():
             "re_teach_alert": reteach_recommendation
         },
         "groups": groups_list,
-        "priority_list": priority_list
+        "priority_list": priority_list,
+        "class_progress": class_progress
     }
 
 # Serve Frontend static assets

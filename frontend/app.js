@@ -32,6 +32,12 @@ const state = {
             short_answer: 6
         }
     },
+    teacherRealtime: {
+        socket: null,
+        pollingTimer: null,
+        reconnectTimer: null,
+        reconnectAttempts: 0
+    },
     knowledgeGraph: {},
     streak: 0,
     xp: 1200,
@@ -958,7 +964,34 @@ function renderSurveyResult() {
     document.getElementById("mascot-comment").textContent = "AI đã tổng hợp xong kết quả khảo sát và lộ trình học gợi ý.";
 }
 
-// Render Multiple Choice Buttons
+/**
+ * Handles a student's answer selection and updates the submit state.
+ *
+ * @param {string} optionKey - The selected option key, for example "A", "TRUE", or "FALSE".
+ * @param {HTMLButtonElement} optionButton - Button element that was selected.
+ */
+function handleAnswerSelection(optionKey, optionButton) {
+    if (state.isSubmitting) return;
+
+    const optionsContainer = document.getElementById("options-container");
+    optionsContainer.querySelectorAll(".option-btn").forEach(btn => {
+        btn.classList.remove("selected", "correct-feedback", "error-feedback");
+    });
+
+    optionButton.classList.add("selected");
+    state.selectedOption = optionKey;
+    document.getElementById("btn-submit-answer").removeAttribute("disabled");
+}
+
+/**
+ * Renders clickable answer buttons for multiple-choice or true/false questions.
+ *
+ * Basic HTML skeleton for isolated testing:
+ * <div id="options-container"></div>
+ * <button id="btn-submit-answer" disabled>Submit</button>
+ *
+ * @param {Array<{key: string, label?: string, text: string}>} options - Answer options.
+ */
 function renderQuestionOptions(options) {
     const optionsContainer = document.getElementById("options-container");
     optionsContainer.replaceChildren();
@@ -972,22 +1005,96 @@ function renderQuestionOptions(options) {
         letter.textContent = opt.label || opt.key;
         optBtn.append(letter, document.createTextNode(` ${opt.text}`));
         
-        optBtn.addEventListener("click", () => {
-            if (state.isSubmitting) return;
-            
-            const allOpts = optionsContainer.querySelectorAll(".option-btn");
-            allOpts.forEach(btn => btn.classList.remove("selected"));
-            
-            optBtn.classList.add("selected");
-            state.selectedOption = opt.key;
-            document.getElementById("btn-submit-answer").removeAttribute("disabled");
-        });
+        optBtn.addEventListener("click", () => handleAnswerSelection(opt.key, optBtn));
         
         optionsContainer.appendChild(optBtn);
     });
 }
 
-// Submit Answer handler
+/**
+ * Submits a selected answer to the backend check endpoint.
+ *
+ * The function first uses the report-specified endpoint `/api/check-answer`.
+ * If an older backend is running, it falls back to `/api/student/{id}/submit`.
+ *
+ * @param {string} submittedOption - Normalized option key selected by the student.
+ * @returns {Promise<object>} Backend grading result.
+ */
+async function submitSelectedAnswerToApi(submittedOption) {
+    const payload = {
+        student_id: state.studentId,
+        question_id: state.currentQuestion.id,
+        selected_option: submittedOption
+    };
+
+    const checkAnswerRes = await fetch("/api/check-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+    if (checkAnswerRes.ok) return checkAnswerRes.json();
+
+    const legacyRes = await fetch(`/api/student/${state.studentId}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            question_id: payload.question_id,
+            selected_option: payload.selected_option
+        })
+    });
+    if (!legacyRes.ok) {
+        throw new Error(`Answer submit failed: ${legacyRes.status}`);
+    }
+    return legacyRes.json();
+}
+
+/**
+ * Displays answer feedback and dynamic hints returned by the backend.
+ *
+ * @param {object} result - Backend response.
+ * @param {boolean} isCorrect - Whether the selected answer was correct.
+ */
+function updateAnswerFeedbackUI(result, isCorrect) {
+    const isShortAnswer = state.testSession.stage === "short_answer";
+    const isMultipleChoice = state.testSession.stage === "multiple_choice";
+    const optionsContainer = document.getElementById("options-container");
+    const selectedBtn = optionsContainer.querySelector(`.option-btn[data-val="${state.selectedOption}"]`);
+    const mascotComment = document.getElementById("mascot-comment");
+
+    if (isCorrect) {
+        if (selectedBtn) selectedBtn.classList.add("correct-feedback");
+        mascotComment.textContent = isShortAnswer
+            ? buildShortAnswerFeedback(true)
+            : "Tuyệt vời! Bạn đã làm hoàn toàn chính xác!";
+        showToast("Chúc mừng! Bạn đã trả lời đúng!");
+        return;
+    }
+
+    if (selectedBtn) selectedBtn.classList.add("error-feedback");
+    const backendHint = result?.hint || state.currentQuestion?.hint || "";
+    mascotComment.textContent = isShortAnswer
+        ? buildShortAnswerFeedback(false)
+        : (backendHint ? `Gợi ý: ${backendHint}` : "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem sao?");
+    showToast("Chưa chính xác. Hệ thống đang cập nhật chẩn đoán...");
+
+    const distractorBox = document.getElementById("distractor-feedback-box");
+    const distractorText = document.getElementById("distractor-feedback-text");
+    if (!distractorBox || !distractorText) return;
+
+    const explanation = isMultipleChoice
+        ? (result?.distractor_explanation || state.currentQuestion?.distractor_explanations?.[state.selectedOption])
+        : null;
+    if (explanation) {
+        distractorText.textContent = explanation;
+        distractorBox.style.display = "block";
+    } else {
+        distractorBox.style.display = "none";
+    }
+}
+
+/**
+ * Handles the full submit flow after a student has selected an answer.
+ */
 async function submitAnswer() {
     state.isSubmitting = true;
     document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
@@ -997,33 +1104,16 @@ async function submitAnswer() {
     
     // 1. Submit through backend API
     try {
-        const res = await fetch(`/api/student/${state.studentId}/submit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                question_id: state.currentQuestion.id,
-                selected_option: submittedOption
-            })
-        });
-        
-        if (res.ok) {
+        const result = await submitSelectedAnswerToApi(submittedOption);
+        if (result) {
             hideLoadingOverlay();
-            const result = await res.json();
             const isCorrect = result.is_correct;
-            const isShortAnswer = state.testSession.stage === "short_answer";
-            const isMultipleChoice = state.testSession.stage === "multiple_choice";
-            
-            const optionsContainer = document.getElementById("options-container");
-            const selectedBtn = optionsContainer.querySelector(`.option-btn[data-val="${state.selectedOption}"]`);
             recordSurveyAttempt(isCorrect, submittedOption);
             const stageMessage = advanceQuestionFormatIfNeeded();
             const nextSkill = chooseNextSkillAfterSubmit(result, isCorrect);
+            updateAnswerFeedbackUI(result, isCorrect);
             
             if (isCorrect) {
-                if (selectedBtn) selectedBtn.classList.add("correct-feedback");
-                document.getElementById("mascot-comment").textContent = isShortAnswer ? buildShortAnswerFeedback(true) : "Tuyệt vời! Bạn đã làm hoàn toàn chính xác!";
-                showToast("Chúc mừng! Bạn đã trả lời đúng!");
-                
                 // Streak & Rewards update
                 if (state.currentQuestion.difficulty_level === 3) {
                     state.streak += 1;
@@ -1045,30 +1135,8 @@ async function submitAnswer() {
                     loadStudentQuestion(nextSkill);
                 }, 2000);
             } else {
-                if (selectedBtn) selectedBtn.classList.add("error-feedback");
                 state.streak = 0; // Reset streak
                 updateStudentRewardsUI();
-                
-                // Distractor Socratic feedback
-                let socraticText = isShortAnswer ? buildShortAnswerFeedback(false) : "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem sao?";
-                if (state.currentQuestion.hint) {
-                    socraticText = isShortAnswer ? buildShortAnswerFeedback(false) : `Gợi ý: ${state.currentQuestion.hint}`;
-                }
-                document.getElementById("mascot-comment").textContent = socraticText;
-                showToast("Chưa chính xác. Hệ thống đang cập nhật chẩn đoán...");
-                
-                // Show distractor explanation
-                const distractorBox = document.getElementById("distractor-feedback-box");
-                const distractorText = document.getElementById("distractor-feedback-text");
-                if (distractorBox && distractorText) {
-                    const expl = isMultipleChoice ? ((result && result.distractor_explanation) || (state.currentQuestion.distractor_explanations && state.currentQuestion.distractor_explanations[state.selectedOption])) : null;
-                    if (expl) {
-                        distractorText.textContent = expl;
-                        distractorBox.style.display = "block";
-                    } else {
-                        distractorBox.style.display = "none";
-                    }
-                }
                 
                 setTimeout(() => {
                     state.isSubmitting = false;
@@ -1206,77 +1274,273 @@ function renderPersonalPath() {
     });
 }
 
+const MOCK_CLASS_PROGRESS = [
+    { label: "Toán 5", percent: 82 },
+    { label: "Toán 6", percent: 68 },
+    { label: "Toán 7", percent: 54 },
+    { label: "Hình 7", percent: 61 },
+    { label: "KHTN 7", percent: 73 }
+];
+
+/**
+ * Updates the small realtime status badge on the teacher dashboard.
+ *
+ * @param {"connected"|"polling"|"disconnected"} mode - Connection mode.
+ * @param {string} label - Human-readable status label.
+ */
+function setTeacherRealtimeStatus(mode, label) {
+    const status = document.getElementById("teacher-realtime-status");
+    if (!status) return;
+    status.className = `realtime-status ${mode}`;
+    status.textContent = label;
+}
+
+/**
+ * Renders a lightweight bar chart using only DOM and CSS.
+ *
+ * Basic HTML skeleton for isolated testing:
+ * <div id="class-progress-chart" class="class-progress-chart"></div>
+ *
+ * @param {Array<{label: string, percent: number}>} progressData - Skill progress data.
+ */
+function renderClassProgressChart(progressData = MOCK_CLASS_PROGRESS) {
+    const chart = document.getElementById("class-progress-chart");
+    if (!chart) return;
+
+    chart.replaceChildren();
+    progressData.forEach(({ label, percent }) => {
+        const clampedPercent = Math.max(0, Math.min(100, Number(percent) || 0));
+        const item = document.createElement("div");
+        item.className = "progress-bar-item";
+
+        const track = document.createElement("div");
+        track.className = "progress-bar-track";
+
+        const fill = document.createElement("div");
+        fill.className = "progress-bar-fill";
+        fill.style.height = `${clampedPercent}%`;
+        fill.style.background = clampedPercent >= 75
+            ? "var(--success)"
+            : clampedPercent >= 50
+                ? "var(--primary)"
+                : "var(--danger)";
+        fill.dataset.value = `${clampedPercent}%`;
+        fill.title = `${label}: ${clampedPercent}%`;
+
+        const caption = document.createElement("div");
+        caption.className = "progress-bar-label";
+        caption.textContent = label;
+
+        track.appendChild(fill);
+        item.append(track, caption);
+        chart.appendChild(item);
+    });
+}
+
+/**
+ * Normalizes dashboard API or WebSocket payloads into one shape for rendering.
+ *
+ * @param {object} data - Dashboard payload from API/WebSocket.
+ * @returns {object} Safe dashboard data with default arrays.
+ */
+function normalizeTeacherDashboardData(data = {}) {
+    return {
+        metrics: data.metrics || {},
+        groups: Array.isArray(data.groups) ? data.groups : [],
+        priority_list: Array.isArray(data.priority_list) ? data.priority_list : [],
+        class_progress: Array.isArray(data.class_progress) && data.class_progress.length
+            ? data.class_progress
+            : MOCK_CLASS_PROGRESS
+    };
+}
+
+/**
+ * Applies dashboard data to all teacher dashboard widgets.
+ *
+ * @param {object} dashboardData - Normalized or raw dashboard payload.
+ */
+function applyTeacherDashboardData(dashboardData) {
+    const data = normalizeTeacherDashboardData(dashboardData);
+    const totalStudents = document.getElementById("teacher-total-students");
+    const averageMastery = document.getElementById("teacher-average-mastery");
+    const gapCount = document.getElementById("total-gap-groups-count");
+    const reteachBanner = document.getElementById("class-reteach-banner");
+
+    if (totalStudents) totalStudents.textContent = `${data.metrics.total_students ?? 40} học sinh`;
+    if (averageMastery) averageMastery.textContent = data.metrics.average_mastery || "72%";
+    if (gapCount) gapCount.textContent = data.metrics.gap_groups_count || `${data.groups.length} nhóm`;
+
+    if (reteachBanner) {
+        const reTeachAlert = data.metrics.re_teach_alert;
+        reteachBanner.style.display = reTeachAlert ? "flex" : "none";
+        if (reTeachAlert) {
+            document.getElementById("class-reteach-skill-name").textContent = reTeachAlert;
+        }
+    }
+
+    renderClassProgressChart(data.class_progress);
+    renderGapGroups(data.groups);
+    renderPriorityList(data.priority_list);
+    renderClassroomHeatmap();
+}
+
+/**
+ * Renders automatic knowledge-gap groups.
+ *
+ * @param {Array<object>} groups - Group records from backend.
+ */
+function renderGapGroups(groups) {
+    const groupsGrid = document.getElementById("groups-grid-container");
+    if (!groupsGrid) return;
+    groupsGrid.replaceChildren();
+
+    groups.forEach(grp => {
+        const card = document.createElement("div");
+        card.className = "group-card";
+        const membersTags = (grp.members || [])
+            .map(member => `<span class="member-tag">${escapeHTML(member)}</span>`)
+            .join("");
+
+        card.innerHTML = `
+            <div class="group-card-header">
+                <h4>${escapeHTML(KNOWLEDGE_GRAPH_LOCAL_NAMES[grp.skill_id] || grp.title || grp.skill_id)}</h4>
+                <span class="student-count">${escapeHTML(grp.count ?? 0)} học sinh</span>
+            </div>
+            <div class="group-members">${membersTags}</div>
+            <div class="group-action">
+                <button class="btn btn-hint-outline btn-sm" data-skill-id="${escapeHTML(grp.skill_id)}" data-title="${escapeHTML(grp.title || grp.skill_id)}">
+                    <i class="fa-solid fa-share-nodes"></i> Xem giáo án bổ trợ
+                </button>
+            </div>
+        `;
+        const lessonBtn = card.querySelector("button[data-skill-id]");
+        lessonBtn.addEventListener("click", () => triggerLessonPlanForSkill(grp.skill_id, grp.title));
+        groupsGrid.appendChild(card);
+    });
+}
+
+/**
+ * Renders the teacher priority table.
+ *
+ * @param {Array<object>} students - Priority student records.
+ */
+function renderPriorityList(students) {
+    const tableBody = document.getElementById("priority-table-body");
+    if (!tableBody) return;
+    tableBody.replaceChildren();
+
+    students.forEach((std, index) => {
+        const row = document.createElement("tr");
+        if (index < 2) row.className = "priority-pulsing-row";
+        row.innerHTML = `
+            <td><strong>${escapeHTML(std.name)}</strong></td>
+            <td><span class="badge badge-skill">${escapeHTML(std.current_skill)}</span></td>
+            <td><span class="badge badge-danger">${escapeHTML(std.n_failed)} câu</span></td>
+            <td><span class="badge badge-warning">${escapeHTML(std.t_stuck)} phút</span></td>
+            <td><strong>${escapeHTML(std.priority_score)}</strong></td>
+            <td>
+                <button class="btn btn-primary-memphis btn-sm" data-student-id="${escapeHTML(std.id)}">
+                    <i class="fa-solid fa-hand-holding-hand"></i> Kèm cặp ngay
+                </button>
+            </td>
+        `;
+        row.querySelector("button[data-student-id]").addEventListener("click", () => openDiagnosticInspector(std.id));
+        tableBody.appendChild(row);
+    });
+}
+
+/**
+ * Fetches teacher dashboard data once via HTTP.
+ *
+ * @returns {Promise<object>} Dashboard payload.
+ */
+async function fetchTeacherDashboardData() {
+    const res = await fetch("/api/teacher/dashboard");
+    if (!res.ok) throw new Error(`Teacher dashboard fetch failed: ${res.status}`);
+    return res.json();
+}
+
+/**
+ * Starts API polling as a fallback when WebSocket is unavailable.
+ *
+ * @param {number} intervalMs - Poll interval in milliseconds.
+ */
+function startTeacherDashboardPolling(intervalMs = 8000) {
+    if (state.teacherRealtime.pollingTimer) return;
+    setTeacherRealtimeStatus("polling", "Polling API");
+    state.teacherRealtime.pollingTimer = setInterval(async () => {
+        try {
+            const data = await fetchTeacherDashboardData();
+            applyTeacherDashboardData(data);
+        } catch (e) {
+            setTeacherRealtimeStatus("disconnected", "Mất kết nối");
+            console.warn("[-] Teacher polling failed.", e);
+        }
+    }, intervalMs);
+}
+
+/**
+ * Stops teacher dashboard polling.
+ */
+function stopTeacherDashboardPolling() {
+    if (!state.teacherRealtime.pollingTimer) return;
+    clearInterval(state.teacherRealtime.pollingTimer);
+    state.teacherRealtime.pollingTimer = null;
+}
+
+/**
+ * Connects to a teacher dashboard WebSocket and falls back to polling on failure.
+ */
+function connectTeacherDashboardRealtime() {
+    if (!("WebSocket" in window)) {
+        startTeacherDashboardPolling();
+        return;
+    }
+    if (
+        state.teacherRealtime.socket &&
+        [WebSocket.CONNECTING, WebSocket.OPEN].includes(state.teacherRealtime.socket.readyState)
+    ) {
+        return;
+    }
+
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${protocol}://${window.location.host}/ws/teacher-dashboard`;
+    const socket = new WebSocket(wsUrl);
+    state.teacherRealtime.socket = socket;
+    setTeacherRealtimeStatus("polling", "Đang nối realtime");
+
+    socket.addEventListener("open", () => {
+        state.teacherRealtime.reconnectAttempts = 0;
+        stopTeacherDashboardPolling();
+        setTeacherRealtimeStatus("connected", "Realtime");
+    });
+
+    socket.addEventListener("message", (event) => {
+        try {
+            const payload = JSON.parse(event.data);
+            applyTeacherDashboardData(payload);
+        } catch (e) {
+            console.warn("[-] Invalid teacher dashboard WebSocket payload.", e);
+        }
+    });
+
+    const fallbackToPolling = () => {
+        state.teacherRealtime.socket = null;
+        setTeacherRealtimeStatus("polling", "Polling API");
+        startTeacherDashboardPolling();
+    };
+
+    socket.addEventListener("error", fallbackToPolling);
+    socket.addEventListener("close", fallbackToPolling);
+}
+
 // Render Teacher Dashboard using real API data
 async function renderTeacherDashboard() {
     try {
-        const res = await fetch('/api/teacher/dashboard');
-        if (res.ok) {
-            const data = await res.json();
-            
-            // 1. Render Metrics
-            document.getElementById("total-gap-groups-count").textContent = data.metrics.gap_groups_count;
-            
-            const reTeachAlert = data.metrics.re_teach_alert;
-            const reteachBanner = document.getElementById("class-reteach-banner");
-            if (reTeachAlert) {
-                reteachBanner.style.display = "flex";
-                document.getElementById("class-reteach-skill-name").textContent = reTeachAlert;
-            } else {
-                reteachBanner.style.display = "none";
-            }
-            
-            // 2. Render Groups Grid
-            const groupsGrid = document.getElementById("groups-grid-container");
-            groupsGrid.innerHTML = "";
-            
-            data.groups.forEach(grp => {
-                const card = document.createElement("div");
-                card.className = "group-card";
-                let membersTags = grp.members.map(m => `<span class="member-tag">${m}</span>`).join("");
-                
-                card.innerHTML = `
-                    <div class="group-card-header">
-                        <h4>Nhóm hổng: ${KNOWLEDGE_GRAPH_LOCAL_NAMES[grp.skill_id] || grp.skill_id}</h4>
-                        <span class="student-count">${grp.count} học sinh</span>
-                    </div>
-                    <div class="group-members">
-                        ${membersTags}
-                    </div>
-                    <div class="group-action">
-                        <button class="btn btn-hint-outline btn-sm" onclick="triggerLessonPlanForSkill('${grp.skill_id}', '${grp.title}')">
-                            <i class="fa-solid fa-share-nodes"></i> Xem giáo án bổ trợ
-                        </button>
-                    </div>
-                `;
-                groupsGrid.appendChild(card);
-            });
-            
-            // 3. Render Priority Table
-            const tableBody = document.getElementById("priority-table-body");
-            tableBody.innerHTML = "";
-            
-            data.priority_list.forEach((std, index) => {
-                const row = document.createElement("tr");
-                if (index < 2) row.className = "priority-pulsing-row";
-                
-                row.innerHTML = `
-                    <td><strong>${std.name}</strong></td>
-                    <td><span class="badge badge-skill">${std.current_skill}</span></td>
-                    <td><span class="badge badge-danger">${std.n_failed} câu</span></td>
-                    <td><span class="badge badge-warning">${std.t_stuck} phút</span></td>
-                    <td><strong>${std.priority_score}</strong></td>
-                    <td>
-                        <button class="btn btn-primary-memphis btn-sm" onclick="openDiagnosticInspector('${std.id}')">
-                            <i class="fa-solid fa-hand-holding-hand"></i> Kèm cặp ngay
-                        </button>
-                    </td>
-                `;
-                tableBody.appendChild(row);
-            });
-            
-            renderClassroomHeatmap();
-            return;
-        }
+        const data = await fetchTeacherDashboardData();
+        applyTeacherDashboardData(data);
+        connectTeacherDashboardRealtime();
+        return;
     } catch (e) {
         console.warn("[-] Teacher dashboard API failed. Using simulated mock panels.", e);
     }
@@ -1484,6 +1748,11 @@ function renderOfflineTeacherDashboard() {
     const reteachBanner = document.getElementById("class-reteach-banner");
     reteachBanner.style.display = "flex";
     document.getElementById("class-reteach-skill-name").textContent = "Quy đồng mẫu số phân số (Lớp 5)";
+    document.getElementById("teacher-total-students").textContent = "40 học sinh";
+    document.getElementById("teacher-average-mastery").textContent = "72%";
+    document.getElementById("total-gap-groups-count").textContent = "2 nhóm";
+    setTeacherRealtimeStatus("disconnected", "Mock offline");
+    renderClassProgressChart(MOCK_CLASS_PROGRESS);
     
     const groupsGrid = document.getElementById("groups-grid-container");
     groupsGrid.innerHTML = "";

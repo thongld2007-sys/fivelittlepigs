@@ -1089,6 +1089,114 @@ body {
     display: block;
 }
 
+.class-progress-card {
+    margin-bottom: 1.5rem;
+}
+
+.class-progress-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.realtime-status {
+    flex-shrink: 0;
+    border: 2px solid #000;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 0.35rem 0.55rem;
+    box-shadow: var(--shadow-flat-sm);
+}
+
+.realtime-status.connected {
+    background: #e8f5e9;
+    color: #166534;
+}
+
+.realtime-status.polling {
+    background: #fffdeb;
+    color: #92400e;
+}
+
+.realtime-status.disconnected {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.class-progress-chart {
+    min-height: 230px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+    gap: 0.9rem;
+    align-items: end;
+    padding: 1rem 0.6rem 0.4rem;
+    border: 2.5px solid #000;
+    border-radius: 12px;
+    background: repeating-linear-gradient(
+        to top,
+        #f8fafc 0,
+        #f8fafc 39px,
+        #e2e8f0 40px
+    );
+}
+
+.progress-bar-item {
+    min-width: 0;
+    height: 190px;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 0.45rem;
+    align-items: end;
+}
+
+.progress-bar-track {
+    height: 100%;
+    display: flex;
+    align-items: end;
+    justify-content: center;
+}
+
+.progress-bar-fill {
+    width: min(48px, 72%);
+    min-height: 8px;
+    border: 2.5px solid #000;
+    border-radius: 8px 8px 4px 4px;
+    background: var(--primary);
+    box-shadow: 4px 4px 0 #000;
+    transition: height 0.35s ease, background 0.2s ease;
+    position: relative;
+}
+
+.progress-bar-fill::before {
+    content: attr(data-value);
+    position: absolute;
+    top: -1.65rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 900;
+    color: #0f172a;
+    white-space: nowrap;
+}
+
+.progress-bar-label {
+    min-height: 34px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: center;
+    color: #0f172a;
+    word-break: break-word;
+}
+
 /* Metrics Row */
 .metrics-summary-row {
     display: grid;

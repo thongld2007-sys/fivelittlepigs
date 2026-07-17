@@ -423,11 +423,25 @@
                                     <div class="metrics-summary-row mb-4">
                                         <div class="memphis-card metric-card">
                                             <span class="metric-title">Sĩ số lớp</span>
-                                            <span class="metric-value">40 học sinh</span>
+                                            <span class="metric-value" id="teacher-total-students">40 học sinh</span>
                                         </div>
                                         <div class="memphis-card metric-card">
                                             <span class="metric-title">Độ thành thạo trung bình</span>
-                                            <span class="metric-value">72%</span>
+                                            <span class="metric-value" id="teacher-average-mastery">72%</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Lightweight DOM Bar Chart -->
+                                    <div class="memphis-card class-progress-card">
+                                        <div class="class-progress-header">
+                                            <div>
+                                                <h3 class="card-header-title"><i class="fa-solid fa-chart-column"></i> Tiến trình học tập của lớp</h3>
+                                                <p class="card-subtitle-desc">Biểu đồ cột HTML/CSS nhẹ, cập nhật theo dữ liệu realtime hoặc polling.</p>
+                                            </div>
+                                            <span id="teacher-realtime-status" class="realtime-status">Đang kết nối...</span>
+                                        </div>
+                                        <div id="class-progress-chart" class="class-progress-chart" aria-label="Biểu đồ tiến trình học tập của lớp">
+                                            <!-- Bars rendered by JS -->
                                         </div>
                                     </div>
                                     
