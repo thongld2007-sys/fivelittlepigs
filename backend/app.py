@@ -812,42 +812,50 @@ def student_refresh(response: FastAPIResponse, vgap_refresh: Optional[str] = Coo
     return _public_auth_payload(session)
 
 @app.post("/api/auth/teacher/register", status_code=201)
-def teacher_register(payload: TeacherRegisterRequest):
+def teacher_register(payload: TeacherRegisterRequest, response: FastAPIResponse):
     try:
-        from backend.student_auth import register_teacher
+        from backend.student_auth import register_teacher, create_teacher_session
         user = register_teacher(username=payload.username, password=payload.password,
                                 name=payload.name, subject=payload.subject, school=payload.school)
-        return {"id": user.id, "username": user.username, "role": "teacher"}
+        session = create_teacher_session(user.id, user.username)
     except StudentAuthError as exc:
         _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], False)
+    return _public_auth_payload(session)
 
 @app.post("/api/auth/parent/register", status_code=201)
-def parent_register(payload: ParentRegisterRequest):
+def parent_register(payload: ParentRegisterRequest, response: FastAPIResponse):
     try:
-        from backend.student_auth import register_parent
+        from backend.student_auth import register_parent, create_parent_session
         user = register_parent(username=payload.username, password=payload.password,
                                name=payload.name, phone=payload.phone, child_student_id=payload.child_student_id)
-        return {"id": user.id, "username": user.username, "role": "parent", "child_student_id": payload.child_student_id}
+        session = create_parent_session(user.id, user.username, payload.child_student_id)
     except StudentAuthError as exc:
         _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], False)
+    return _public_auth_payload(session)
 
 @app.post("/api/auth/teacher/login")
-def teacher_login(payload: StudentLoginRequest):
+def teacher_login(payload: StudentLoginRequest, response: FastAPIResponse):
     try:
-        from backend.student_auth import authenticate_teacher
+        from backend.student_auth import authenticate_teacher, create_teacher_session
         auth = authenticate_teacher(payload.username, payload.password)
-        return {"id": auth["user_id"], "username": auth["username"], "role": "teacher"}
+        session = create_teacher_session(auth["user_id"], auth["username"], payload.remember_me)
     except StudentAuthError as exc:
         _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], payload.remember_me)
+    return _public_auth_payload(session)
 
 @app.post("/api/auth/parent/login")
-def parent_login(payload: StudentLoginRequest):
+def parent_login(payload: StudentLoginRequest, response: FastAPIResponse):
     try:
-        from backend.student_auth import authenticate_parent
+        from backend.student_auth import authenticate_parent, create_parent_session
         auth = authenticate_parent(payload.username, payload.password)
-        return {"id": auth["user_id"], "username": auth["username"], "role": "parent", "child_student_id": auth.get("child_student_id")}
+        session = create_parent_session(auth["user_id"], auth["username"], auth.get("child_student_id"), payload.remember_me)
     except StudentAuthError as exc:
         _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], payload.remember_me)
+    return _public_auth_payload(session)
 
 @app.post("/api/auth/logout", status_code=204)
 def logout(response: FastAPIResponse, authorization: Optional[str] = Header(default=None), vgap_refresh: str | None = Cookie(default=None)):

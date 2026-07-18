@@ -396,6 +396,25 @@ def create_session(user_id: str, student: dict, remember_me: bool = False) -> di
             "expires_in": 3600, "student": student, "remember_me": remember_me,
             "user": {"id": user_id, "role": "student", "student_id": student["id"], "initial_assessment_completed": student.get("initial_assessment_completed", False)}}
 
+def create_teacher_session(user_id: str, username: str, remember_me: bool = False) -> dict:
+    raw_refresh = secrets.token_urlsafe(48)
+    expires = now_utc() + timedelta(days=30 if remember_me else 7)
+    with db_session() as session:
+        session.add(RefreshToken(user_id=user_id, token_hash=_token_hash(raw_refresh), expires_at=expires))
+    access = create_access_token(user_id, {"role": "teacher"})
+    return {"access_token": access, "refresh_token": raw_refresh,
+            "expires_in": 3600, "remember_me": remember_me,
+            "user": {"id": user_id, "role": "teacher", "username": username}}
+
+def create_parent_session(user_id: str, username: str, child_student_id: str | None, remember_me: bool = False) -> dict:
+    raw_refresh = secrets.token_urlsafe(48)
+    expires = now_utc() + timedelta(days=30 if remember_me else 7)
+    with db_session() as session:
+        session.add(RefreshToken(user_id=user_id, token_hash=_token_hash(raw_refresh), expires_at=expires))
+    access = create_access_token(user_id, {"role": "parent", "child_student_id": child_student_id})
+    return {"access_token": access, "refresh_token": raw_refresh,
+            "expires_in": 3600, "remember_me": remember_me,
+            "user": {"id": user_id, "role": "parent", "username": username, "child_student_id": child_student_id}}
 
 def refresh_session(raw_refresh: str) -> dict:
     replacement = secrets.token_urlsafe(48)

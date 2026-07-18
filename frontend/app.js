@@ -5457,6 +5457,9 @@ function initStudentAccountAuth() {
                 state.loggedInRole = "teacher";
                 localStorage.setItem("isLoggedIn", "true");
                 localStorage.setItem("loggedInRole", "teacher");
+                if (payload.access_token) {
+                    localStorage.setItem("accessToken", payload.access_token);
+                }
                 overlay?.classList.add("hidden");
                 switchPortalUI("teacher");
                 showToast(mode === "login" ? "Đăng nhập thành công." : "Tài khoản giáo viên đã sẵn sàng.");
@@ -5502,6 +5505,9 @@ function initStudentAccountAuth() {
                 localStorage.setItem("isLoggedIn", "true");
                 localStorage.setItem("loggedInRole", "parent");
                 localStorage.setItem("studentId", studentId);
+                if (payload.access_token) {
+                    localStorage.setItem("accessToken", payload.access_token);
+                }
                 overlay?.classList.add("hidden");
                 switchPortalUI("parent");
                 showToast(mode === "login" ? "Đăng nhập thành công." : "Tài khoản phụ huynh đã sẵn sàng.");
