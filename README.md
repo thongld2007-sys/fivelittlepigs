@@ -171,77 +171,27 @@ python tests/benchmark_diagnostics.py
 ```
 
 Benchmark hiện tạo 30 case kỹ thuật có nhãn từ 3 mẫu hành vi ổn định: hổng phân số lớp 7,
-hổng số nguyên lớp 6 và học sinh mạnh lớp 7. Output gồm accuracy, precision, recall, latency
-trung bình và p95 cho submit/next-question. Lưu ý: benchmark này chỉ kiểm tra kịch bản kỹ thuật để bảo vệ demo trước ban
-giám khảo. Khi pitch chính thức vẫn cần pilot thật với học sinh/giáo viên.
+hổng số nguyên lớp 6 và học sinh mạnh lớp 7.
 
-Kế hoạch khai thác FPT AI nên bám vào Inference, Knowledge, Agents, Speech, OCR và MCP,
-thay vì chỉ gọi một API chat tổng quát.
+## 🚀 Các nâng cấp kiến trúc vòng chung kết (Finalist architecture upgrades)
 
-Các endpoint bằng chứng cho ban giám khảo:
+- **Trợ lý Socratic có Grounding (Grounded Socratic Agent):** `backend/pedagogical_agents.py` truy xuất dữ liệu lý thuyết nền từ `data/rag_knowledge.json`, kết hợp trạng thái thành thạo BKT và các lỗi sai gần đây của học sinh để sinh ra `agent_trace` và `sources` (nguồn trích dẫn). Tác tử được thiết lập để không bao giờ tiết lộ đáp án trực tiếp mà chỉ đưa ra gợi ý gợi mở.
+- **Trợ lý Soạn Giáo án AI (AI Lesson Planner Agent):** Tự động quét nhóm học sinh bị hổng kiến thức chung (gap cohort) và tổng hợp các câu hỏi làm sai phổ biến trước khi sinh giáo án can thiệp 15 phút đúng trọng tâm; không còn sử dụng template tĩnh.
+- **Phân tích bài làm viết tay (Handwritten-work analysis):** Endpoint `POST /api/ai/student/{student_id}/analyze-work` cho phép gửi ảnh định dạng JPEG/PNG/WebP đã được xác thực lên mô hình FPT AI Marketplace VLM để phân tích lỗi sai viết tay.
+- **Giọng nói tiếng Việt (Vietnamese speech):** `POST /api/ai/speech/tts` và `/api/ai/speech/stt` sử dụng khóa API riêng biệt từ FPT.AI Console. Trình duyệt client không bao giờ nhận được khóa bí mật này để đảm bảo an toàn.
+- **Chế độ Production (Production mode):** SQLite sử dụng chế độ WAL, thiết lập busy timeout là 10 giây và chế độ đồng bộ thông thường. Đặt `APP_AUTH_REQUIRED=true`, điền `APP_API_KEYS` và một khóa `APP_JWT_SECRET` ngẫu nhiên để yêu cầu API key hoặc mã xác thực JWT HS256 đối với các endpoint AI.
+- **Khởi động nhanh bằng một lệnh (One-command startup):** Chạy `py -3 run.py`; địa chỉ liên kết mặc định là `0.0.0.0:8000`, có thể cấu hình thông qua `APP_HOST` và `APP_PORT`.
+- **Đánh giá thuật toán (Evaluation):** Chạy `python tests/simulate_1000_students.py` để xuất kết quả ra `artifacts/benchmark_1000.json` và biểu đồ trực quan `artifacts/benchmark_1000.svg`. Báo cáo ghi nhận rõ ràng hạt giống ngẫu nhiên (seed), giả định slip/guess, độ chính xác, tỷ lệ giảm thiểu câu hỏi và độ trễ.
 
-- `GET /api/evidence/fpt-ai-coverage`: FPT AI đang dùng ở đâu và adapter nào còn trong roadmap.
-- `GET /api/evidence/cost-model?students=1000`: ước tính cost/student/month và câu chuyện scale.
-- `GET /api/evidence/safety`: guardrails đã có và khoảng trống production còn lại.
-
-## FPT AI Factory
-
-FPT AI được dùng như lớp tăng cường online cho gia sư Socratic và sinh giáo án. BKT, chấm
-đáp án và điều hướng kỹ năng vẫn chạy offline khi FPT AI không khả dụng.
-
-1. Sao chép `.env.example` thành `.env`.
-2. Điền `FPT_AI_API_KEY` và tên model đã enable trong `FPT_AI_MODEL`.
-3. Khởi động lại server và kiểm tra `GET /api/ai/status`.
-
-```dotenv
-FPT_AI_API_KEY=your-local-secret
-FPT_AI_MODEL=your-enabled-model-name
-FPT_AI_BASE_URL=https://mkp-api.fptcloud.com
-```
-
-Không đưa `.env` hoặc API key vào frontend, commit hay ảnh chụp màn hình. `.env` đã được
-Git ignore. Các endpoint tích hợp:
-
-- `GET /api/ai/status`: trạng thái cấu hình, không trả API key.
-- `POST /api/ai/student/{student_id}/tutor`: gợi ý Socratic có grounding theo câu hỏi/BKT.
-- `POST /api/ai/teacher/lesson-plan`: sinh giáo án theo node Knowledge Graph.
-
-Tham khảo [FPT AI Factory Quickstart](https://ai-docs.fptcloud.com/fpt-ai-marketplace/fpt-ai-inference/quickstart)
-và [LLM API Reference](https://github.com/fpt-corp/ai-marketplace/blob/main/API%20Integration%20-%20Large%20Language%20Model.md).
-
-## Finalist architecture upgrades
-
-- **Grounded Socratic Agent:** `backend/pedagogical_agents.py` retrieves cited notes from
-  `data/rag_knowledge.json`, combines BKT mastery and recent mistakes, then returns an inspectable
-  `agent_trace` and `sources`. It never intentionally exposes the final answer.
-- **AI Lesson Planner Agent:** scans the real gap cohort and aggregates common wrong questions before
-  generating a 15-minute intervention plan; it is no longer a static template.
-- **Handwritten-work analysis:** `POST /api/ai/student/{student_id}/analyze-work` sends a validated
-  JPEG/PNG/WebP image to an enabled FPT AI Marketplace VLM.
-- **Vietnamese speech:** `POST /api/ai/speech/tts` and `/api/ai/speech/stt` use the separate key from
-  FPT.AI Console. The browser does not receive either provider key.
-- **Production mode:** SQLite uses WAL, a 10-second busy timeout and normal synchronous mode. Set
-  `APP_AUTH_REQUIRED=true`, `APP_API_KEYS` and a strong random `APP_JWT_SECRET` to require API key or
-  short-lived HS256 bearer tokens on AI endpoints.
-- **One-command startup:** run `py -3 run.py`; the default bind address is `0.0.0.0:8000`, configurable
-  with `APP_HOST` and `APP_PORT`.
-- **Evaluation:** `python tests/simulate_1000_students.py` writes
-  `artifacts/benchmark_1000.json` and `artifacts/benchmark_1000.svg`. The report is explicitly an
-  engineering simulation—not a claim about a real-school pilot—and records the deterministic seed,
-  slip/guess assumptions, accuracy, question reduction and latency.
-
-FPT references used by these adapters: [Marketplace VLM](https://ai-docs.fptcloud.com/api-reference/ai-marketplace/api-reference/api-integration-vision-language-model-md),
-[FPT TTS v5](https://docs.fpt.ai/docs/vi/speech/api/text-to-speech.html), and
+Tài liệu tham khảo API FPT AI: [Marketplace VLM](https://ai-docs.fptcloud.com/api-reference/ai-marketplace/api-reference/api-integration-vision-language-model-md),
+[FPT TTS v5](https://docs.fpt.ai/docs/vi/speech/api/text-to-speech.html), và
 [FPT STT](https://docs.fpt.ai/docs/vi/speech/api/speech-to-text/).
 
-## Persistent database
+## 💾 Cơ sở dữ liệu đồng bộ (Persistent database)
 
-The backend now uses SQLAlchemy and the same repository layer for SQLite and PostgreSQL. The schema
-stores organizations and users, classes and enrollments, students, the skill/question bank,
-diagnostic sessions, current and historical mastery, answer events, private work uploads, AI agent
-traces, provider token/latency usage, and audit logs.
+Backend sử dụng thư viện SQLAlchemy đồng nhất lớp repository cho cả SQLite và PostgreSQL. Schema cơ sở dữ liệu lưu trữ đầy đủ thông tin: tổ chức và người dùng, lớp học và lượt nhập học, học sinh, ngân hàng câu hỏi/kỹ năng, các phiên chẩn đoán, lịch sử thành thạo BKT, sự kiện trả lời câu hỏi, tệp ảnh bài viết tay tải lên, dấu vết của AI Agent, token/latency của nhà cung cấp và nhật ký kiểm toán (audit logs).
 
-For a local pilot, keep the default in `.env` and run the versioned migration:
+Để chạy thử nghiệm cục bộ (local pilot), giữ nguyên cấu hình mặc định trong tệp `.env` và chạy lệnh cập nhật schema:
 
 ```powershell
 Copy-Item .env.example .env
@@ -249,7 +199,7 @@ Copy-Item .env.example .env
 py -3 run.py
 ```
 
-For production, create an empty PostgreSQL database, set a secret URL locally, and migrate it:
+Đối với môi trường Production, tạo một database PostgreSQL trống, thiết lập URL kết nối trong tệp cấu hình cục bộ và chạy migration:
 
 ```dotenv
 DATABASE_URL=postgresql+psycopg://vgap:strong-password@db-host:5432/vgap
@@ -259,40 +209,34 @@ DATABASE_URL=postgresql+psycopg://vgap:strong-password@db-host:5432/vgap
 .venv\Scripts\alembic.exe upgrade head
 ```
 
-To copy existing SQLite learning data, first inspect the read-only plan and then run the transaction:
+Để sao chép dữ liệu học tập hiện có từ SQLite sang PostgreSQL, hãy kiểm tra trước bằng chế độ xem thử (dry-run) và chạy lệnh đồng bộ:
 
 ```powershell
 python tools/migrate_sqlite_to_postgres.py --sqlite data/tutor.db --database-url $env:DATABASE_URL --dry-run
 python tools/migrate_sqlite_to_postgres.py --sqlite data/tutor.db --database-url $env:DATABASE_URL
 ```
 
-The copy refuses a non-empty target, verifies row counts before commit, and never modifies the
-SQLite source. Student-work images are private under `UPLOAD_DIR`; production deployments should
-mount this path on encrypted persistent storage or replace the adapter with S3-compatible storage.
+Trình sao chép từ chối ghi đè lên database đích không trống, thực hiện kiểm tra số lượng dòng trước khi commit và không bao giờ sửa đổi tệp SQLite nguồn. Ảnh bài làm của học sinh được lưu giữ riêng tư trong thư mục `UPLOAD_DIR`.
 
-## Student accounts
+## 🔑 Quản lý tài khoản học sinh (Student accounts)
 
-Student authentication is server-backed; the browser no longer treats a localStorage flag or an
-arbitrary password as proof of identity. New students can register, while an existing learning
-profile can be linked with a one-time activation code without resetting responses or BKT mastery.
+Quá trình xác thực học sinh được xử lý hoàn toàn ở backend; trình duyệt không sử dụng cờ localStorage hoặc mật khẩu cứng để xác thực danh tính. Học sinh mới có thể đăng ký tài khoản trực tiếp, hoặc liên kết hồ sơ học tập hiện tại với mã kích hoạt dùng một lần (activation code) mà không làm mất lịch sử làm bài hay dữ liệu chẩn đoán BKT.
 
-- `POST /api/auth/student/register`: create a user, student profile and initial mastery rows.
-- `POST /api/auth/student/login`: verify an Argon2 password and apply temporary lockout after repeated failures.
-- `POST /api/auth/student/activation-code`: staff-only generation of a 24-hour, one-time code.
-- `POST /api/auth/student/activate`: attach credentials to an existing `student_id`.
-- `POST /api/auth/refresh`: rotate the hashed refresh token and issue a unique access JWT.
-- `GET /api/auth/me`: restore the signed-in student profile.
-- `POST /api/auth/logout`: revoke the refresh session and clear its HttpOnly cookie.
+- `POST /api/auth/student/register`: Tạo người dùng mới, hồ sơ học sinh và các hàng dữ liệu thành thạo BKT ban đầu.
+- `POST /api/auth/student/login`: Xác thực mật khẩu băm Argon2 và áp dụng khóa tài khoản tạm thời nếu đăng nhập sai liên tục.
+- `POST /api/auth/student/activation-code`: Sinh mã kích hoạt dùng một lần có hiệu lực trong 24 giờ (chỉ dành cho giáo viên/quản trị viên).
+- `POST /api/auth/student/activate`: Liên kết tài khoản đăng nhập với một `student_id` có sẵn.
+- `POST /api/auth/refresh`: Làm mới token tự động và cấp phát JWT truy cập mới.
+- `GET /api/auth/me`: Phục hồi hồ sơ học sinh đã đăng nhập.
+- `POST /api/auth/logout`: Thu hồi phiên đăng nhập và xóa cookie HttpOnly tương ứng.
 
-Set `AUTH_COOKIE_SECURE=true` whenever the production site uses HTTPS. Access tokens stay in browser
-memory; refresh tokens use an `HttpOnly`, `SameSite=Lax` cookie and are stored only as SHA-256 hashes
-in the database. Staff can create an activation code with the configured API key, for example:
+Thiết lập `AUTH_COOKIE_SECURE=true` khi deploy production có HTTPS. Access token được lưu trong bộ nhớ tạm của trình duyệt; Refresh token được lưu dưới dạng băm SHA-256 trong CSDL và quản lý qua cookie bảo mật `HttpOnly`, `SameSite=Lax`. Giáo viên/Nhân viên trường có thể tạo mã kích hoạt bằng lệnh:
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/auth/student/activation-code `
   -Headers @{ "X-API-Key" = $env:VGAP_STAFF_API_KEY } `
   -ContentType "application/json" -Body '{"student_id":"an_01"}'
-```
+
 
 ## 📊 Kết quả Thử nghiệm & Lộ trình Triển khai (Pilot Roadmap)
 
