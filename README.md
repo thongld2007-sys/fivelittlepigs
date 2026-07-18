@@ -218,16 +218,20 @@ python tools/migrate_sqlite_to_postgres.py --sqlite data/tutor.db --database-url
 
 Trình sao chép từ chối ghi đè lên database đích không trống, thực hiện kiểm tra số lượng dòng trước khi commit và không bao giờ sửa đổi tệp SQLite nguồn. Ảnh bài làm của học sinh được lưu giữ riêng tư trong thư mục `UPLOAD_DIR`.
 
-## 🔑 Quản lý tài khoản học sinh (Student accounts)
+## 🔑 Quản lý tài khoản (Account Management)
 
-Quá trình xác thực học sinh được xử lý hoàn toàn ở backend; trình duyệt không sử dụng cờ localStorage hoặc mật khẩu cứng để xác thực danh tính. Học sinh mới có thể đăng ký tài khoản trực tiếp, hoặc liên kết hồ sơ học tập hiện tại với mã kích hoạt dùng một lần (activation code) mà không làm mất lịch sử làm bài hay dữ liệu chẩn đoán BKT.
+Quá trình xác thực người dùng (Học sinh, Giáo viên, Phụ huynh) được xử lý hoàn toàn ở backend; trình duyệt không sử dụng cờ localStorage hoặc mật khẩu cứng để xác thực danh tính. Học sinh mới có thể đăng ký tài khoản trực tiếp, hoặc liên kết hồ sơ học tập hiện tại với mã kích hoạt dùng một lần (activation code) mà không làm mất lịch sử làm bài hay dữ liệu chẩn đoán BKT.
 
 - `POST /api/auth/student/register`: Tạo người dùng mới, hồ sơ học sinh và các hàng dữ liệu thành thạo BKT ban đầu.
-- `POST /api/auth/student/login`: Xác thực mật khẩu băm Argon2 và áp dụng khóa tài khoản tạm thời nếu đăng nhập sai liên tục.
+- `POST /api/auth/student/login`: Xác thực mật khẩu băm Argon2 của học sinh và áp dụng khóa tài khoản tạm thời nếu đăng nhập sai liên tục.
 - `POST /api/auth/student/activation-code`: Sinh mã kích hoạt dùng một lần có hiệu lực trong 24 giờ (chỉ dành cho giáo viên/quản trị viên).
 - `POST /api/auth/student/activate`: Liên kết tài khoản đăng nhập với một `student_id` có sẵn.
+- `POST /api/auth/teacher/register`: Đăng ký tài khoản Giáo viên mới (lưu trữ môn học và trường công tác).
+- `POST /api/auth/teacher/login`: Xác thực mật khẩu và khởi tạo phiên làm việc cho Giáo viên.
+- `POST /api/auth/parent/register`: Đăng ký tài khoản Phụ huynh mới (liên kết với mã `child_student_id` của con).
+- `POST /api/auth/parent/login`: Xác thực mật khẩu và khởi tạo phiên làm việc của Phụ huynh để theo dõi con.
 - `POST /api/auth/refresh`: Làm mới token tự động và cấp phát JWT truy cập mới.
-- `GET /api/auth/me`: Phục hồi hồ sơ học sinh đã đăng nhập.
+- `GET /api/auth/me`: Phục hồi hồ sơ người dùng đã đăng nhập.
 - `POST /api/auth/logout`: Thu hồi phiên đăng nhập và xóa cookie HttpOnly tương ứng.
 
 Thiết lập `AUTH_COOKIE_SECURE=true` khi deploy production có HTTPS. Access token được lưu trong bộ nhớ tạm của trình duyệt; Refresh token được lưu dưới dạng băm SHA-256 trong CSDL và quản lý qua cookie bảo mật `HttpOnly`, `SameSite=Lax`. Giáo viên/Nhân viên trường có thể tạo mã kích hoạt bằng lệnh:
@@ -259,4 +263,12 @@ Chúng tôi đã xây dựng kịch bản mô phỏng chạy trên **1.000 hồ 
 *   **Giai đoạn 1 (Tháng đầu tiên - Mở rộng Pilot):** Hợp tác thử nghiệm thực tế tại 1 trường THCS liên kết với quy mô 1 khối lớp (khoảng 120 học sinh) để thu thập dữ liệu lâm sàng thật và tinh chỉnh ngân hàng câu hỏi.
 *   **Giai đoạn 2 (Tháng thứ hai - Tích hợp FPT OCR):** Hoàn thiện module FPT AI Vision/OCR để giáo viên chụp bài làm giấy trực tiếp trên lớp và nạp dữ liệu lỗi sai vào hệ thống chẩn đoán.
 *   **Giai đoạn 3 (Tháng thứ ba - Scale & Đánh giá):** Đánh giá hiệu quả học tập (so sánh điểm số trước/sau của nhóm đối chứng) và đóng gói hệ thống dưới dạng Docker/one-click-run để chuyển giao công nghệ cho nhà trường.
+
+### 💰 Kế hoạch Kinh doanh & Mô hình Tài chính (Business Model & Economics)
+*   **Mô hình doanh thu Hybrid (B2B2C & B2C):**
+    *   **Gói trường học (B2B2C):** **15.000 VND / học sinh / tháng** (thu theo năm học 9 tháng, tương đương 135.000 VND/học sinh/năm). Cung cấp đầy đủ dashboard phân tích gap group hỗ trợ dạy học 15 phút cho Giáo viên.
+    *   **Gói phụ huynh (B2C):** **45.000 VND / tháng** (mở khóa chatbot Zalo/SMS báo cáo tiến trình của con, Obsidian Graph View và không giới hạn tương tác Socratic AI Tutor).
+*   **Hiệu quả chi phí hạ tầng (Marginal Cost):** Nhờ cơ chế chẩn đoán thích ứng offline (BKT + DAG chạy tốn 0đ máy chủ), chi phí gọi API FPT AI trung bình thực tế chỉ tốn **~870 VND / học sinh / tháng** -> Đem lại biên lợi nhuận gộp đạt **> 94%** ở quy mô 1.000 người dùng.
+*   **Tài liệu chi tiết:** Xem chi tiết dự toán chi phí, bảng dòng tiền dự báo 3 năm và phân tích điểm hòa vốn tại ➡️ **[Tải bản PDF Kế hoạch Kinh doanh Chi tiết (PorcusAI Business Plan)](docs/porcus_ai_business_plan.pdf)** (bản Markdown có sẵn tại [docs/porcus_ai_business_plan.md](docs/porcus_ai_business_plan.md)).
+
 
