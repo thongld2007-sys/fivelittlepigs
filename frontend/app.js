@@ -3,8 +3,8 @@
 
 // Global State
 const state = {
-    currentPortal: 'student', // 'student' | 'teacher'
-    currentTeacherTab: 'grouping', // 'grouping' | 'priority' | 'tree'
+    currentPortal: 'student', // 'student' | 'teacher' | 'parent' | 'admin' | 'investor'
+    currentTeacherTab: 'grouping', // 'grouping' | 'priority' | 'tree' | 'contribution'
     studentId: 'emma_std_01',
     isLoggedIn: false,
     loggedInRole: null,
@@ -47,11 +47,14 @@ const state = {
     xp: 1200,
     coins: 350,
     spinTickets: 0,
+    displayNameOverride: "",
+    avatarSeedOverride: "",
     redeemedRewards: [],
     rewardHistory: [],
     earnedBadges: [],
     teacherBonusTickets: [],
     aiDecisionLog: [],
+    xpHistory: [],
     attendance: {
         checkedDates: [],
         lastCheckInDate: null
@@ -159,7 +162,7 @@ const REWARD_WHEEL_ITEMS = [
         description: "Tăng điểm kinh nghiệm",
         color: "#BFE3FF",
         apply: () => {
-            state.xp += 80;
+            addXP(80, "Vòng quay quà", { logActivity: false });
             return "+80 XP";
         }
     },
@@ -293,6 +296,113 @@ const DAILY_QUEST_REWARDS = {
     coins100: { label: "Kiếm 100 xu", coins: 0, xp: 100, tickets: 1 }
 };
 
+const TEACHER_CONTRIBUTION_DATA = {
+    today: {
+        reviewSetsCreated: 6,
+        groupsIntervened: [
+            { name: "Nhóm quy đồng phân số", students: 8, action: "Tạo bài ôn 12 phút", outcome: "+9% mastery sau 2 lượt luyện" },
+            { name: "Nhóm cộng số nguyên", students: 5, action: "Dạy lại bằng trục số", outcome: "+7% mastery sau can thiệp" }
+        ],
+        improvedStudents: [
+            { name: "Trần Bình", subject: "Toán", before: 42, after: 58 },
+            { name: "Nguyễn Văn An", subject: "Toán", before: 35, after: 49 },
+            { name: "Phạm Khánh Linh", subject: "Toán", before: 44, after: 61 }
+        ],
+        timeSavedMinutes: 74
+    },
+    classGrowth: [
+        { date: -6, xp: 2100, mastery: 58 },
+        { date: -5, xp: 2600, mastery: 60 },
+        { date: -4, xp: 0, mastery: 60 },
+        { date: -3, xp: 3100, mastery: 63 },
+        { date: -2, xp: 4200, mastery: 67 },
+        { date: -1, xp: 3800, mastery: 70 },
+        { date: 0, xp: 5100, mastery: 74 }
+    ]
+};
+
+const PARENT_HOME_ADVICE = [
+    {
+        subject: "Toán",
+        title: "Ôn phân số bằng tình huống thật",
+        advice: "Mỗi tối hỏi con 2 câu ngắn về chia bánh, chia nước hoặc giảm giá. Không cần giải hộ, chỉ yêu cầu con nói từng bước."
+    },
+    {
+        subject: "Ngoại ngữ",
+        title: "Luyện so sánh trong 5 phút",
+        advice: "Cho con so sánh 3 đồ vật trong nhà bằng câu ngắn. Ví dụ: chiếc bàn này cao hơn chiếc ghế."
+    },
+    {
+        subject: "Tin học và Công nghệ",
+        title: "Hỏi con giải thích thuật toán",
+        advice: "Khi con làm bài, yêu cầu con nói 'bước 1, bước 2, bước 3'. Mục tiêu là quen tư duy tuần tự, không phải học thuộc."
+    }
+];
+
+const ADMIN_OPERATIONS_DATA = {
+    users: {
+        total: 12840,
+        activeStudentsToday: 3186,
+        teachers: 126,
+        parents: 7420,
+        schools: 18,
+        classes: 64
+    },
+    ai: {
+        requestsToday: 24580,
+        fptStatus: "online",
+        fallbackStatus: "ready",
+        fallbackShare: 6.8,
+        p95LatencyMs: 1180,
+        estimatedCostVnd: 368700,
+        costPerStudentVnd: 116
+    },
+    deployments: [
+        { school: "THCS FPT Cầu Giấy", className: "Toán 7A", students: 40, activeToday: 34, aiRequests: 620, status: "FPT AI online" },
+        { school: "THCS FPT Cầu Giấy", className: "Toán 7B", students: 38, activeToday: 29, aiRequests: 510, status: "FPT AI online" },
+        { school: "FPT Edu Hòa Lạc", className: "Toán 6B", students: 42, activeToday: 31, aiRequests: 478, status: "Offline fallback ready" },
+        { school: "Trung tâm FutureMath", className: "Lớp tăng cường", students: 26, activeToday: 23, aiRequests: 390, status: "FPT AI online" }
+    ],
+    serviceChecks: [
+        { name: "FPT AI Inference", status: "healthy", detail: "P95 1.18s · error 0.7%" },
+        { name: "Offline fallback", status: "ready", detail: "BKT/DAG vẫn chạy khi provider lỗi" },
+        { name: "SQLite event log", status: "healthy", detail: "12.4k events · sync queue 18" },
+        { name: "Cost guardrail", status: "watch", detail: "Cảnh báo nếu vượt 150 VND/học sinh/ngày" }
+    ]
+};
+
+const INVESTOR_TRACTION_DATA = {
+    kpis: {
+        dau: 3186,
+        wau: 9270,
+        retention7d: 68,
+        xpPerActiveDay: 742,
+        aiLessonsCreated: 1840,
+        aiCostPerStudentVnd: 116,
+        measuredLearningGain: 14.8
+    },
+    daily: [
+        { date: -6, dau: 2480, xp: 610, lessons: 1040, retention: 61 },
+        { date: -5, dau: 2710, xp: 654, lessons: 1190, retention: 63 },
+        { date: -4, dau: 2635, xp: 0, lessons: 820, retention: 62 },
+        { date: -3, dau: 2920, xp: 701, lessons: 1340, retention: 65 },
+        { date: -2, dau: 3044, xp: 728, lessons: 1510, retention: 66 },
+        { date: -1, dau: 3118, xp: 733, lessons: 1695, retention: 67 },
+        { date: 0, dau: 3186, xp: 742, lessons: 1840, retention: 68 }
+    ],
+    economics: [
+        { label: "AI cost/student/day", value: "116 VND", note: "Có fallback nên core diagnostic gần như không tốn AI" },
+        { label: "AI lessons / 1k students", value: "577", note: "Tạo bài ôn và gợi ý theo gap thật" },
+        { label: "Gross margin giả lập", value: "82%", note: "Giả định phí trường 35k VND/học sinh/tháng" },
+        { label: "Payback channel", value: "B2B2C", note: "Bán theo trường/trung tâm, phụ huynh xem báo cáo" }
+    ],
+    educationEvidence: [
+        { metric: "Mastery tăng sau can thiệp", value: "+14.8%", detail: "So sánh trước/sau 7 ngày với nhóm được giao bài ôn AI" },
+        { metric: "Giáo viên tiết kiệm thời gian", value: "74 phút/ngày", detail: "Tự gom nhóm hổng, tạo bài ôn, ưu tiên học sinh cần kèm" },
+        { metric: "Hoàn thành bài ôn", value: "71%", detail: "Nhờ XP, điểm danh, vòng quay và lộ trình ngắn" }
+    ]
+};
+
 function getSubjectProgress(subject = state.testSession.subject || "Toán") {
     if (!SUBJECT_PROGRESS_STATE[subject]) {
         SUBJECT_PROGRESS_STATE[subject] = {
@@ -305,6 +415,486 @@ function getSubjectProgress(subject = state.testSession.subject || "Toán") {
         };
     }
     return SUBJECT_PROGRESS_STATE[subject];
+}
+
+function getDateKey(offsetDays = 0) {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function buildDefaultXPHistory(baseXp = state.xp) {
+    const daily = [0, 180, 240, 0, 360, 500, 1200, 0, 220, 440, 0, 650, 300, 0];
+    let running = Math.max(0, Number(baseXp) || 0) - daily.reduce((sum, value) => sum + value, 0);
+    return daily.map((earned, index) => {
+        running += earned;
+        return {
+            date: getDateKey(index - daily.length + 1),
+            earned,
+            total: Math.max(0, running)
+        };
+    });
+}
+
+function normalizeXPHistory(history, baseXp = state.xp) {
+    const byDate = {};
+    (Array.isArray(history) ? history : buildDefaultXPHistory(baseXp)).forEach(item => {
+        if (!item?.date) return;
+        byDate[item.date] = {
+            date: item.date,
+            earned: Math.max(0, Number(item.earned) || 0),
+            total: Math.max(0, Number(item.total) || 0)
+        };
+    });
+    return Array.from({ length: 14 }, (_, index) => {
+        const date = getDateKey(index - 13);
+        return byDate[date] || { date, earned: 0, total: index === 13 ? Number(baseXp) || 0 : 0 };
+    });
+}
+
+function addXP(amount, reason = "Hoạt động học tập", options = {}) {
+    const value = Math.max(0, Number(amount) || 0);
+    if (!value) return;
+    state.xp += value;
+    const today = getDateKey();
+    state.xpHistory = normalizeXPHistory(state.xpHistory, state.xp);
+    let entry = state.xpHistory.find(item => item.date === today);
+    if (!entry) {
+        entry = { date: today, earned: 0, total: state.xp };
+        state.xpHistory.push(entry);
+    }
+    entry.earned += value;
+    entry.total = state.xp;
+    state.xpHistory = state.xpHistory.slice(-14);
+    if (options.logActivity === false) return;
+    state.rewardHistory.unshift({
+        id: `xp_${Date.now()}`,
+        icon: "fa-solid fa-gem",
+        label: `+${value} XP · ${reason}`,
+        time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+    });
+    state.rewardHistory = state.rewardHistory.slice(0, 12);
+}
+
+function getXPAnalytics() {
+    const history = normalizeXPHistory(state.xpHistory, state.xp);
+    const totalWeek = history.slice(-7).reduce((sum, item) => sum + item.earned, 0);
+    const activeDays = history.slice(-7).filter(item => item.earned > 0).length;
+    const bestDay = history.reduce((best, item) => item.earned > best.earned ? item : best, history[0] || { earned: 0, date: getDateKey() });
+    return {
+        history,
+        totalWeek,
+        activeDays,
+        missedDays: 7 - activeDays,
+        bestDay
+    };
+}
+
+function refreshProfileIfVisible() {
+    const panel = document.getElementById("student-view-profile");
+    if (panel && panel.style.display !== "none") renderStudentProfile();
+}
+
+function getSubjectTrendSummary() {
+    return SUBJECT_OVERVIEW.map(item => {
+        const progress = getSubjectProgress(item.subject);
+        const growth = Math.max(2, Math.round((progress.progress - 35) / 4));
+        return {
+            ...item,
+            progress: progress.progress,
+            status: progress.status,
+            activeSkill: progress.activeSkill,
+            backlog: progress.backlog,
+            growth
+        };
+    }).sort((a, b) => b.progress - a.progress);
+}
+
+function renderTeacherContributionDashboard() {
+    const container = document.getElementById("teacher-contribution-dashboard");
+    if (!container) return;
+
+    const data = TEACHER_CONTRIBUTION_DATA;
+    const maxXp = Math.max(...data.classGrowth.map(item => item.xp), 100);
+    const chartHtml = data.classGrowth.map(item => {
+        const date = getLocalDateFromKey(getDateKey(item.date));
+        const xpHeight = Math.max(6, Math.round((item.xp / maxXp) * 100));
+        return `
+            <div class="teacher-growth-day">
+                <div class="teacher-growth-bars">
+                    <span class="teacher-xp-bar" style="height:${xpHeight}%"></span>
+                    <span class="teacher-mastery-dot" style="bottom:${Math.max(8, item.mastery)}%">${item.mastery}%</span>
+                </div>
+                <small>${getShortDateLabel(date)}</small>
+                <strong>${item.xp.toLocaleString()} XP</strong>
+            </div>
+        `;
+    }).join("");
+
+    const groupHtml = data.today.groupsIntervened.map(group => `
+        <div class="contribution-action-card">
+            <i class="fa-solid fa-people-group"></i>
+            <div>
+                <strong>${escapeHTML(group.name)}</strong>
+                <span>${group.students} học sinh · ${escapeHTML(group.action)}</span>
+                <small>${escapeHTML(group.outcome)}</small>
+            </div>
+        </div>
+    `).join("");
+
+    const improvedHtml = data.today.improvedStudents.map(student => {
+        const delta = student.after - student.before;
+        return `
+            <div class="mastery-improvement-row">
+                <div>
+                    <strong>${escapeHTML(student.name)}</strong>
+                    <span>${escapeHTML(student.subject)} · ${student.before}% → ${student.after}%</span>
+                </div>
+                <em>+${delta}%</em>
+            </div>
+        `;
+    }).join("");
+
+    container.innerHTML = `
+        <div class="contribution-header">
+            <div>
+                <span class="badge badge-skill"><i class="fa-solid fa-person-chalkboard"></i> Hiệu quả giảng dạy</span>
+                <h2>Đóng góp hôm nay của giáo viên</h2>
+                <p>Không chỉ xem điểm lớp, màn này đo giáo viên đã tạo can thiệp gì và lớp cải thiện ra sao sau can thiệp.</p>
+            </div>
+        </div>
+        <div class="contribution-stat-grid">
+            <div class="contribution-stat-card">
+                <span>Bài ôn đã tạo</span>
+                <strong>${data.today.reviewSetsCreated}</strong>
+                <small>Từ nhóm hổng và bài sai mới nhất</small>
+            </div>
+            <div class="contribution-stat-card">
+                <span>Nhóm đã can thiệp</span>
+                <strong>${data.today.groupsIntervened.length}</strong>
+                <small>Dạy lại theo cụm thay vì từng em</small>
+            </div>
+            <div class="contribution-stat-card">
+                <span>Học sinh tăng mastery</span>
+                <strong>${data.today.improvedStudents.length}</strong>
+                <small>Có đo trước/sau can thiệp</small>
+            </div>
+            <div class="contribution-stat-card success">
+                <span>Thời gian tiết kiệm</span>
+                <strong>${data.today.timeSavedMinutes} phút</strong>
+                <small>So với chấm/lọc nhóm thủ công</small>
+            </div>
+        </div>
+        <div class="contribution-grid">
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-chart-column"></i> Lớp tăng XP/mastery theo ngày</h3>
+                <p class="card-subtitle-desc">Cột xanh là tổng XP lớp; nhãn vàng là mastery trung bình cuối ngày.</p>
+                <div class="teacher-growth-chart">${chartHtml}</div>
+            </section>
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-hand-holding-heart"></i> Can thiệp đã thực hiện</h3>
+                <div class="contribution-action-list">${groupHtml}</div>
+            </section>
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-arrow-trend-up"></i> Học sinh tăng mastery</h3>
+                <div class="mastery-improvement-list">${improvedHtml}</div>
+            </section>
+        </div>
+    `;
+}
+
+function renderParentDashboard() {
+    const container = document.getElementById("parent-overview-dashboard");
+    if (!container) return;
+
+    const profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
+    const displayName = state.displayNameOverride || profile.name;
+    const xpAnalytics = getXPAnalytics();
+    const subjectSummary = getSubjectTrendSummary();
+    const strongSubjects = subjectSummary.slice(0, 2);
+    const weakSubjects = [...subjectSummary].sort((a, b) => a.progress - b.progress).slice(0, 2);
+    const checkedDates = new Set(state.attendance.checkedDates || []);
+    const weekHtml = Array.from({ length: 7 }, (_, index) => {
+        const offset = index - 6;
+        const key = getDateKey(offset);
+        const date = getLocalDateFromKey(key);
+        const xpDay = xpAnalytics.history.find(item => item.date === key)?.earned || 0;
+        const checked = checkedDates.has(key) || xpDay > 0;
+        return `
+            <div class="parent-week-day ${checked ? "checked" : ""}">
+                <strong>${getVietnameseWeekdayLabel(date)}</strong>
+                <small>${getShortDateLabel(date)}</small>
+                <span>${checked ? `${xpDay.toLocaleString()} XP` : "Chưa học"}</span>
+            </div>
+        `;
+    }).join("");
+    const maxXp = Math.max(100, ...xpAnalytics.history.slice(-7).map(item => item.earned));
+    const xpChartHtml = xpAnalytics.history.slice(-7).map(item => {
+        const date = getLocalDateFromKey(item.date);
+        const height = Math.max(8, Math.round((item.earned / maxXp) * 100));
+        return `
+            <div class="parent-xp-day">
+                <div class="parent-xp-bar" style="height:${height}%"><span>${item.earned}</span></div>
+                <small>${getShortDateLabel(date)}</small>
+            </div>
+        `;
+    }).join("");
+    const strongHtml = strongSubjects.map(item => `
+        <div class="parent-subject-row good">
+            <i class="${item.icon}"></i>
+            <div>
+                <strong>${escapeHTML(item.subject)}</strong>
+                <span>Tiến bộ +${item.growth}% · ${escapeHTML(item.activeSkill)}</span>
+            </div>
+            <em>${item.progress}%</em>
+        </div>
+    `).join("");
+    const weakHtml = weakSubjects.map(item => `
+        <div class="parent-subject-row weak">
+            <i class="${item.icon}"></i>
+            <div>
+                <strong>${escapeHTML(item.subject)}</strong>
+                <span>${escapeHTML(item.status)} · còn ${item.backlog} bài ôn</span>
+            </div>
+            <em>${item.progress}%</em>
+        </div>
+    `).join("");
+    const adviceHtml = PARENT_HOME_ADVICE.map(item => `
+        <div class="parent-advice-card">
+            <span>${escapeHTML(item.subject)}</span>
+            <strong>${escapeHTML(item.title)}</strong>
+            <p>${escapeHTML(item.advice)}</p>
+        </div>
+    `).join("");
+
+    container.innerHTML = `
+        <div class="parent-summary-grid">
+            <div class="parent-child-card">
+                <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(state.avatarSeedOverride || profile.avatar)}" alt="Avatar của con">
+                <div>
+                    <span>Hồ sơ đang theo dõi</span>
+                    <h2>${escapeHTML(displayName)}</h2>
+                    <p>Lớp ${profile.grade} · ${xpAnalytics.totalWeek.toLocaleString()} XP tuần này · ${xpAnalytics.activeDays}/7 ngày có học</p>
+                </div>
+            </div>
+            <div class="parent-simple-stat">
+                <span>Môn tiến bộ nhất</span>
+                <strong>${escapeHTML(strongSubjects[0]?.subject || "Toán")}</strong>
+                <small>Phụ huynh nên động viên và duy trì nhịp hiện tại.</small>
+            </div>
+            <div class="parent-simple-stat warning">
+                <span>Môn cần hỗ trợ</span>
+                <strong>${escapeHTML(weakSubjects[0]?.subject || "Toán")}</strong>
+                <small>Không cần học nhiều hơn, cần ôn đúng lỗ hổng.</small>
+            </div>
+        </div>
+        <div class="parent-grid-main">
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-calendar-days"></i> Con học ngày nào?</h3>
+                <div class="parent-week-grid">${weekHtml}</div>
+            </section>
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-chart-simple"></i> XP mỗi ngày</h3>
+                <div class="parent-xp-chart">${xpChartHtml}</div>
+            </section>
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-seedling"></i> Môn đang tiến bộ</h3>
+                <div class="parent-subject-list">${strongHtml}</div>
+            </section>
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-life-ring"></i> Môn đang yếu</h3>
+                <div class="parent-subject-list">${weakHtml}</div>
+            </section>
+        </div>
+        <section class="memphis-card parent-advice-panel">
+            <h3 class="card-header-title"><i class="fa-solid fa-robot"></i> AI khuyên phụ huynh hỗ trợ ở nhà</h3>
+            <p class="card-subtitle-desc">Lời khuyên được viết theo hành động nhỏ, dễ làm trong gia đình; không yêu cầu phụ huynh hiểu mô hình AI.</p>
+            <div class="parent-advice-grid">${adviceHtml}</div>
+        </section>
+    `;
+}
+
+function renderAdminOperationsDashboard() {
+    const container = document.getElementById("admin-operations-dashboard");
+    if (!container) return;
+
+    const data = ADMIN_OPERATIONS_DATA;
+    const serviceHtml = data.serviceChecks.map(item => `
+        <div class="ops-service-row ${item.status}">
+            <i class="fa-solid ${item.status === "healthy" ? "fa-circle-check" : item.status === "ready" ? "fa-shield-halved" : "fa-triangle-exclamation"}"></i>
+            <div>
+                <strong>${escapeHTML(item.name)}</strong>
+                <span>${escapeHTML(item.detail)}</span>
+            </div>
+            <em>${escapeHTML(item.status)}</em>
+        </div>
+    `).join("");
+    const deploymentHtml = data.deployments.map(item => `
+        <tr>
+            <td>${escapeHTML(item.school)}</td>
+            <td>${escapeHTML(item.className)}</td>
+            <td>${item.students}</td>
+            <td>${item.activeToday}</td>
+            <td>${item.aiRequests.toLocaleString()}</td>
+            <td><span class="ops-status-chip">${escapeHTML(item.status)}</span></td>
+        </tr>
+    `).join("");
+
+    container.innerHTML = `
+        <div class="ops-stat-grid">
+            <div class="ops-stat-card">
+                <span>Tổng người dùng</span>
+                <strong>${data.users.total.toLocaleString()}</strong>
+                <small>${data.users.schools} trường · ${data.users.classes} lớp</small>
+            </div>
+            <div class="ops-stat-card">
+                <span>Học sinh active hôm nay</span>
+                <strong>${data.users.activeStudentsToday.toLocaleString()}</strong>
+                <small>DAU học sinh có làm bài/điểm danh</small>
+            </div>
+            <div class="ops-stat-card">
+                <span>Request AI hôm nay</span>
+                <strong>${data.ai.requestsToday.toLocaleString()}</strong>
+                <small>FPT AI + fallback educational prompt</small>
+            </div>
+            <div class="ops-stat-card warning">
+                <span>Chi phí AI ước tính</span>
+                <strong>${data.ai.estimatedCostVnd.toLocaleString()}đ</strong>
+                <small>${data.ai.costPerStudentVnd}đ / học sinh active</small>
+            </div>
+        </div>
+        <div class="ops-grid">
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-heart-pulse"></i> Trạng thái FPT AI / offline fallback</h3>
+                <div class="ops-health-banner">
+                    <div>
+                        <span>FPT AI</span>
+                        <strong>${data.ai.fptStatus === "online" ? "Online" : "Degraded"}</strong>
+                    </div>
+                    <div>
+                        <span>Fallback</span>
+                        <strong>${escapeHTML(data.ai.fallbackStatus)}</strong>
+                    </div>
+                    <div>
+                        <span>Fallback share</span>
+                        <strong>${data.ai.fallbackShare}%</strong>
+                    </div>
+                    <div>
+                        <span>P95 latency</span>
+                        <strong>${data.ai.p95LatencyMs}ms</strong>
+                    </div>
+                </div>
+                <div class="ops-service-list">${serviceHtml}</div>
+            </section>
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-school"></i> Lớp/trường đang dùng</h3>
+                <div class="table-container">
+                    <table class="memphis-table ops-table">
+                        <thead>
+                            <tr>
+                                <th>Trường</th>
+                                <th>Lớp</th>
+                                <th>HS</th>
+                                <th>Active</th>
+                                <th>AI req</th>
+                                <th>Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody>${deploymentHtml}</tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    `;
+}
+
+function renderInvestorTractionDashboard() {
+    const container = document.getElementById("investor-traction-dashboard");
+    if (!container) return;
+
+    const data = INVESTOR_TRACTION_DATA;
+    const maxDau = Math.max(...data.daily.map(item => item.dau), 100);
+    const dailyHtml = data.daily.map(item => {
+        const date = getLocalDateFromKey(getDateKey(item.date));
+        const dauHeight = Math.max(8, Math.round((item.dau / maxDau) * 100));
+        return `
+            <div class="traction-day">
+                <div class="traction-bars">
+                    <span class="traction-dau-bar" style="height:${dauHeight}%"></span>
+                    <span class="traction-retention-pill" style="bottom:${Math.max(8, item.retention)}%">${item.retention}%</span>
+                </div>
+                <small>${getShortDateLabel(date)}</small>
+                <strong>${item.dau.toLocaleString()}</strong>
+            </div>
+        `;
+    }).join("");
+    const economicsHtml = data.economics.map(item => `
+        <div class="unit-card">
+            <span>${escapeHTML(item.label)}</span>
+            <strong>${escapeHTML(item.value)}</strong>
+            <p>${escapeHTML(item.note)}</p>
+        </div>
+    `).join("");
+    const evidenceHtml = data.educationEvidence.map(item => `
+        <div class="education-evidence-card">
+            <span>${escapeHTML(item.metric)}</span>
+            <strong>${escapeHTML(item.value)}</strong>
+            <p>${escapeHTML(item.detail)}</p>
+        </div>
+    `).join("");
+
+    container.innerHTML = `
+        <div class="traction-kpi-grid">
+            <div class="traction-kpi-card">
+                <span>DAU / WAU</span>
+                <strong>${data.kpis.dau.toLocaleString()} / ${data.kpis.wau.toLocaleString()}</strong>
+                <small>Tỷ lệ DAU/WAU ${(data.kpis.dau / data.kpis.wau * 100).toFixed(1)}%</small>
+            </div>
+            <div class="traction-kpi-card">
+                <span>Retention 7 ngày</span>
+                <strong>${data.kpis.retention7d}%</strong>
+                <small>Người học quay lại sau một tuần</small>
+            </div>
+            <div class="traction-kpi-card">
+                <span>XP / active day</span>
+                <strong>${data.kpis.xpPerActiveDay}</strong>
+                <small>Proxy cho mức độ học thật</small>
+            </div>
+            <div class="traction-kpi-card">
+                <span>Bài AI tạo</span>
+                <strong>${data.kpis.aiLessonsCreated.toLocaleString()}</strong>
+                <small>Bài ôn/gợi ý cá nhân hóa</small>
+            </div>
+            <div class="traction-kpi-card warning">
+                <span>AI cost / học sinh</span>
+                <strong>${data.kpis.aiCostPerStudentVnd}đ</strong>
+                <small>Core diagnostic không phụ thuộc AI call</small>
+            </div>
+            <div class="traction-kpi-card success">
+                <span>Giá trị giáo dục đo được</span>
+                <strong>+${data.kpis.measuredLearningGain}%</strong>
+                <small>Mastery sau can thiệp 7 ngày</small>
+            </div>
+        </div>
+        <div class="traction-grid">
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-chart-column"></i> DAU và retention 7 ngày</h3>
+                <p class="card-subtitle-desc">Cột là DAU; nhãn vàng là retention cùng ngày. Dùng để trả lời sản phẩm có tạo thói quen học không.</p>
+                <div class="traction-chart">${dailyHtml}</div>
+            </section>
+            <section class="memphis-card">
+                <h3 class="card-header-title"><i class="fa-solid fa-coins"></i> Unit economics</h3>
+                <div class="unit-grid">${economicsHtml}</div>
+            </section>
+            <section class="memphis-card traction-education-panel">
+                <h3 class="card-header-title"><i class="fa-solid fa-graduation-cap"></i> Giá trị giáo dục đo được</h3>
+                <div class="education-evidence-grid">${evidenceHtml}</div>
+            </section>
+        </div>
+    `;
 }
 
 function getLearningLevel(xp = state.xp) {
@@ -336,6 +926,8 @@ function loadRewardState(profile) {
         xp: profile?.xp ?? state.xp,
         coins: profile?.coins ?? state.coins,
         spinTickets: state.spinTickets,
+        displayNameOverride: "",
+        avatarSeedOverride: "",
         loginStreak: profile?.streak ?? state.loginStreak,
         answerCombo: 0,
         redeemedRewards: [],
@@ -343,6 +935,7 @@ function loadRewardState(profile) {
         earnedBadges: [],
         teacherBonusTickets: [],
         aiDecisionLog: [],
+        xpHistory: buildDefaultXPHistory(profile?.xp ?? state.xp),
         subjectProgress: SUBJECT_PROGRESS_STATE,
         attendance: {
             checkedDates: [],
@@ -369,7 +962,8 @@ function loadRewardState(profile) {
             rewardHistory: Array.isArray(saved.rewardHistory) ? saved.rewardHistory : [],
             earnedBadges: Array.isArray(saved.earnedBadges) ? saved.earnedBadges : [],
             teacherBonusTickets: Array.isArray(saved.teacherBonusTickets) ? saved.teacherBonusTickets : [],
-            aiDecisionLog: Array.isArray(saved.aiDecisionLog) ? saved.aiDecisionLog : []
+            aiDecisionLog: Array.isArray(saved.aiDecisionLog) ? saved.aiDecisionLog : [],
+            xpHistory: normalizeXPHistory(saved.xpHistory, saved.xp ?? defaults.xp)
         };
     } catch (error) {
         console.warn("[-] Reward state corrupted; using profile defaults.", error);
@@ -381,6 +975,8 @@ function applyRewardState(rewardState) {
     state.xp = Number(rewardState.xp) || 0;
     state.coins = Number(rewardState.coins) || 0;
     state.spinTickets = Number(rewardState.spinTickets) || 0;
+    state.displayNameOverride = String(rewardState.displayNameOverride || "");
+    state.avatarSeedOverride = String(rewardState.avatarSeedOverride || "");
     state.loginStreak = Number(rewardState.loginStreak ?? rewardState.streak) || 0;
     state.answerCombo = Number(rewardState.answerCombo) || 0;
     state.redeemedRewards = Array.isArray(rewardState.redeemedRewards) ? rewardState.redeemedRewards : [];
@@ -388,6 +984,7 @@ function applyRewardState(rewardState) {
     state.earnedBadges = Array.isArray(rewardState.earnedBadges) ? rewardState.earnedBadges : [];
     state.teacherBonusTickets = Array.isArray(rewardState.teacherBonusTickets) ? rewardState.teacherBonusTickets : [];
     state.aiDecisionLog = Array.isArray(rewardState.aiDecisionLog) ? rewardState.aiDecisionLog : [];
+    state.xpHistory = normalizeXPHistory(rewardState.xpHistory, state.xp);
     if (rewardState.subjectProgress && typeof rewardState.subjectProgress === "object") {
         Object.entries(rewardState.subjectProgress).forEach(([subject, progress]) => {
             SUBJECT_PROGRESS_STATE[subject] = {
@@ -415,6 +1012,8 @@ function saveRewardState() {
         xp: state.xp,
         coins: state.coins,
         spinTickets: state.spinTickets,
+        displayNameOverride: state.displayNameOverride,
+        avatarSeedOverride: state.avatarSeedOverride,
         loginStreak: state.loginStreak,
         answerCombo: state.answerCombo,
         redeemedRewards: state.redeemedRewards,
@@ -422,6 +1021,7 @@ function saveRewardState() {
         earnedBadges: state.earnedBadges,
         teacherBonusTickets: state.teacherBonusTickets,
         aiDecisionLog: state.aiDecisionLog,
+        xpHistory: state.xpHistory,
         subjectProgress: SUBJECT_PROGRESS_STATE,
         attendance: state.attendance,
         dailyQuest: state.dailyQuest
@@ -860,6 +1460,7 @@ function switchStudentTab(tabName) {
     const activePanel = document.getElementById(`student-view-${tabName}`);
     if (activePanel) activePanel.style.display = "block";
     if (state.currentPortal === "teacher") switchPortalUI("student");
+    if (tabName === "profile") renderStudentProfile();
 }
 
 function openDashboardForSubject(subject, grade = 7, { startTest = false } = {}) {
@@ -980,10 +1581,25 @@ function initActionableDemoControls() {
 }
 
 function renderStudentProfile() {
-    const body = document.getElementById("student-profile-modal-body");
+    const body = document.getElementById("student-profile-page");
     if (!body) return;
     const profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
+    const displayName = state.displayNameOverride || profile.name;
+    const avatarSeed = state.avatarSeedOverride || profile.avatar;
     const level = getLearningLevel();
+    const xpAnalytics = getXPAnalytics();
+    const maxEarned = Math.max(100, ...xpAnalytics.history.map(item => item.earned));
+    const xpChartHtml = xpAnalytics.history.map(item => {
+        const date = getLocalDateFromKey(item.date);
+        const height = Math.max(8, Math.round((item.earned / maxEarned) * 100));
+        const isToday = item.date === getDateKey();
+        return `
+            <div class="xp-chart-day ${isToday ? "today" : ""}">
+                <div class="xp-chart-bar" style="height:${height}%"><span>${item.earned}</span></div>
+                <small>${getShortDateLabel(date)}</small>
+            </div>
+        `;
+    }).join("");
     const subjectRows = SUBJECT_OVERVIEW.map(item => {
         const progress = getSubjectProgress(item.subject);
         return `
@@ -1021,10 +1637,10 @@ function renderStudentProfile() {
     body.innerHTML = `
         <div class="student-profile-layout">
             <section class="profile-hero-panel">
-                <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(profile.avatar)}" alt="Avatar học sinh">
+                <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(avatarSeed)}" alt="Avatar học sinh">
                 <div>
                     <span class="badge badge-skill">Hồ sơ học sinh</span>
-                    <h2>${escapeHTML(profile.name)}</h2>
+                    <h2>${escapeHTML(displayName)}</h2>
                     <p>Lớp ${profile.grade} · ${state.loginStreak} ngày liên tiếp · ${state.coins.toLocaleString()} xu</p>
                 </div>
                 <div class="profile-level-card">
@@ -1032,6 +1648,38 @@ function renderStudentProfile() {
                     <span>${escapeHTML(level.title)}</span>
                     <div class="level-progress-track"><span style="width:${level.progress}%"></span></div>
                     <small>${level.next ? `${level.xpNeeded.toLocaleString()} XP nữa mở ${level.next.unlock}` : "Đã mở khóa cao nhất"}</small>
+                </div>
+            </section>
+            <section class="profile-grid profile-grid-main">
+                <div class="profile-panel profile-xp-panel">
+                    <div class="profile-panel-header">
+                        <div>
+                            <h3><i class="fa-solid fa-chart-column"></i> XP theo ngày</h3>
+                            <p>Ngày không học sẽ hiện 0 XP để phụ huynh/giáo viên thấy nhịp học thật.</p>
+                        </div>
+                        <strong>${xpAnalytics.totalWeek.toLocaleString()} XP tuần này</strong>
+                    </div>
+                    <div class="xp-chart">${xpChartHtml}</div>
+                    <div class="xp-analytics-grid">
+                        <div><strong>${xpAnalytics.activeDays}/7</strong><span>ngày có học</span></div>
+                        <div><strong>${xpAnalytics.missedDays}</strong><span>ngày bỏ trống</span></div>
+                        <div><strong>${xpAnalytics.bestDay.earned}</strong><span>XP ngày tốt nhất</span></div>
+                    </div>
+                </div>
+                <div class="profile-panel profile-edit-panel">
+                    <h3><i class="fa-solid fa-user-pen"></i> Chỉnh hồ sơ</h3>
+                    <label for="profile-display-name">Tên hiển thị</label>
+                    <input id="profile-display-name" class="memphis-input-sm profile-input" type="text" value="${escapeHTML(displayName)}">
+                    <label for="profile-avatar-seed">Mã avatar</label>
+                    <input id="profile-avatar-seed" class="memphis-input-sm profile-input" type="text" value="${escapeHTML(avatarSeed)}">
+                    <button id="btn-save-profile-settings" class="btn btn-primary-memphis btn-sm" type="button"><i class="fa-solid fa-floppy-disk"></i> Lưu hồ sơ</button>
+                    <div class="profile-password-box">
+                        <h4><i class="fa-solid fa-key"></i> Đổi mật khẩu</h4>
+                        <input id="profile-old-password" class="memphis-input-sm profile-input" type="password" placeholder="Mật khẩu cũ">
+                        <input id="profile-new-password" class="memphis-input-sm profile-input" type="password" placeholder="Mật khẩu mới">
+                        <button id="btn-change-profile-password" class="btn btn-hint-outline btn-sm" type="button"><i class="fa-solid fa-shield"></i> Cập nhật mật khẩu</button>
+                        <small>Phiên bản hiện tại lưu xác nhận đổi mật khẩu ở localStorage để phục vụ demo luồng tài khoản.</small>
+                    </div>
                 </div>
             </section>
             <section class="profile-grid">
@@ -1052,21 +1700,35 @@ function renderStudentProfile() {
             </section>
         </div>
     `;
+    bindProfilePageActions();
 }
 
 function initStudentProfileModal() {
     const avatar = document.getElementById("user-avatar-container");
-    const modal = document.getElementById("modal-student-profile");
-    const closeBtn = document.getElementById("btn-close-student-profile");
-    const overlay = document.getElementById("student-profile-overlay");
-    if (!avatar || !modal) return;
+    if (!avatar) return;
 
     const open = () => {
+        if (state.loggedInRole === "parent") {
+            switchPortalUI("parent");
+            showToast("Đang mở màn theo dõi con cho phụ huynh.");
+            return;
+        }
+        if (state.loggedInRole === "teacher") {
+            showToast("Hồ sơ học sinh nằm trong danh sách/lộ trình giáo viên.");
+            return;
+        }
+        if (state.loggedInRole === "admin") {
+            switchPortalUI("admin");
+            showToast("Đang mở màn vận hành hệ thống.");
+            return;
+        }
+        if (state.loggedInRole === "investor") {
+            switchPortalUI("investor");
+            showToast("Đang mở màn traction và unit economics.");
+            return;
+        }
+        switchStudentTab("profile");
         renderStudentProfile();
-        modal.style.display = "flex";
-    };
-    const close = () => {
-        modal.style.display = "none";
     };
     avatar.setAttribute("role", "button");
     avatar.setAttribute("tabindex", "0");
@@ -1078,8 +1740,37 @@ function initStudentProfileModal() {
             open();
         }
     });
-    if (closeBtn) closeBtn.addEventListener("click", close);
-    if (overlay) overlay.addEventListener("click", close);
+}
+
+function bindProfilePageActions() {
+    const saveButton = document.getElementById("btn-save-profile-settings");
+    const passwordButton = document.getElementById("btn-change-profile-password");
+    if (saveButton) {
+        saveButton.addEventListener("click", () => {
+            const nameInput = document.getElementById("profile-display-name");
+            const avatarInput = document.getElementById("profile-avatar-seed");
+            const name = String(nameInput?.value || "").trim();
+            const avatarSeed = String(avatarInput?.value || "").trim();
+            if (name) state.displayNameOverride = name;
+            if (avatarSeed) state.avatarSeedOverride = avatarSeed;
+            saveRewardState();
+            switchPortalUI("student");
+            renderStudentProfile();
+            showToast("Đã lưu hồ sơ học sinh.");
+        });
+    }
+    if (passwordButton) {
+        passwordButton.addEventListener("click", () => {
+            const oldPassword = String(document.getElementById("profile-old-password")?.value || "").trim();
+            const newPassword = String(document.getElementById("profile-new-password")?.value || "").trim();
+            if (!oldPassword || newPassword.length < 6) {
+                showToast("Mật khẩu mới cần ít nhất 6 ký tự.");
+                return;
+            }
+            localStorage.setItem(`porcus_password_changed_${state.baseStudentId || state.studentId}`, "true");
+            showToast("Đã ghi nhận đổi mật khẩu cho phiên học.");
+        });
+    }
 }
 
 function prepareTestSetup() {
@@ -2305,7 +2996,7 @@ function awardQuizRewards(isCorrect) {
         comboBonus = 15;
     }
 
-    state.xp += baseXp;
+    addXP(baseXp, `Trả lời đúng ${state.currentQuestion?.skill_name || "quiz"}`);
     state.coins += baseCoins + comboBonus;
     state.dailyQuest.correctAnswers += 1;
     state.dailyQuest.coinsEarned += baseCoins + comboBonus;
@@ -2328,6 +3019,7 @@ function updateStudentRewardsUI() {
     const rewardsRow = document.getElementById("student-rewards");
     const level = getLearningLevel();
     renderQuestShopPanel();
+    refreshProfileIfVisible();
     if (!rewardsRow) return;
     
     rewardsRow.innerHTML = `
@@ -2462,9 +3154,7 @@ function renderQuestShopPanel() {
 }
 
 function getTodayKey(offsetDays = 0) {
-    const date = new Date();
-    date.setDate(date.getDate() + offsetDays);
-    return date.toISOString().slice(0, 10);
+    return getDateKey(offsetDays);
 }
 
 function getLocalDateFromKey(dateKey) {
@@ -2518,7 +3208,7 @@ function checkInToday() {
     state.loginStreak += 1;
     const earnedTickets = getTodayCheckInTickets();
     state.spinTickets += earnedTickets;
-    state.xp += 30;
+    addXP(30, "Điểm danh học tập");
     saveRewardState();
     updateStudentRewardsUI();
     renderStudentProfile();
@@ -2635,7 +3325,7 @@ function claimDailyQuestReward(questId) {
 
     state.dailyQuest.claimed.push(questId);
     state.coins += reward.coins;
-    state.xp += reward.xp;
+    addXP(reward.xp, `Nhận thưởng nhiệm vụ: ${reward.label}`);
     state.spinTickets += reward.tickets;
     state.rewardHistory.unshift({
         id: `quest_${questId}`,
@@ -4105,8 +4795,14 @@ function switchPortalUI(targetRole) {
     const btnTogglePortal = document.getElementById("btn-toggle-portal");
     const portalStudent = document.getElementById("portal-student");
     const portalTeacher = document.getElementById("portal-teacher");
+    const portalParent = document.getElementById("portal-parent");
+    const portalAdmin = document.getElementById("portal-admin");
+    const portalInvestor = document.getElementById("portal-investor");
     const studentSidebarMenu = document.getElementById("student-sidebar-menu");
     const teacherSidebarMenu = document.getElementById("teacher-sidebar-menu");
+    const parentSidebarMenu = document.getElementById("parent-sidebar-menu");
+    const adminSidebarMenu = document.getElementById("admin-sidebar-menu");
+    const investorSidebarMenu = document.getElementById("investor-sidebar-menu");
     const progressWrapper = document.getElementById("student-progress-wrapper");
     const teacherTitleWrapper = document.getElementById("teacher-title-wrapper");
     const studentRewards = document.getElementById("student-rewards");
@@ -4117,9 +4813,15 @@ function switchPortalUI(targetRole) {
     if (targetRole === "teacher") {
         state.currentPortal = "teacher";
         if (portalStudent) portalStudent.classList.remove("active");
+        if (portalParent) portalParent.classList.remove("active");
+        if (portalAdmin) portalAdmin.classList.remove("active");
+        if (portalInvestor) portalInvestor.classList.remove("active");
         if (portalTeacher) portalTeacher.classList.add("active");
         if (studentSidebarMenu) studentSidebarMenu.style.display = "none";
         if (teacherSidebarMenu) teacherSidebarMenu.style.display = "flex";
+        if (parentSidebarMenu) parentSidebarMenu.style.display = "none";
+        if (adminSidebarMenu) adminSidebarMenu.style.display = "none";
+        if (investorSidebarMenu) investorSidebarMenu.style.display = "none";
         if (progressWrapper) progressWrapper.style.display = "none";
         if (studentRewards) studentRewards.style.display = "none";
         if (questNotification) questNotification.style.display = "none";
@@ -4132,18 +4834,96 @@ function switchPortalUI(targetRole) {
         return;
     }
 
+    if (targetRole === "admin") {
+        state.currentPortal = "admin";
+        if (portalStudent) portalStudent.classList.remove("active");
+        if (portalTeacher) portalTeacher.classList.remove("active");
+        if (portalParent) portalParent.classList.remove("active");
+        if (portalInvestor) portalInvestor.classList.remove("active");
+        if (portalAdmin) portalAdmin.classList.add("active");
+        if (studentSidebarMenu) studentSidebarMenu.style.display = "none";
+        if (teacherSidebarMenu) teacherSidebarMenu.style.display = "none";
+        if (parentSidebarMenu) parentSidebarMenu.style.display = "none";
+        if (adminSidebarMenu) adminSidebarMenu.style.display = "flex";
+        if (investorSidebarMenu) investorSidebarMenu.style.display = "none";
+        if (progressWrapper) progressWrapper.style.display = "none";
+        if (studentRewards) studentRewards.style.display = "none";
+        if (questNotification) questNotification.style.display = "none";
+        if (teacherTitleWrapper) teacherTitleWrapper.style.display = "none";
+        if (userDisplayName) userDisplayName.textContent = "Ops Admin";
+        if (userAvatarImg) userAvatarImg.src = "https://api.dicebear.com/7.x/adventurer/svg?seed=OpsAdmin";
+        if (btnTogglePortal) btnTogglePortal.style.display = "none";
+        renderAdminOperationsDashboard();
+        return;
+    }
+
+    if (targetRole === "investor") {
+        state.currentPortal = "investor";
+        if (portalStudent) portalStudent.classList.remove("active");
+        if (portalTeacher) portalTeacher.classList.remove("active");
+        if (portalParent) portalParent.classList.remove("active");
+        if (portalAdmin) portalAdmin.classList.remove("active");
+        if (portalInvestor) portalInvestor.classList.add("active");
+        if (studentSidebarMenu) studentSidebarMenu.style.display = "none";
+        if (teacherSidebarMenu) teacherSidebarMenu.style.display = "none";
+        if (parentSidebarMenu) parentSidebarMenu.style.display = "none";
+        if (adminSidebarMenu) adminSidebarMenu.style.display = "none";
+        if (investorSidebarMenu) investorSidebarMenu.style.display = "flex";
+        if (progressWrapper) progressWrapper.style.display = "none";
+        if (studentRewards) studentRewards.style.display = "none";
+        if (questNotification) questNotification.style.display = "none";
+        if (teacherTitleWrapper) teacherTitleWrapper.style.display = "none";
+        if (userDisplayName) userDisplayName.textContent = "Seed Partner";
+        if (userAvatarImg) userAvatarImg.src = "https://api.dicebear.com/7.x/adventurer/svg?seed=Investor";
+        if (btnTogglePortal) btnTogglePortal.style.display = "none";
+        renderInvestorTractionDashboard();
+        return;
+    }
+
+    if (targetRole === "parent") {
+        const profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
+        state.currentPortal = "parent";
+        if (portalStudent) portalStudent.classList.remove("active");
+        if (portalTeacher) portalTeacher.classList.remove("active");
+        if (portalAdmin) portalAdmin.classList.remove("active");
+        if (portalInvestor) portalInvestor.classList.remove("active");
+        if (portalParent) portalParent.classList.add("active");
+        if (studentSidebarMenu) studentSidebarMenu.style.display = "none";
+        if (teacherSidebarMenu) teacherSidebarMenu.style.display = "none";
+        if (parentSidebarMenu) parentSidebarMenu.style.display = "flex";
+        if (adminSidebarMenu) adminSidebarMenu.style.display = "none";
+        if (investorSidebarMenu) investorSidebarMenu.style.display = "none";
+        if (progressWrapper) progressWrapper.style.display = "none";
+        if (studentRewards) studentRewards.style.display = "none";
+        if (questNotification) questNotification.style.display = "none";
+        if (teacherTitleWrapper) teacherTitleWrapper.style.display = "none";
+        if (userDisplayName) userDisplayName.textContent = `Phụ huynh của ${state.displayNameOverride || profile.name}`;
+        if (userAvatarImg) userAvatarImg.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=Parent${encodeURIComponent(profile.avatar)}`;
+        if (btnTogglePortal) btnTogglePortal.style.display = "none";
+        renderParentDashboard();
+        return;
+    }
+
     const profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
     state.currentPortal = "student";
     if (portalTeacher) portalTeacher.classList.remove("active");
+    if (portalParent) portalParent.classList.remove("active");
+    if (portalAdmin) portalAdmin.classList.remove("active");
+    if (portalInvestor) portalInvestor.classList.remove("active");
     if (portalStudent) portalStudent.classList.add("active");
     if (studentSidebarMenu) studentSidebarMenu.style.display = "flex";
     if (teacherSidebarMenu) teacherSidebarMenu.style.display = "none";
+    if (parentSidebarMenu) parentSidebarMenu.style.display = "none";
+    if (adminSidebarMenu) adminSidebarMenu.style.display = "none";
+    if (investorSidebarMenu) investorSidebarMenu.style.display = "none";
     if (progressWrapper) progressWrapper.style.display = "block";
     if (studentRewards) studentRewards.style.display = "flex";
     if (questNotification) questNotification.style.display = "block";
     if (teacherTitleWrapper) teacherTitleWrapper.style.display = "none";
-    if (userDisplayName) userDisplayName.textContent = profile.name;
-    if (userAvatarImg) userAvatarImg.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${profile.avatar}`;
+    const displayName = state.displayNameOverride || profile.name;
+    const avatarSeed = state.avatarSeedOverride || profile.avatar;
+    if (userDisplayName) userDisplayName.textContent = displayName;
+    if (userAvatarImg) userAvatarImg.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(avatarSeed)}`;
     const avatarContainer = document.getElementById("user-avatar-container");
     if (avatarContainer) avatarContainer.classList.toggle("avatar-prize-frame", state.redeemedRewards.includes("avatar_frame"));
     if (btnTogglePortal) btnTogglePortal.style.display = "none";
@@ -4221,7 +5001,9 @@ function initAuthFlow() {
                     showError("Lỗi kết nối máy chủ.");
                 }
                 return;
-            } else if (activeRole === "register") {
+            }
+
+            if (activeRole === "register") {
                 const username = document.getElementById("reg-username")?.value || "";
                 const password = document.getElementById("reg-password")?.value || "";
                 const name = document.getElementById("reg-name")?.value || "";
@@ -4243,25 +5025,88 @@ function initAuthFlow() {
                     showError("Lỗi kết nối máy chủ.");
                 }
                 return;
-            } else {
-                const username = document.getElementById("student-pass")?.value || ""; // For backward-compat test logic, but we should use a real username input if available. For now, since there's no username input in student form, let's use the dropdown value.
-                const studentId = document.getElementById("student-select-login")?.value || "emma_std_01";
-                const password = document.getElementById("student-pass")?.value || "";
-                try {
-                    const response = await fetch("/api/auth/login", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username: studentId, password: password, role: "student" })
-                    });
-                    if (!response.ok) {
-                        showError("Tài khoản hoặc mật khẩu không đúng.");
-                        return;
-                    }
-                    const auth = await response.json();
-                    await handleSuccessfulStudentLogin(auth);
-                } catch (e) {
-                    showError("Lỗi kết nối máy chủ.");
+            }
+
+            if (activeRole === "admin") {
+                const password = document.getElementById("admin-pass")?.value || "";
+                if (password.trim() !== "123456") {
+                    showError("Mật khẩu admin mặc định là 123456.");
+                    return;
                 }
+                state.isLoggedIn = true;
+                state.loggedInRole = "admin";
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "admin");
+                localStorage.removeItem("studentId");
+                localStorage.removeItem("accessToken");
+                if (loginOverlay) loginOverlay.classList.add("hidden");
+                switchPortalUI("admin");
+                showToast("Đăng nhập admin thành công.");
+                return;
+            }
+
+            if (activeRole === "investor") {
+                const password = document.getElementById("investor-pass")?.value || "";
+                if (password.trim() !== "123456") {
+                    showError("Mật khẩu nhà đầu tư mặc định là 123456.");
+                    return;
+                }
+                state.isLoggedIn = true;
+                state.loggedInRole = "investor";
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "investor");
+                localStorage.removeItem("studentId");
+                localStorage.removeItem("accessToken");
+                if (loginOverlay) loginOverlay.classList.add("hidden");
+                switchPortalUI("investor");
+                showToast("Đăng nhập nhà đầu tư thành công.");
+                return;
+            }
+
+            if (activeRole === "parent") {
+                const studentId = document.getElementById("parent-student-select")?.value || "emma_std_01";
+                const password = document.getElementById("parent-pass")?.value || "";
+                if (password.trim() !== "123456") {
+                    showError("Mật khẩu phụ huynh mặc định là 123456.");
+                    return;
+                }
+                const profile = getStudentLoginProfile(studentId);
+                state.isLoggedIn = true;
+                state.loggedInRole = "parent";
+                state.baseStudentId = studentId;
+                state.studentId = studentId;
+                applyRewardState(loadRewardState(profile));
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "parent");
+                localStorage.setItem("studentId", studentId);
+                localStorage.removeItem("accessToken");
+                if (loginOverlay) loginOverlay.classList.add("hidden");
+                switchPortalUI("parent");
+                showToast("Đăng nhập phụ huynh thành công.");
+                return;
+            }
+
+            const studentPassword = document.getElementById("student-pass")?.value || "";
+            if (!studentPassword.trim()) {
+                showError("Vui lòng nhập mật khẩu.");
+                return;
+            }
+
+            const studentId = document.getElementById("student-select-login")?.value || "emma_std_01";
+            try {
+                const response = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username: studentId, password: studentPassword, role: "student" })
+                });
+                if (!response.ok) {
+                    showError("Tài khoản hoặc mật khẩu không đúng.");
+                    return;
+                }
+                const auth = await response.json();
+                await handleSuccessfulStudentLogin(auth);
+            } catch (e) {
+                showError("Lỗi kết nối máy chủ.");
             }
         });
     }
@@ -4273,9 +5118,7 @@ function initAuthFlow() {
         state.loggedInRole = "student";
         state.baseStudentId = studentId;
         state.studentId = studentId;
-        state.xp = profile.xp;
-        state.coins = profile.coins;
-        state.streak = profile.streak;
+        applyRewardState(loadRewardState(profile));
         state.studentProgress.activeSkill = profile.skill;
 
         localStorage.setItem("isLoggedIn", "true");
@@ -4295,6 +5138,16 @@ function initAuthFlow() {
             prepareTestSetup();
             showToast("Đăng nhập thành công.");
         }
+    }
+
+    async function handleLegacyStudentLogin() {
+        // Kept for older localStorage sessions that only have studentId.
+        const profile = getStudentLoginProfile(state.studentId);
+        applyRewardState(loadRewardState(profile));
+        state.studentProgress.activeSkill = profile.skill;
+        switchPortalUI("student");
+        updateStudentRewardsUI();
+        prepareTestSetup();
     }
 
     if (logoutBtn) {
@@ -4321,9 +5174,38 @@ function initAuthFlow() {
     const storedToken = localStorage.getItem("accessToken");
     
     async function checkSession() {
+        if (storedLoggedIn === "true" && storedRole === "parent") {
+            const profile = getStudentLoginProfile(storedStudentId);
+            state.isLoggedIn = true;
+            state.loggedInRole = "parent";
+            state.baseStudentId = storedStudentId;
+            state.studentId = storedStudentId;
+            applyRewardState(loadRewardState(profile));
+            state.studentProgress.activeSkill = profile.skill;
+            switchPortalUI("parent");
+            if (loginOverlay) loginOverlay.classList.add("hidden");
+            return;
+        }
+
+        if (storedLoggedIn === "true" && storedRole === "admin") {
+            state.isLoggedIn = true;
+            state.loggedInRole = "admin";
+            switchPortalUI("admin");
+            if (loginOverlay) loginOverlay.classList.add("hidden");
+            return;
+        }
+
+        if (storedLoggedIn === "true" && storedRole === "investor") {
+            state.isLoggedIn = true;
+            state.loggedInRole = "investor";
+            switchPortalUI("investor");
+            if (loginOverlay) loginOverlay.classList.add("hidden");
+            return;
+        }
+
         let sessionValid = false;
         let sessionUser = null;
-        if (storedToken) {
+        if (storedLoggedIn === "true" && storedRole && storedToken) {
             try {
                 const sessionResponse = await fetch("/api/auth/me", { headers: { "Authorization": `Bearer ${storedToken}` } });
                 sessionValid = sessionResponse.ok;
@@ -4343,9 +5225,7 @@ function initAuthFlow() {
                 const profile = getStudentLoginProfile(storedStudentId);
                 state.baseStudentId = storedStudentId;
                 state.studentId = storedStudentId;
-                state.xp = profile.xp;
-                state.coins = profile.coins;
-                state.streak = profile.streak;
+                applyRewardState(loadRewardState(profile));
                 state.studentProgress.activeSkill = profile.skill;
                 
                 if (sessionUser && sessionUser.initial_assessment_completed === false) {
@@ -4393,7 +5273,7 @@ function initStudentAccountAuth() {
     const setSubmitLabel = () => {
         const labels = { login: "Đăng nhập", register: "Tạo tài khoản", activate: "Kích hoạt hồ sơ" };
         const span = submitButton?.querySelector("span");
-        if (span) span.textContent = role === "teacher" ? "Đăng nhập" : labels[studentMode];
+        if (span) span.textContent = role === "student" ? labels[studentMode] : "Đăng nhập";
     };
     const applyStudent = payload => {
         authAccessToken = payload.access_token;
@@ -4463,6 +5343,48 @@ function initStudentAccountAuth() {
                 switchPortalUI("teacher");
                 return;
             }
+            if (role === "parent") {
+                const studentId = document.getElementById("parent-student-select")?.value || "emma_std_01";
+                const password = document.getElementById("parent-pass")?.value || "";
+                if (password !== "123456") throw new Error("Mật khẩu phụ huynh mặc định là 123456.");
+                const profile = getStudentLoginProfile(studentId);
+                state.isLoggedIn = true;
+                state.loggedInRole = "parent";
+                state.baseStudentId = studentId;
+                state.studentId = studentId;
+                applyRewardState(loadRewardState(profile));
+                state.studentProgress.activeSkill = profile.skill;
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "parent");
+                localStorage.setItem("studentId", studentId);
+                overlay?.classList.add("hidden");
+                switchPortalUI("parent");
+                return;
+            }
+            if (role === "admin") {
+                const password = document.getElementById("admin-pass")?.value || "";
+                if (password !== "123456") throw new Error("Mật khẩu admin mặc định là 123456.");
+                state.isLoggedIn = true;
+                state.loggedInRole = "admin";
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "admin");
+                localStorage.removeItem("studentId");
+                overlay?.classList.add("hidden");
+                switchPortalUI("admin");
+                return;
+            }
+            if (role === "investor") {
+                const password = document.getElementById("investor-pass")?.value || "";
+                if (password !== "123456") throw new Error("Mật khẩu nhà đầu tư mặc định là 123456.");
+                state.isLoggedIn = true;
+                state.loggedInRole = "investor";
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "investor");
+                localStorage.removeItem("studentId");
+                overlay?.classList.add("hidden");
+                switchPortalUI("investor");
+                return;
+            }
             let payload;
             if (studentMode === "login") {
                 payload = await requestAuth("/api/auth/student/login", {
@@ -4517,11 +5439,33 @@ function initStudentAccountAuth() {
         overlay?.classList.remove("hidden");
     });
 
-    if (localStorage.getItem("isLoggedIn") === "true" && localStorage.getItem("loggedInRole") === "teacher") {
+    const storedRole = localStorage.getItem("loggedInRole");
+    const storedStudentId = localStorage.getItem("studentId") || "emma_std_01";
+    if (localStorage.getItem("isLoggedIn") === "true" && storedRole === "teacher") {
         state.isLoggedIn = true;
         state.loggedInRole = "teacher";
         overlay?.classList.add("hidden");
         switchPortalUI("teacher");
+    } else if (localStorage.getItem("isLoggedIn") === "true" && storedRole === "parent") {
+        const profile = getStudentLoginProfile(storedStudentId);
+        state.isLoggedIn = true;
+        state.loggedInRole = "parent";
+        state.baseStudentId = storedStudentId;
+        state.studentId = storedStudentId;
+        applyRewardState(loadRewardState(profile));
+        state.studentProgress.activeSkill = profile.skill;
+        overlay?.classList.add("hidden");
+        switchPortalUI("parent");
+    } else if (localStorage.getItem("isLoggedIn") === "true" && storedRole === "admin") {
+        state.isLoggedIn = true;
+        state.loggedInRole = "admin";
+        overlay?.classList.add("hidden");
+        switchPortalUI("admin");
+    } else if (localStorage.getItem("isLoggedIn") === "true" && storedRole === "investor") {
+        state.isLoggedIn = true;
+        state.loggedInRole = "investor";
+        overlay?.classList.add("hidden");
+        switchPortalUI("investor");
     } else {
         refreshStudentAccessToken().then(payload => {
             if (payload) applyStudent(payload);
@@ -4547,8 +5491,8 @@ function initPortalNavigation() {
     menuItems.forEach(item => {
         item.addEventListener("click", (e) => {
             e.preventDefault();
-            if (state.loggedInRole === "teacher") {
-                showToast("Tài khoản giáo viên không có luồng làm bài của học sinh.");
+            if (state.loggedInRole !== "student") {
+                showToast("Tài khoản hiện tại không có luồng làm bài của học sinh.");
                 return;
             }
             menuItems.forEach(i => i.classList.remove("active"));
@@ -4568,13 +5512,55 @@ function initPortalNavigation() {
     document.querySelectorAll("#teacher-sidebar-menu .menu-item").forEach(item => {
         item.addEventListener("click", (e) => {
             e.preventDefault();
-            if (state.loggedInRole === "student") {
-                showToast("Tài khoản học sinh không có quyền xem bảng điều phối giáo viên.");
+            if (state.loggedInRole !== "teacher") {
+                showToast("Tài khoản hiện tại không có quyền xem bảng điều phối giáo viên.");
                 return;
             }
             const tabName = item.getAttribute("data-teacher-nav") || "grouping";
             activateTeacherTab(tabName);
             showToast(`Đang mở: ${item.querySelector('span').textContent}`);
+        });
+    });
+
+    document.querySelectorAll("#parent-sidebar-menu .menu-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (state.loggedInRole !== "parent") {
+                showToast("Chỉ tài khoản phụ huynh mới xem được màn theo dõi con.");
+                return;
+            }
+            document.querySelectorAll("#parent-sidebar-menu .menu-item").forEach(i => i.classList.remove("active"));
+            item.classList.add("active");
+            switchPortalUI("parent");
+            showToast("Đang mở: Theo dõi con");
+        });
+    });
+
+    document.querySelectorAll("#admin-sidebar-menu .menu-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (state.loggedInRole !== "admin") {
+                showToast("Chỉ tài khoản admin mới xem được màn vận hành.");
+                return;
+            }
+            document.querySelectorAll("#admin-sidebar-menu .menu-item").forEach(i => i.classList.remove("active"));
+            item.classList.add("active");
+            switchPortalUI("admin");
+            showToast("Đang mở: Vận hành hệ thống");
+        });
+    });
+
+    document.querySelectorAll("#investor-sidebar-menu .menu-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (state.loggedInRole !== "investor") {
+                showToast("Chỉ tài khoản nhà đầu tư mới xem được màn traction.");
+                return;
+            }
+            document.querySelectorAll("#investor-sidebar-menu .menu-item").forEach(i => i.classList.remove("active"));
+            item.classList.add("active");
+            switchPortalUI("investor");
+            showToast("Đang mở: Traction và unit economics");
         });
     });
 }
@@ -4590,6 +5576,7 @@ function activateTeacherTab(tabName) {
     sidebarItems.forEach(item => item.classList.toggle("active", item.getAttribute("data-teacher-nav") === tabName));
 
     if (tabName === "tree") renderReasoningTreeVisualizer();
+    if (tabName === "contribution") renderTeacherContributionDashboard();
 }
 
 function initTeacherTabs() {

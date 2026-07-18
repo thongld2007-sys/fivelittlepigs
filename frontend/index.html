@@ -27,11 +27,22 @@
                 <a href="#" class="menu-item" data-tab="assignments"><i class="fa-solid fa-file-signature"></i><span>Bài tập</span></a>
                 <a href="#" class="menu-item" data-tab="rewards"><i class="fa-solid fa-calendar-check"></i><span>Điểm danh & Đổi quà</span></a>
                 <a href="#" class="menu-item" data-tab="tutor"><i class="fa-solid fa-robot"></i><span>Trợ lý học tập</span></a>
+                <a href="#" class="menu-item" data-tab="profile"><i class="fa-solid fa-id-card"></i><span>Hồ sơ</span></a>
             </nav>
             <nav class="sidebar-menu teacher-sidebar-menu" id="teacher-sidebar-menu" style="display: none;">
                 <a href="#" class="menu-item active" data-teacher-nav="grouping"><i class="fa-solid fa-table-columns"></i><span>Tổng quan lớp</span></a>
                 <a href="#" class="menu-item" data-teacher-nav="priority"><i class="fa-solid fa-list-check"></i><span>Học sinh ưu tiên</span></a>
                 <a href="#" class="menu-item" data-teacher-nav="tree"><i class="fa-solid fa-diagram-project"></i><span>Lộ trình AI</span></a>
+                <a href="#" class="menu-item" data-teacher-nav="contribution"><i class="fa-solid fa-chart-line"></i><span>Đóng góp hôm nay</span></a>
+            </nav>
+            <nav class="sidebar-menu parent-sidebar-menu" id="parent-sidebar-menu" style="display: none;">
+                <a href="#" class="menu-item active" data-parent-nav="overview"><i class="fa-solid fa-people-roof"></i><span>Theo dõi con</span></a>
+            </nav>
+            <nav class="sidebar-menu admin-sidebar-menu" id="admin-sidebar-menu" style="display: none;">
+                <a href="#" class="menu-item active" data-admin-nav="operations"><i class="fa-solid fa-server"></i><span>Vận hành</span></a>
+            </nav>
+            <nav class="sidebar-menu investor-sidebar-menu" id="investor-sidebar-menu" style="display: none;">
+                <a href="#" class="menu-item active" data-investor-nav="traction"><i class="fa-solid fa-arrow-trend-up"></i><span>Traction</span></a>
             </nav>
             <div class="sidebar-footer">
                 <button id="btn-toggle-portal" class="btn btn-switch"><i class="fa-solid fa-arrows-rotate"></i> Chuyển Bảng</button>
@@ -670,6 +681,17 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 6. STUDENT PROFILE VIEW -->
+                    <div id="student-view-profile" class="student-view-panel" style="display: none;">
+                        <div class="profile-page-header mb-4">
+                            <h2><i class="fa-solid fa-id-card"></i> Hồ sơ học tập</h2>
+                            <p class="card-subtitle-desc">Theo dõi XP theo ngày, tiến trình từng môn, huy hiệu và thông tin cá nhân của học sinh.</p>
+                        </div>
+                        <div id="student-profile-page" class="student-profile-page">
+                            <!-- Profile page rendered by app.js -->
+                        </div>
+                    </div>
                 </section>
 
                 <!-- ================= KHU VỰC B: GIÁO VIÊN ================= -->
@@ -738,6 +760,7 @@
                         <button class="teacher-tab-btn active" data-teacher-tab="grouping"><i class="fa-solid fa-table-columns"></i> Tổng quan lớp</button>
                         <button class="teacher-tab-btn" data-teacher-tab="priority"><i class="fa-solid fa-list-ol"></i> Học sinh ưu tiên</button>
                         <button class="teacher-tab-btn" data-teacher-tab="tree"><i class="fa-solid fa-diagram-project"></i> Lộ trình AI đề xuất</button>
+                        <button class="teacher-tab-btn" data-teacher-tab="contribution"><i class="fa-solid fa-chart-line"></i> Đóng góp hôm nay</button>
                     </div>
 
                     <!-- Teacher Tabs Contents -->
@@ -845,6 +868,55 @@
                             </div>
                         </div>
 
+                        <!-- TAB 4: TEACHER CONTRIBUTION -->
+                        <div id="teacher-tab-contribution" class="teacher-tab-panel">
+                            <div id="teacher-contribution-dashboard" class="teacher-contribution-dashboard">
+                                <!-- Rendered by app.js -->
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- ================= KHU VỰC C: PHỤ HUYNH ================= -->
+                <section id="portal-parent" class="portal-section">
+                    <div class="parent-hero">
+                        <div>
+                            <span class="badge badge-skill"><i class="fa-solid fa-house-chimney-user"></i> Góc phụ huynh</span>
+                            <h1>Theo dõi con học mà không cần hiểu thuật toán</h1>
+                            <p>Phụ huynh chỉ thấy nhịp học, tiến bộ, môn đang yếu và lời khuyên hỗ trợ ở nhà. Các chỉ số kỹ thuật được ẩn đi để dễ hành động.</p>
+                        </div>
+                    </div>
+                    <div id="parent-overview-dashboard" class="parent-overview-dashboard">
+                        <!-- Rendered by app.js -->
+                    </div>
+                </section>
+
+                <!-- ================= KHU VỰC D: ADMIN ================= -->
+                <section id="portal-admin" class="portal-section">
+                    <div class="ops-hero">
+                        <div>
+                            <span class="badge badge-skill"><i class="fa-solid fa-server"></i> Admin Operations</span>
+                            <h1>Vận hành hệ thống và kiểm soát chi phí AI</h1>
+                            <p>Màn này trả lời hệ thống đang chạy ổn không, FPT AI có fallback chưa, chi phí AI đang nằm ở mức nào, và trường/lớp nào đang sử dụng.</p>
+                        </div>
+                    </div>
+                    <div id="admin-operations-dashboard" class="admin-operations-dashboard">
+                        <!-- Rendered by app.js -->
+                    </div>
+                </section>
+
+                <!-- ================= KHU VỰC E: NHÀ ĐẦU TƯ ================= -->
+                <section id="portal-investor" class="portal-section">
+                    <div class="investor-hero">
+                        <div>
+                            <span class="badge badge-skill"><i class="fa-solid fa-chart-line"></i> Investor Traction</span>
+                            <h1>Traction, unit economics và khả năng scale</h1>
+                            <p>Màn này phục vụ câu hỏi: người dùng có quay lại không, AI tạo giá trị gì, chi phí mỗi học sinh bao nhiêu, và mô hình có scale được không.</p>
+                        </div>
+                    </div>
+                    <div id="investor-traction-dashboard" class="investor-traction-dashboard">
+                        <!-- Rendered by app.js -->
                     </div>
                 </section>
             </main>
@@ -894,20 +966,6 @@
         </div>
     </div>
 
-    <!-- Modal 4: Student Learning Profile -->
-    <div class="memphis-modal" id="modal-student-profile" style="display: none;">
-        <div class="modal-overlay" id="student-profile-overlay"></div>
-        <div class="modal-card modal-card-wide">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-id-card text-blue"></i> Hồ sơ học tập</h3>
-                <button class="modal-close-btn" id="btn-close-student-profile">&times;</button>
-            </div>
-            <div class="modal-body" id="student-profile-modal-body">
-                <!-- Content injected dynamically -->
-            </div>
-        </div>
-    </div>
-
     <!-- Alert / Toast Toast -->
     <div id="notification-toast" class="notification-toast" style="display: none;">
         <span id="toast-message">Thông báo ở đây</span>
@@ -940,7 +998,9 @@
             <div class="login-tabs">
                 <button class="login-tab-btn active" data-login-role="student"><i class="fa-solid fa-user-graduate"></i> Học sinh</button>
                 <button class="login-tab-btn" data-login-role="teacher"><i class="fa-solid fa-chalkboard-user"></i> Giáo viên</button>
-                <button class="login-tab-btn" data-login-role="register"><i class="fa-solid fa-user-plus"></i> Đăng ký</button>
+                <button class="login-tab-btn" data-login-role="parent"><i class="fa-solid fa-people-roof"></i> Phụ huynh</button>
+                <button class="login-tab-btn" data-login-role="admin"><i class="fa-solid fa-server"></i> Admin</button>
+                <button class="login-tab-btn" data-login-role="investor"><i class="fa-solid fa-arrow-trend-up"></i> Nhà đầu tư</button>
             </div>
             
             <div class="login-body">
@@ -1001,6 +1061,48 @@
                     <div class="form-group">
                         <label for="teacher-pass"><i class="fa-solid fa-lock"></i> Mật khẩu:</label>
                         <input type="password" id="teacher-pass" class="form-control" placeholder="Mật khẩu giáo viên" value="123456">
+                    </div>
+                </div>
+
+                <div id="login-form-parent" class="login-form-panel">
+                    <div class="form-group">
+                        <label for="parent-student-select"><i class="fa-solid fa-child-reaching"></i> Chọn hồ sơ con:</label>
+                        <select id="parent-student-select" class="form-control">
+                            <option value="emma_std_01">Emma (Lớp 7A)</option>
+                            <option value="an_01">Nguyễn Văn An (Lớp 6B)</option>
+                            <option value="binh_02">Trần Bình (Lớp 5A)</option>
+                            <option value="hoang_06">Lê Huy Hoàng (Lớp 7C)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="parent-pass"><i class="fa-solid fa-lock"></i> Mật khẩu phụ huynh:</label>
+                        <input type="password" id="parent-pass" class="form-control" placeholder="Mật khẩu phụ huynh" value="123456">
+                    </div>
+                </div>
+
+                <div id="login-form-admin" class="login-form-panel">
+                    <div class="form-group">
+                        <label for="admin-username"><i class="fa-solid fa-server"></i> Tài khoản admin:</label>
+                        <select id="admin-username" class="form-control">
+                            <option value="ops_admin">Ops Admin · PorcusAI</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="admin-pass"><i class="fa-solid fa-lock"></i> Mật khẩu admin:</label>
+                        <input type="password" id="admin-pass" class="form-control" placeholder="Mật khẩu admin" value="123456">
+                    </div>
+                </div>
+
+                <div id="login-form-investor" class="login-form-panel">
+                    <div class="form-group">
+                        <label for="investor-username"><i class="fa-solid fa-briefcase"></i> Hồ sơ nhà đầu tư:</label>
+                        <select id="investor-username" class="form-control">
+                            <option value="seed_partner">Seed Partner · Demo Room</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="investor-pass"><i class="fa-solid fa-lock"></i> Mật khẩu nhà đầu tư:</label>
+                        <input type="password" id="investor-pass" class="form-control" placeholder="Mật khẩu nhà đầu tư" value="123456">
                     </div>
                 </div>
                 
