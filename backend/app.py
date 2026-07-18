@@ -121,7 +121,8 @@ EDUCATION_KEYWORDS = {
     "thông hiểu", "vận dụng", "em chưa hiểu", "thầy", "cô"
 }
 
-GREETING_KEYWORDS = {"xin chào", "chào", "hello", "hi", "bạn là ai", "giới thiệu"}
+GREETING_KEYWORDS = {"xin chào", "chào", "bạn là ai", "giới thiệu"}
+GREETING_WORDS = {"hello", "hi"}
 
 JUDGE_BAREM_SCORECARD = [
     {
@@ -291,7 +292,10 @@ def classify_student_ai_message(message):
     normalized = re.sub(r"\s+", " ", message.strip().lower())
     if not normalized:
         return "empty"
-    if any(keyword in normalized for keyword in GREETING_KEYWORDS):
+    if "chế độ ai" in normalized or "nội dung học sinh gửi" in normalized:
+        return "learning"
+    tokens = set(re.findall(r"\b[a-zA-Z]+\b", normalized))
+    if any(keyword in normalized for keyword in GREETING_KEYWORDS) or bool(tokens & GREETING_WORDS):
         return "intro"
     if len(normalized) < 6:
         return "off_topic"
@@ -374,6 +378,137 @@ def build_offline_learning_path(context, teacher_mode=False):
             "Ưu tiên học sinh có mastery thấp nhất trước, gom nhóm theo skill_id để dạy lại 15 phút."
             if teacher_mode else ""
         ),
+    }
+
+def build_offline_student_tutor_reply(question, message, mastery):
+    skill = KNOWLEDGE_GRAPH.get(question["skill_id"], {})
+    text = message.lower()
+    if "lộ trình" in text or "ôn" in text or "bài ôn" in text:
+        return (
+            f"Em đang luyện {skill.get('name', question['skill_id'])}. "
+            f"Mastery hiện khoảng {mastery:.2f}, nên hãy ôn 3 câu nền trước, "
+            "sau đó mới làm câu vận dụng. Mục tiêu là đúng 2/3 câu liên tiếp."
+        )
+    if "sai" in text or "vì sao" in text:
+        return (
+            "Hãy kiểm tra lại bước biến đổi quan trọng nhất trước khi chọn đáp án. "
+            f"Với kỹ năng này, lỗi thường gặp là bỏ qua prerequisite hoặc tính quá nhanh. "
+            f"Gợi ý của câu: {question.get('hint', 'Đọc lại đề và tách thành từng bước nhỏ.')}"
+        )
+    return (
+        "Tôi sẽ gợi ý từng bước, không làm hộ đáp án cuối cùng. "
+        f"Câu này thuộc kỹ năng {skill.get('name', question['skill_id'])}. "
+        f"Bước đầu tiên: {question.get('hint', 'xác định kiến thức nền cần dùng rồi làm từng bước.')}"
+    )
+
+def build_offline_generated_questions(payload):
+    with open(Config.QUESTIONS_JSON_PATH, "r", encoding="utf-8") as file:
+        questions = json.load(file)
+    matched = [
+        item for item in questions
+        if item.get("skill_id") == payload.skill_id and int(item.get("difficulty_level", 2)) == payload.difficulty_level
+    ]
+    if not matched:
+        matched = [item for item in questions if item.get("skill_id") == payload.skill_id]
+    generated = []
+    for index, question in enumerate(matched[:payload.count], start=1):
+        generated.append({
+            "id": f"offline_ai_{question['id']}_{index}",
+            "skill_id": question["skill_id"],
+            "difficulty_level": int(question.get("difficulty_level", payload.difficulty_level)),
+            "difficulty": normalize_difficulty_label(question.get("difficulty_level", payload.difficulty_level)),
+            "text": question["text"],
+            "options": question.get("options", []),
+            "correct_answer": question.get("correct_answer"),
+            "hint": question.get("hint", "Hãy làm từng bước và kiểm tra kiến thức nền."),
+            "explanation": question.get("explanation", "Câu hỏi lấy từ question bank offline đã kiểm định."),
+        })
+    return generated
+
+def detect_offline_misconception(work_text, skill_id):
+    text = work_text.lower().replace(" ", "")
+    if "1/2+2/3=3/5" in text or "1/2+2/3=3/5" in text.replace("−", "-"):
+        return {
+            "detected_error": "Cộng tử với tử và mẫu với mẫu",
+            "wrong_step": "1/2 + 2/3 = 3/5",
+            "missing_prerequisite": "Quy đồng mẫu số trước khi cộng phân số khác mẫu",
+            "confidence": 0.92,
+            "error_type": "fraction_denominator_addition"
+        }
+    if "quyđồng" in text or "mẫuchung" in text:
+        return {
+            "detected_error": "Chưa kiểm chứng được bước sai, nhưng bài làm liên quan quy đồng mẫu số",
+            "wrong_step": work_text[:160],
+            "missing_prerequisite": "Tìm BCNN và nhân cả tử lẫn mẫu với nhân tử phụ",
+            "confidence": 0.68,
+            "error_type": "fraction_common_denominator"
+        }
+    if "âm" in text or "-" in text:
+        return {
+            "detected_error": "Có khả năng nhầm dấu âm trong phép tính",
+            "wrong_step": work_text[:160],
+            "missing_prerequisite": "Cộng trừ số nguyên và quy tắc dấu",
+            "confidence": 0.62,
+            "error_type": "integer_sign"
+        }
+    skill = KNOWLEDGE_GRAPH.get(skill_id, {})
+    return {
+        "detected_error": "Cần thêm dữ liệu bài làm để xác định lỗi sai cụ thể",
+        "wrong_step": work_text[:160],
+        "missing_prerequisite": skill.get("name", skill_id),
+        "confidence": 0.45,
+        "error_type": "insufficient_work_evidence"
+    }
+
+def build_offline_work_analysis(student_id, payload):
+    skill = KNOWLEDGE_GRAPH.get(payload.skill_id, {})
+    mastery = get_student_mastery(student_id, payload.skill_id)
+    misconception = detect_offline_misconception(payload.work_text, payload.skill_id)
+    remediation_steps = [
+        {
+            "type": "mini_lesson",
+            "title": "Sửa lỗi gốc",
+            "content": (
+                "Trước khi cộng hai phân số khác mẫu, em phải quy đồng để hai mẫu số giống nhau. "
+                "Không được cộng trực tiếp mẫu số."
+                if misconception["error_type"] == "fraction_denominator_addition"
+                else f"Ôn lại kiến thức nền: {misconception['missing_prerequisite']}."
+            ),
+        },
+        {
+            "type": "practice",
+            "title": "Câu luyện 1",
+            "content": "Tính 1/3 + 1/6. Viết rõ bước tìm mẫu chung trước khi cộng.",
+        },
+        {
+            "type": "practice",
+            "title": "Câu luyện 2",
+            "content": "Tìm lỗi sai: 2/5 + 1/3 = 3/8. Sửa lại cho đúng.",
+        },
+        {
+            "type": "mastery_check",
+            "title": "Đo lại mastery",
+            "content": "Làm đúng 3/4 câu cùng lỗi để tăng mastery và quay lại bài số hữu tỉ.",
+        },
+    ]
+    return {
+        "summary": "AI biến bài làm tự do thành kế hoạch can thiệp cá nhân hóa.",
+        "student_id": student_id,
+        "mode": payload.mode,
+        "skill_id": payload.skill_id,
+        "skill_name": skill.get("name", payload.skill_id),
+        "mastery_before": round(mastery, 2),
+        "misconception": misconception,
+        "remediation_pack": remediation_steps,
+        "measurement": {
+            "target": "Đúng 3/4 câu trong gói ôn",
+            "mastery_update_rule": "Nếu đạt mục tiêu, BKT tăng xác suất thành thạo và mở lại skill hiện tại.",
+            "teacher_signal": "Nếu không đạt, gom vào nhóm cần dạy lại prerequisite."
+        },
+        "why_ai_is_needed": (
+            "Rule engine chỉ biết đúng/sai; AI đọc bài làm tự do, xác định kiểu lỗi, "
+            "rồi tạo can thiệp sát lỗi của từng học sinh."
+        )
     }
 
 def parse_ai_json_object(content):
@@ -471,6 +606,14 @@ class AIQuestionGenerationRequest(BaseModel):
     count: int = 1
     question_type: str = "multiple_choice"
 
+class AIWorkAnalysisRequest(BaseModel):
+    mode: str = "find_error"
+    subject: str = "Toán"
+    grade: int = 7
+    skill_id: str = "MATH_G7"
+    work_text: str
+    attachment_name: Optional[str] = None
+
 class AILessonPlanRequest(BaseModel):
     skill_id: str
     group_context: str = ""
@@ -555,7 +698,13 @@ def ai_tutor(student_id: str, payload: AITutorRequest):
     try:
         result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=payload.message.strip())
     except FPTAIError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return {
+            "provider": "offline_socratic_tutor_after_fpt_ai_error",
+            "model": None,
+            "content": build_offline_student_tutor_reply(question, payload.message.strip(), mastery),
+            "usage": None,
+            "fallback_reason": str(exc),
+        }
     return {"provider": "FPT AI Factory", "model": result.model, "content": result.content, "usage": result.usage}
 
 @app.post("/api/ai/student/{student_id}/generate-question")
@@ -589,9 +738,28 @@ def ai_generate_question(student_id: str, payload: AIQuestionGenerationRequest):
     try:
         result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
     except FPTAIError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    parsed = parse_ai_json_object(result.content)
-    questions = parsed.get("questions")
+        return {
+            "provider": "offline_question_bank_after_fpt_ai_error",
+            "model": None,
+            "difficulty_policy": DIFFICULTY_LABELS,
+            "questions": build_offline_generated_questions(payload),
+            "usage": None,
+            "fallback_reason": str(exc),
+        }
+    try:
+        parsed = parse_ai_json_object(result.content)
+        questions = parsed.get("questions")
+    except HTTPException as exc:
+        if exc.status_code != 502:
+            raise
+        return {
+            "provider": "offline_question_bank_after_ai_parse_error",
+            "model": result.model,
+            "difficulty_policy": DIFFICULTY_LABELS,
+            "questions": build_offline_generated_questions(payload),
+            "usage": result.usage,
+            "fallback_reason": exc.detail,
+        }
     if not isinstance(questions, list) or not questions:
         raise HTTPException(status_code=502, detail="AI response missing questions array")
     allowed_keys = {"A", "B", "C", "D"}
@@ -611,6 +779,82 @@ def ai_generate_question(student_id: str, payload: AIQuestionGenerationRequest):
         "difficulty_policy": DIFFICULTY_LABELS,
         "questions": questions,
         "usage": result.usage,
+    }
+
+@app.post("/api/ai/student/{student_id}/analyze-work")
+def ai_analyze_student_work(student_id: str, payload: AIWorkAnalysisRequest):
+    if not get_student(student_id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    if payload.skill_id not in KNOWLEDGE_GRAPH:
+        raise HTTPException(status_code=422, detail="Invalid skill ID")
+    if payload.mode not in {"find_error", "similar_question", "step_hint", "explain", "summarize"}:
+        raise HTTPException(status_code=422, detail="Invalid analysis mode")
+    if len(payload.work_text.strip()) < 8 and not payload.attachment_name:
+        raise HTTPException(status_code=422, detail="work_text must be at least 8 characters unless an attachment is provided")
+    if len(payload.work_text) > 2500:
+        raise HTTPException(status_code=422, detail="work_text must be at most 2500 characters")
+
+    context = collect_student_learning_context(student_id, payload.skill_id)
+    skill = KNOWLEDGE_GRAPH[payload.skill_id]
+    system_prompt = (
+        "Bạn là AI Error Analyzer của PorcusAI. "
+        "Nhiệm vụ của bạn là biến bài làm tự do của học sinh thành can thiệp cá nhân hóa có thể đo lường. "
+        "Chỉ dùng dữ liệu bài làm, mastery và prerequisite graph được cung cấp. "
+        "Trả về JSON hợp lệ duy nhất, không markdown. "
+        "Schema bắt buộc: {summary, student_id, mode, skill_id, skill_name, mastery_before, misconception, remediation_pack, measurement, why_ai_is_needed}. "
+        "misconception gồm detected_error, wrong_step, missing_prerequisite, confidence, error_type. "
+        "remediation_pack là 3-5 bước, mỗi bước gồm type, title, content. "
+        "measurement gồm target, mastery_update_rule, teacher_signal."
+    )
+    user_prompt = json.dumps({
+        "student_id": student_id,
+        "mode": payload.mode,
+        "subject": payload.subject,
+        "grade": payload.grade,
+        "skill": {
+            "skill_id": payload.skill_id,
+            "skill_name": skill["name"],
+            "mastery": round(get_student_mastery(student_id, payload.skill_id), 2),
+        },
+        "attachment_name": payload.attachment_name,
+        "work_text": payload.work_text,
+        "learning_context": context,
+    }, ensure_ascii=False)
+
+    if fpt_ai_client.configured:
+        try:
+            result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+            parsed = parse_ai_json_object(result.content)
+            return {
+                "provider": "FPT AI Factory",
+                "model": result.model,
+                "analysis": parsed,
+                "usage": result.usage,
+            }
+        except FPTAIError as exc:
+            return {
+                "provider": "offline_error_analyzer_after_fpt_ai_error",
+                "model": None,
+                "analysis": build_offline_work_analysis(student_id, payload),
+                "usage": None,
+                "fallback_reason": str(exc),
+            }
+        except HTTPException as exc:
+            if exc.status_code != 502:
+                raise
+            return {
+                "provider": "offline_error_analyzer_after_ai_parse_error",
+                "model": None,
+                "analysis": build_offline_work_analysis(student_id, payload),
+                "usage": None,
+                "fallback_reason": exc.detail,
+            }
+
+    return {
+        "provider": "offline_error_analyzer",
+        "model": None,
+        "analysis": build_offline_work_analysis(student_id, payload),
+        "usage": None,
     }
 
 @app.get("/api/ai/student/{student_id}/learning-path")
@@ -636,7 +880,25 @@ def ai_student_learning_path(student_id: str, target_skill: str = "MATH_G7"):
                 "usage": result.usage,
             }
         except FPTAIError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
+            return {
+                "provider": "offline_bkt_dag_path_after_fpt_ai_error",
+                "model": None,
+                "context": context,
+                "learning_path": build_offline_learning_path(context),
+                "usage": None,
+                "fallback_reason": str(exc),
+            }
+        except HTTPException as exc:
+            if exc.status_code != 502:
+                raise
+            return {
+                "provider": "offline_bkt_dag_path_after_ai_parse_error",
+                "model": None,
+                "context": context,
+                "learning_path": build_offline_learning_path(context),
+                "usage": None,
+                "fallback_reason": exc.detail,
+            }
     return {
         "provider": "offline_bkt_dag_path",
         "model": None,
@@ -668,7 +930,25 @@ def ai_teacher_student_learning_path(student_id: str, target_skill: str = "MATH_
                 "usage": result.usage,
             }
         except FPTAIError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
+            return {
+                "provider": "offline_teacher_bkt_dag_path_after_fpt_ai_error",
+                "model": None,
+                "context": context,
+                "learning_path": build_offline_learning_path(context, teacher_mode=True),
+                "usage": None,
+                "fallback_reason": str(exc),
+            }
+        except HTTPException as exc:
+            if exc.status_code != 502:
+                raise
+            return {
+                "provider": "offline_teacher_bkt_dag_path_after_ai_parse_error",
+                "model": None,
+                "context": context,
+                "learning_path": build_offline_learning_path(context, teacher_mode=True),
+                "usage": None,
+                "fallback_reason": exc.detail,
+            }
     return {
         "provider": "offline_teacher_bkt_dag_path",
         "model": None,

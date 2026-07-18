@@ -50,6 +50,23 @@ class TestAIProductBehaviors(unittest.TestCase):
         self.assertIn("chỉ hỗ trợ nội dung học tập", response.json()["content"])
         complete.assert_not_called()
 
+    def test_tutor_mode_prompt_is_not_misclassified_as_intro(self):
+        ai_reply = "Lỗi sai là cộng mẫu số trực tiếp. Hãy quy đồng mẫu trước."
+        with patch("backend.app.fpt_ai_client.complete", return_value=_FakeAIResult(ai_reply)) as complete:
+            response = self.client.post("/api/ai/student/ai_behavior_student/tutor", json={
+                "question_id": "q_math_g7_1",
+                "message": (
+                    "Chế độ AI: Tìm lỗi sai.\n"
+                    "Yêu cầu: Hãy tìm lỗi sai trong bài làm.\n"
+                    "Nội dung học sinh gửi: 1/2 + 2/3 = 3/5"
+                ),
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["provider"], "FPT AI Factory")
+        self.assertIn("Lỗi sai", response.json()["content"])
+        complete.assert_called_once()
+
     def test_ai_question_generator_requires_three_level_difficulty_schema(self):
         generated = {
             "questions": [{
@@ -85,6 +102,25 @@ class TestAIProductBehaviors(unittest.TestCase):
         self.assertEqual(payload["difficulty_policy"]["2"], "Thông hiểu")
         self.assertEqual(payload["difficulty_policy"]["3"], "Vận dụng")
         self.assertEqual(payload["questions"][0]["difficulty"], "Vận dụng")
+
+    def test_work_analyzer_returns_misconception_and_remediation_pack(self):
+        response = self.client.post("/api/ai/student/ai_behavior_student/analyze-work", json={
+            "mode": "find_error",
+            "subject": "Toán",
+            "grade": 7,
+            "skill_id": "MATH_G7",
+            "work_text": "1/2 + 2/3 = 3/5",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        analysis = payload["analysis"]
+        self.assertIn("misconception", analysis)
+        self.assertIn("remediation_pack", analysis)
+        self.assertIn("measurement", analysis)
+        self.assertIn("Cộng tử", analysis["misconception"]["detected_error"])
+        self.assertGreaterEqual(len(analysis["remediation_pack"]), 3)
+        self.assertIn("Rule engine", analysis["why_ai_is_needed"])
 
     def test_teacher_learning_path_returns_structured_recommendation(self):
         ai_path = {

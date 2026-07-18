@@ -27,9 +27,10 @@ const state = {
         currentSkill: "MATH_G7",
         attempts: [],
         stageTargets: {
-            multiple_choice: 12,
-            true_false: 4,
-            short_answer: 6
+            multiple_choice: 6,
+            true_false: 2,
+            short_answer: 2,
+            essay: 1
         }
     },
     teacherRealtime: {
@@ -39,9 +40,27 @@ const state = {
         reconnectAttempts: 0
     },
     knowledgeGraph: {},
-    streak: 0,
+    loginStreak: 5,
+    answerCombo: 0,
     xp: 1200,
     coins: 350,
+    spinTickets: 0,
+    redeemedRewards: [],
+    rewardHistory: [],
+    earnedBadges: [],
+    teacherBonusTickets: [],
+    aiDecisionLog: [],
+    attendance: {
+        checkedDates: [],
+        lastCheckInDate: null
+    },
+    dailyQuest: {
+        correctAnswers: 0,
+        hardCorrectAnswers: 0,
+        aiReviewsUnlocked: 0,
+        coinsEarned: 0,
+        claimed: []
+    },
     
     // Fallback progress state in case backend is offline
     studentProgress: {
@@ -61,6 +80,351 @@ const state = {
         { id: 'linh_08', name: 'Phạm Khánh Linh', currentSkill: 'MATH_G6', nFailed: 4, tStuck: 11, mastery: 0.15 }
     ]
 };
+
+const REWARD_SHOP_ITEMS = [
+    {
+        id: "extra_hint",
+        cost: 50,
+        icon: "fa-solid fa-lightbulb",
+        title: "Gợi ý thêm",
+        description: "Mở gợi ý của câu hiện tại.",
+        tone: "yellow",
+        minLevel: 1
+    },
+    {
+        id: "ai_review",
+        cost: 150,
+        icon: "fa-solid fa-route",
+        title: "Bài ôn AI",
+        description: "Tạo lộ trình ôn cá nhân từ skill đang học.",
+        tone: "blue",
+        minLevel: 3
+    },
+    {
+        id: "focus_badge",
+        cost: 300,
+        icon: "fa-solid fa-medal",
+        title: "Huy hiệu vượt ải",
+        description: "Gắn huy hiệu vào hồ sơ học tập.",
+        tone: "green",
+        minLevel: 2
+    },
+    {
+        id: "teacher_bonus",
+        cost: 500,
+        icon: "fa-solid fa-star",
+        title: "Điểm thưởng GV duyệt",
+        description: "Tạo phiếu thưởng chờ giáo viên xác nhận.",
+        tone: "pink",
+        minLevel: 5
+    },
+    {
+        id: "lucky_spin",
+        cost: 120,
+        icon: "fa-solid fa-dharmachakra",
+        title: "Mua 1 lượt quay",
+        description: "Đổi xu lấy thêm một lượt quay may mắn.",
+        tone: "orange",
+        minLevel: 1
+    },
+    {
+        id: "avatar_frame",
+        cost: 220,
+        icon: "fa-solid fa-user-astronaut",
+        title: "Khung avatar vui",
+        description: "Mở khung avatar trong hồ sơ học tập.",
+        tone: "purple",
+        minLevel: 4
+    }
+];
+
+const REWARD_WHEEL_ITEMS = [
+    {
+        id: "coins_20",
+        icon: "fa-solid fa-coins",
+        label: "+20 xu",
+        description: "Cộng xu vào ví học tập",
+        color: "#FCD075",
+        apply: () => {
+            state.coins += 20;
+            return "+20 xu";
+        }
+    },
+    {
+        id: "xp_80",
+        icon: "fa-solid fa-gem",
+        label: "+80 XP",
+        description: "Tăng điểm kinh nghiệm",
+        color: "#BFE3FF",
+        apply: () => {
+            state.xp += 80;
+            return "+80 XP";
+        }
+    },
+    {
+        id: "hint_pass",
+        icon: "fa-solid fa-lightbulb",
+        label: "Gợi ý thêm",
+        description: "Mở gợi ý câu hiện tại",
+        color: "#D5F7D3",
+        apply: () => "1 gợi ý thêm"
+    },
+    {
+        id: "ai_review",
+        icon: "fa-solid fa-route",
+        label: "Bài ôn AI",
+        description: "Mở lộ trình ôn cá nhân",
+        color: "#E8ECFF",
+        apply: () => {
+            state.dailyQuest.aiReviewsUnlocked += 1;
+            return "1 bài ôn AI";
+        }
+    },
+    {
+        id: "coins_50",
+        icon: "fa-solid fa-sack-dollar",
+        label: "+50 xu",
+        description: "Phần thưởng hiếm",
+        color: "#FFD2D2",
+        apply: () => {
+            state.coins += 50;
+            return "+50 xu";
+        }
+    },
+    {
+        id: "badge_focus",
+        icon: "fa-solid fa-medal",
+        label: "Huy hiệu",
+        description: "Huy hiệu chăm học",
+        color: "#FDE68A",
+        apply: () => "huy hiệu Chăm học"
+    }
+];
+
+const SUBJECT_OVERVIEW = [
+    {
+        subject: "Toán",
+        grade: 7,
+        icon: "fa-solid fa-square-root-variable",
+        progress: 42,
+        status: "Cần ôn phân số nền",
+        activeSkill: "Cộng trừ số hữu tỉ",
+        backlog: 3,
+        evidence: "Có quiz thích ứng sâu"
+    },
+    {
+        subject: "Ngữ văn",
+        grade: 7,
+        icon: "fa-solid fa-book-open-reader",
+        progress: 68,
+        status: "Đọc hiểu ổn định",
+        activeSkill: "Tìm ý chính đoạn văn",
+        backlog: 1,
+        evidence: "Roadmap mở rộng"
+    },
+    {
+        subject: "Ngoại ngữ",
+        grade: 7,
+        icon: "fa-solid fa-language",
+        progress: 55,
+        status: "Cần luyện so sánh",
+        activeSkill: "Comparatives",
+        backlog: 2,
+        evidence: "Roadmap mở rộng"
+    },
+    {
+        subject: "Khoa học tự nhiên",
+        grade: 7,
+        icon: "fa-solid fa-flask",
+        progress: 73,
+        status: "Đúng tiến độ",
+        activeSkill: "Tế bào và cơ thể",
+        backlog: 0,
+        evidence: "Roadmap mở rộng"
+    },
+    {
+        subject: "Lịch sử và Địa lý",
+        grade: 7,
+        icon: "fa-solid fa-earth-asia",
+        progress: 61,
+        status: "Cần ôn mốc sự kiện",
+        activeSkill: "Đọc bản đồ",
+        backlog: 2,
+        evidence: "Roadmap mở rộng"
+    },
+    {
+        subject: "Tin học và Công nghệ",
+        grade: 7,
+        icon: "fa-solid fa-microchip",
+        progress: 49,
+        status: "Cần luyện thuật toán",
+        activeSkill: "Biểu diễn dữ liệu",
+        backlog: 4,
+        evidence: "Roadmap mở rộng"
+    }
+];
+
+const SUBJECT_PROGRESS_STATE = SUBJECT_OVERVIEW.reduce((acc, item) => {
+    acc[item.subject] = {
+        progress: item.progress,
+        status: item.status,
+        activeSkill: item.activeSkill,
+        backlog: item.backlog,
+        completedAssignments: item.backlog === 0 ? 4 : Math.max(1, 4 - item.backlog),
+        totalAssignments: 4
+    };
+    return acc;
+}, {});
+
+const XP_LEVELS = [
+    { level: 1, min: 0, title: "Khởi động", unlock: "Gợi ý cơ bản" },
+    { level: 2, min: 500, title: "Chăm học", unlock: "Shop đổi gợi ý" },
+    { level: 3, min: 1000, title: "Vượt ải", unlock: "Bài ôn AI cá nhân hóa" },
+    { level: 4, min: 1600, title: "Bền bỉ", unlock: "Câu luyện AI nâng cao" },
+    { level: 5, min: 2400, title: "Chuyên gia nhỏ", unlock: "Huy hiệu hồ sơ & đề thử thách" },
+    { level: 6, min: 3400, title: "Thủ lĩnh học tập", unlock: "Phiếu giáo viên duyệt" }
+];
+
+const DAILY_QUEST_REWARDS = {
+    correct5: { label: "Đúng 5 câu", coins: 40, xp: 80, tickets: 0 },
+    hard2: { label: "Đúng 2 câu khó", coins: 60, xp: 120, tickets: 1 },
+    coins100: { label: "Kiếm 100 xu", coins: 0, xp: 100, tickets: 1 }
+};
+
+function getSubjectProgress(subject = state.testSession.subject || "Toán") {
+    if (!SUBJECT_PROGRESS_STATE[subject]) {
+        SUBJECT_PROGRESS_STATE[subject] = {
+            progress: 0,
+            status: "Chưa bắt đầu",
+            activeSkill: "Khởi động",
+            backlog: 4,
+            completedAssignments: 0,
+            totalAssignments: 4
+        };
+    }
+    return SUBJECT_PROGRESS_STATE[subject];
+}
+
+function getLearningLevel(xp = state.xp) {
+    const current = [...XP_LEVELS].reverse().find(level => xp >= level.min) || XP_LEVELS[0];
+    const next = XP_LEVELS.find(level => level.min > xp) || null;
+    const previousMin = current.min;
+    const nextMin = next ? next.min : previousMin + 1200;
+    const progress = Math.max(0, Math.min(100, Math.round(((xp - previousMin) / (nextMin - previousMin)) * 100)));
+    return {
+        ...current,
+        next,
+        progress,
+        xpIntoLevel: xp - previousMin,
+        xpNeeded: next ? next.min - xp : 0,
+        nextMin
+    };
+}
+
+function canUseLevel(minLevel = 1) {
+    return getLearningLevel().level >= minLevel;
+}
+
+function getRewardStorageKey(studentId = state.studentId) {
+    return `porcus_reward_state_${studentId || "guest"}`;
+}
+
+function loadRewardState(profile) {
+    const defaults = {
+        xp: profile?.xp ?? state.xp,
+        coins: profile?.coins ?? state.coins,
+        spinTickets: state.spinTickets,
+        loginStreak: profile?.streak ?? state.loginStreak,
+        answerCombo: 0,
+        redeemedRewards: [],
+        rewardHistory: [],
+        earnedBadges: [],
+        teacherBonusTickets: [],
+        aiDecisionLog: [],
+        subjectProgress: SUBJECT_PROGRESS_STATE,
+        attendance: {
+            checkedDates: [],
+            lastCheckInDate: null
+        },
+        dailyQuest: {
+            correctAnswers: 0,
+            hardCorrectAnswers: 0,
+            aiReviewsUnlocked: 0,
+            coinsEarned: 0,
+            claimed: []
+        }
+    };
+
+    try {
+        const saved = JSON.parse(localStorage.getItem(getRewardStorageKey()) || "null");
+        if (!saved || typeof saved !== "object") return defaults;
+        return {
+            ...defaults,
+            ...saved,
+            dailyQuest: { ...defaults.dailyQuest, ...(saved.dailyQuest || {}) },
+            attendance: { ...defaults.attendance, ...(saved.attendance || {}) },
+            redeemedRewards: Array.isArray(saved.redeemedRewards) ? saved.redeemedRewards : [],
+            rewardHistory: Array.isArray(saved.rewardHistory) ? saved.rewardHistory : [],
+            earnedBadges: Array.isArray(saved.earnedBadges) ? saved.earnedBadges : [],
+            teacherBonusTickets: Array.isArray(saved.teacherBonusTickets) ? saved.teacherBonusTickets : [],
+            aiDecisionLog: Array.isArray(saved.aiDecisionLog) ? saved.aiDecisionLog : []
+        };
+    } catch (error) {
+        console.warn("[-] Reward state corrupted; using profile defaults.", error);
+        return defaults;
+    }
+}
+
+function applyRewardState(rewardState) {
+    state.xp = Number(rewardState.xp) || 0;
+    state.coins = Number(rewardState.coins) || 0;
+    state.spinTickets = Number(rewardState.spinTickets) || 0;
+    state.loginStreak = Number(rewardState.loginStreak ?? rewardState.streak) || 0;
+    state.answerCombo = Number(rewardState.answerCombo) || 0;
+    state.redeemedRewards = Array.isArray(rewardState.redeemedRewards) ? rewardState.redeemedRewards : [];
+    state.rewardHistory = Array.isArray(rewardState.rewardHistory) ? rewardState.rewardHistory : [];
+    state.earnedBadges = Array.isArray(rewardState.earnedBadges) ? rewardState.earnedBadges : [];
+    state.teacherBonusTickets = Array.isArray(rewardState.teacherBonusTickets) ? rewardState.teacherBonusTickets : [];
+    state.aiDecisionLog = Array.isArray(rewardState.aiDecisionLog) ? rewardState.aiDecisionLog : [];
+    if (rewardState.subjectProgress && typeof rewardState.subjectProgress === "object") {
+        Object.entries(rewardState.subjectProgress).forEach(([subject, progress]) => {
+            SUBJECT_PROGRESS_STATE[subject] = {
+                ...getSubjectProgress(subject),
+                ...progress
+            };
+        });
+    }
+    state.attendance = {
+        checkedDates: Array.isArray(rewardState.attendance?.checkedDates) ? rewardState.attendance.checkedDates : [],
+        lastCheckInDate: rewardState.attendance?.lastCheckInDate || null
+    };
+    state.dailyQuest = {
+        correctAnswers: Number(rewardState.dailyQuest?.correctAnswers) || 0,
+        hardCorrectAnswers: Number(rewardState.dailyQuest?.hardCorrectAnswers) || 0,
+        aiReviewsUnlocked: Number(rewardState.dailyQuest?.aiReviewsUnlocked) || 0,
+        coinsEarned: Number(rewardState.dailyQuest?.coinsEarned) || 0,
+        claimed: Array.isArray(rewardState.dailyQuest?.claimed) ? rewardState.dailyQuest.claimed : []
+    };
+}
+
+function saveRewardState() {
+    if (!state.studentId) return;
+    localStorage.setItem(getRewardStorageKey(), JSON.stringify({
+        xp: state.xp,
+        coins: state.coins,
+        spinTickets: state.spinTickets,
+        loginStreak: state.loginStreak,
+        answerCombo: state.answerCombo,
+        redeemedRewards: state.redeemedRewards,
+        rewardHistory: state.rewardHistory,
+        earnedBadges: state.earnedBadges,
+        teacherBonusTickets: state.teacherBonusTickets,
+        aiDecisionLog: state.aiDecisionLog,
+        subjectProgress: SUBJECT_PROGRESS_STATE,
+        attendance: state.attendance,
+        dailyQuest: state.dailyQuest
+    }));
+}
 
 function escapeHTML(value) {
     return String(value ?? "")
@@ -144,12 +508,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     initFinalReportModal();
     initTeacherClassSwitcher();
     initMascotReadAloud();
+    initRewardShop();
+    initQuestNotification();
+    initPersonalReviewActions();
+    initStudentProfileModal();
+    initActionableDemoControls();
     
     // Load Knowledge Graph DAG
     await loadKnowledgeGraph();
     
     // Bind Subject and Grade Selector Events
     initSubjectSelectors();
+    initSubjectOverview();
+    renderSubjectOverview();
 
     prepareTestSetup();
 });
@@ -190,6 +561,7 @@ function initSubjectSelectors() {
             state.studentProgress.activeSkill = skillId;
             state.testSession.subject = subject;
             state.testSession.grade = grade;
+            renderSubjectOverview();
             if (state.testStarted) {
                 prepareTestSetup();
             }
@@ -203,6 +575,513 @@ function initSubjectSelectors() {
     if (startBtn) {
         startBtn.addEventListener("click", startAdaptiveTest);
     }
+}
+
+function renderSubjectOverview() {
+    const grid = document.getElementById("subject-overview-grid");
+    if (!grid) return;
+    const activeSubject = state.testSession.subject || "Toán";
+    grid.innerHTML = SUBJECT_OVERVIEW.map(item => {
+        const isActive = item.subject === activeSubject;
+        const progressState = getSubjectProgress(item.subject);
+        return `
+            <button class="subject-overview-card ${isActive ? "active" : ""}" data-subject="${escapeHTML(item.subject)}" data-grade="${item.grade}">
+                <div class="subject-overview-icon"><i class="${item.icon}"></i></div>
+                <div class="subject-overview-copy">
+                    <strong>${escapeHTML(item.subject)} ${item.grade}</strong>
+                    <span>${escapeHTML(progressState.activeSkill || item.activeSkill)}</span>
+                </div>
+                <div class="subject-overview-progress">
+                    <em>${progressState.progress}%</em>
+                    <div class="subject-mini-track"><span style="width: ${progressState.progress}%"></span></div>
+                </div>
+                <small>${escapeHTML(progressState.status || item.status)} · ${progressState.backlog} bài ôn · ${escapeHTML(item.evidence)}</small>
+            </button>
+        `;
+    }).join("");
+    updateLearningProgressUI();
+}
+
+function updateLearningProgressUI() {
+    const subject = state.testSession.subject || "Toán";
+    const progressState = getSubjectProgress(subject);
+    const fill = document.getElementById("student-progress-fill");
+    const activeSkill = document.getElementById("summary-active-skill");
+    const aiCheck = document.getElementById("summary-ai-check");
+    const nextStep = document.getElementById("summary-next-step");
+    if (fill) fill.style.width = `${progressState.progress}%`;
+    document.querySelectorAll(".path-score-badge strong").forEach(node => {
+        node.textContent = `${progressState.progress}%`;
+    });
+    if (activeSkill) activeSkill.textContent = `${subject} ${state.testSession.grade || 7} · ${progressState.activeSkill}`;
+    if (aiCheck) aiCheck.textContent = progressState.progress < 60
+        ? "Ưu tiên tìm lỗi gốc trước khi tăng độ khó"
+        : "Theo dõi khả năng vận dụng và lỗi lặp lại";
+    if (nextStep) nextStep.textContent = progressState.progress >= 80
+        ? "Mở câu vận dụng nâng cao nếu Level đủ"
+        : "Làm khảo sát hoặc tự luận để AI cập nhật lộ trình";
+    renderCoursesView();
+    renderAIDecisionLog();
+}
+
+function addAIDecisionLog(entry) {
+    const record = {
+        source: entry.source || "AI",
+        signal: entry.signal || "Dữ liệu học tập mới",
+        decision: entry.decision || "Cập nhật lộ trình cá nhân",
+        measurement: entry.measurement || "Đo lại bằng câu luyện tiếp theo",
+        confidence: entry.confidence ?? null,
+        time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+    };
+    state.aiDecisionLog.unshift(record);
+    state.aiDecisionLog = state.aiDecisionLog.slice(0, 8);
+    saveRewardState();
+    renderAIDecisionLog();
+}
+
+function renderAIDecisionLog() {
+    const list = document.getElementById("ai-decision-log-list");
+    const count = document.getElementById("ai-decision-count");
+    if (!list) return;
+    if (count) count.textContent = `${state.aiDecisionLog.length} quyết định`;
+    if (!state.aiDecisionLog.length) {
+        list.innerHTML = '<div class="ai-decision-empty">Làm bài khảo sát hoặc gửi tự luận để AI ghi lại quyết định chẩn đoán.</div>';
+        return;
+    }
+    list.innerHTML = state.aiDecisionLog.slice(0, 4).map(item => `
+        <article class="ai-decision-item">
+            <div>
+                <strong>${escapeHTML(item.source)}</strong>
+                <span>${escapeHTML(item.time)} · ${item.confidence !== null ? `tin cậy ${Math.round(Number(item.confidence) * 100)}%` : "đã ghi nhận"}</span>
+            </div>
+            <p><b>Tín hiệu:</b> ${escapeHTML(item.signal)}</p>
+            <p><b>Quyết định:</b> ${escapeHTML(item.decision)}</p>
+            <small><i class="fa-solid fa-ruler"></i> ${escapeHTML(item.measurement)}</small>
+        </article>
+    `).join("");
+}
+
+function updateSubjectProgressFromSurvey(analysis) {
+    const subject = state.testSession.subject || "Toán";
+    const progressState = getSubjectProgress(subject);
+    const previousProgress = Number(progressState.progress) || 0;
+    const score = Number(analysis?.score || 0);
+    const gained = score >= 85 ? 12 : score >= 65 ? 8 : score >= 40 ? 4 : 2;
+    progressState.progress = Math.max(previousProgress, Math.min(100, previousProgress + gained));
+    progressState.status = score >= 85
+        ? "Đạt tốt, mở câu nâng cao"
+        : score >= 65
+            ? "Cơ bản ổn, còn vài điểm hổng"
+            : "Cần ôn nền trước";
+    progressState.activeSkill = analysis?.rootGap?.skillName || progressState.activeSkill;
+    progressState.backlog = Math.max(0, Math.ceil((100 - progressState.progress) / 18));
+    progressState.completedAssignments = Math.min(progressState.totalAssignments, Math.max(progressState.completedAssignments, Math.round(progressState.progress / 25)));
+    addAIDecisionLog({
+        source: "Khảo sát thích ứng",
+        signal: `${state.testSession.subject} đạt ${score}/100, gốc cần kiểm tra: ${analysis?.rootGap?.skillName || progressState.activeSkill}`,
+        decision: `Cập nhật tiến trình ${subject} lên ${progressState.progress}% và ưu tiên ${progressState.activeSkill}.`,
+        measurement: score >= 65 ? "Đo lại bằng câu vận dụng và tự luận AI." : "Đo lại bằng gói ôn nền trước khi quay lại bài hiện tại.",
+        confidence: Math.min(0.95, Math.max(0.55, score / 100))
+    });
+    saveRewardState();
+    renderSubjectOverview();
+}
+
+function renderPersonalReviewSteps(steps, summary = "") {
+    const list = document.getElementById("personal-review-list");
+    if (!list) return;
+    const safeSteps = Array.isArray(steps) && steps.length ? steps : getOfflinePersonalReviewSteps();
+    const summaryHtml = summary ? `<div class="personal-review-summary">${escapeHTML(summary)}</div>` : "";
+    list.innerHTML = `${summaryHtml}${safeSteps.slice(0, 4).map((step, index) => `
+        <div class="personal-review-step">
+            <span>${index + 1}</span>
+            <div>
+                <strong>${escapeHTML(step.skill_name || step.skill_id || `Bước ${index + 1}`)}</strong>
+                <p>${escapeHTML(step.action || "Luyện tập theo gợi ý cá nhân.")}</p>
+                <p><b>Đạt khi:</b> ${escapeHTML(step.success_signal || "đúng liên tiếp các câu cùng kỹ năng.")}</p>
+            </div>
+        </div>
+    `).join("")}`;
+}
+
+async function buildPersonalAIReview({ silent = false } = {}) {
+    const button = document.getElementById("btn-build-personal-review");
+    const skillId = resolveActiveLearningSkillId();
+    if (button) {
+        button.disabled = true;
+        setButtonIconLabel(button, "fa-solid fa-spinner fa-spin", "Đang tạo");
+    }
+
+    try {
+        const params = new URLSearchParams({ target_skill: skillId });
+        const response = await fetch(`/api/ai/student/${state.studentId}/learning-path?${params.toString()}`);
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.detail || `AI HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        const path = data.learning_path || {};
+        renderPersonalReviewSteps(path.steps, path.summary || `Lộ trình ôn cho ${getSkillDisplayName(skillId)}`);
+        state.dailyQuest.aiReviewsUnlocked += 1;
+        addAIDecisionLog({
+            source: "Bài ôn AI",
+            signal: `Mastery hiện tại của ${getSkillDisplayName(skillId)} cần lộ trình cá nhân.`,
+            decision: "Sinh gói ôn theo prerequisite graph và mức thành thạo hiện tại.",
+            measurement: "Học sinh phải đạt tín hiệu thành công của từng bước trong bài ôn.",
+            confidence: 0.82
+        });
+        saveRewardState();
+        updateStudentRewardsUI();
+        if (!silent) showToast("Đã tạo bài ôn AI cá nhân hóa.");
+        return path;
+    } catch (error) {
+        console.warn("[Personal Review] Fallback offline.", error);
+        const steps = getOfflinePersonalReviewSteps(skillId);
+        renderPersonalReviewSteps(steps, `Lộ trình dự phòng: ôn cho ${getSkillDisplayName(skillId)}.`);
+        if (!silent) showToast("AI chưa sẵn sàng, đã dùng lộ trình dự phòng.");
+        return { summary: `Lộ trình ôn cho ${getSkillDisplayName(skillId)}`, steps };
+    } finally {
+        if (button) {
+            button.disabled = false;
+            setButtonIconLabel(button, "fa-solid fa-route", "Tạo bài ôn");
+        }
+    }
+}
+
+async function generatePersonalReviewQuestion() {
+    const button = document.getElementById("btn-generate-review-question");
+    const level = getLearningLevel();
+    if (button) {
+        button.disabled = true;
+        setButtonIconLabel(button, "fa-solid fa-spinner fa-spin", "Đang sinh");
+    }
+
+    try {
+        const response = await fetch(`/api/ai/student/${state.studentId}/generate-question`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                subject: state.testSession.subject || "Toán",
+                grade: state.testSession.grade || 7,
+                skill_id: resolveActiveLearningSkillId(),
+                difficulty_level: level.level >= 4 ? 3 : (state.currentQuestion?.difficulty_level || 2),
+                count: 1,
+                question_type: "multiple_choice"
+            })
+        });
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.detail || `AI HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        const question = data.questions?.[0];
+        if (!question) throw new Error("AI không trả về câu hỏi.");
+        renderPersonalReviewSteps([
+            {
+                skill_name: question.difficulty || getSkillDisplayName(),
+                action: question.text,
+                success_signal: `${(question.options || []).map(opt => `${opt.key}. ${opt.text}`).join(" · ")}`
+            },
+            {
+                skill_name: "Gợi ý",
+                action: question.hint || "Nói rõ bước làm trước khi chọn đáp án.",
+                success_signal: "Sau khi làm xong, hỏi trợ lý vì sao đúng hoặc sai."
+            }
+        ], level.level >= 4 ? "Câu luyện AI nâng cao đã mở nhờ Level học tập." : "Câu luyện AI củng cố theo mức hiện tại.");
+        showToast(level.level >= 4 ? "Đã sinh câu luyện nâng cao." : "Đã sinh 1 câu luyện AI.");
+    } catch (error) {
+        console.warn("[Personal Review Question] Fallback offline.", error);
+        renderPersonalReviewSteps([
+            {
+                skill_name: getSkillDisplayName(),
+                action: "Tự tạo câu luyện: hãy giải 1/2 + (-2/3), viết đủ bước quy đồng rồi cộng tử số.",
+                success_signal: "Kết quả đúng và giải thích được vì sao mẫu chung là 6."
+            }
+        ], "AI sinh câu chưa sẵn sàng, dùng câu luyện dự phòng.");
+        showToast("AI chưa sinh được câu, đã dùng câu luyện dự phòng.");
+    } finally {
+        if (button) {
+            button.disabled = false;
+            setButtonIconLabel(button, "fa-solid fa-square-plus", "Sinh 1 câu luyện");
+        }
+    }
+}
+
+function initPersonalReviewActions() {
+    const buildButton = document.getElementById("btn-build-personal-review");
+    if (buildButton) buildButton.addEventListener("click", () => buildPersonalAIReview());
+
+    const questionButton = document.getElementById("btn-generate-review-question");
+    if (questionButton) questionButton.addEventListener("click", generatePersonalReviewQuestion);
+
+    const assistantButton = document.getElementById("btn-open-review-assistant");
+    if (assistantButton) {
+        assistantButton.addEventListener("click", () => {
+            const mascotTab = document.querySelector('[data-toolbox-tab="mascot"]');
+            if (mascotTab) mascotTab.click();
+            const chatInput = document.getElementById("mascot-chat-input");
+            if (chatInput) {
+                chatInput.value = "Tạo cho em bài ôn cá nhân theo phần em đang yếu.";
+                chatInput.focus();
+            }
+        });
+    }
+}
+
+function selectSubjectFromOverview(subject, grade) {
+    const subjectSelect = document.getElementById("subject-select");
+    const gradeSelect = document.getElementById("grade-select");
+    if (subjectSelect) subjectSelect.value = subject;
+    if (gradeSelect) gradeSelect.value = String(grade);
+    const skillId = getSkillIdFromSubjectAndGrade(subject, grade);
+    state.studentProgress.activeSkill = skillId;
+    state.testSession.subject = subject;
+    state.testSession.grade = grade;
+    renderSubjectOverview();
+    prepareTestSetup();
+    showToast(`Đã chọn ${subject} - Lớp ${grade}. Bấm Bắt đầu để luyện môn này.`);
+}
+
+function initSubjectOverview() {
+    const grid = document.getElementById("subject-overview-grid");
+    if (!grid) return;
+    grid.addEventListener("click", event => {
+        const card = event.target.closest("[data-subject]");
+        if (!card) return;
+        selectSubjectFromOverview(card.getAttribute("data-subject"), parseInt(card.getAttribute("data-grade") || "7"));
+    });
+}
+
+function switchStudentTab(tabName) {
+    document.querySelectorAll("#student-sidebar-menu .menu-item").forEach(item => {
+        item.classList.toggle("active", item.getAttribute("data-tab") === tabName);
+    });
+    document.querySelectorAll(".student-view-panel").forEach(panel => {
+        panel.style.display = "none";
+    });
+    const activePanel = document.getElementById(`student-view-${tabName}`);
+    if (activePanel) activePanel.style.display = "block";
+    if (state.currentPortal === "teacher") switchPortalUI("student");
+}
+
+function openDashboardForSubject(subject, grade = 7, { startTest = false } = {}) {
+    selectSubjectFromOverview(subject, grade);
+    switchStudentTab("dashboard");
+    if (startTest) {
+        setTimeout(() => startAdaptiveTest(), 120);
+    }
+}
+
+function renderCoursesView() {
+    const focusTitle = document.querySelector(".course-focus-header h3");
+    const focusDesc = document.querySelector(".course-focus-header p");
+    const progressMeta = document.querySelector(".course-progress-meta strong");
+    const progressFill = document.querySelector(".course-progress-large .progress-fill");
+    const statGrid = document.querySelector(".course-stat-grid");
+    const roadmapTitle = document.querySelector(".course-snapshot-card .course-roadmap-list")?.closest(".course-snapshot-card")?.querySelector("h3");
+    const roadmapList = document.querySelector(".course-roadmap-list");
+    const catalogList = document.querySelector(".course-catalog-list");
+    const subject = state.testSession.subject || "Toán";
+    const grade = state.testSession.grade || 7;
+    const progressState = getSubjectProgress(subject);
+
+    if (focusTitle) focusTitle.textContent = `${subject} ${grade}: ${progressState.activeSkill}`;
+    if (focusDesc) focusDesc.textContent = `${progressState.status}. Tiến trình và bài ôn thay đổi theo kết quả khảo sát của riêng môn này.`;
+    if (progressMeta) progressMeta.textContent = `${progressState.progress}%`;
+    if (progressFill) progressFill.style.width = `${progressState.progress}%`;
+    if (roadmapTitle) roadmapTitle.innerHTML = `<i class="fa-solid fa-layer-group"></i> Lộ trình cá nhân môn ${escapeHTML(subject)}`;
+    if (roadmapList) {
+        const rootGap = progressState.status.includes("nền") || progressState.progress < 60;
+        roadmapList.innerHTML = `
+            <div class="course-roadmap-item ${rootGap ? "active" : "complete"}">
+                <strong>Nền tảng bắt buộc</strong>
+                <span>${rootGap ? "Đang cần ôn lại trước khi học tiếp." : "Đã đủ chắc để chuyển bước tiếp theo."}</span>
+            </div>
+            <div class="course-roadmap-item ${rootGap ? "next" : "active"}">
+                <strong>${escapeHTML(progressState.activeSkill)}</strong>
+                <span>${escapeHTML(progressState.status)}</span>
+            </div>
+            <div class="course-roadmap-item next">
+                <strong>Câu vận dụng mở rộng</strong>
+                <span>Mở khi tiến trình môn đạt 80% và Level học tập đạt 4.</span>
+            </div>
+        `;
+    }
+    if (statGrid) {
+        statGrid.innerHTML = `
+            <div><strong>${progressState.totalAssignments}</strong><span>học phần</span></div>
+            <div><strong>${Math.max(3, 11 - progressState.backlog)}</strong><span>kỹ năng đã mở</span></div>
+            <div><strong>${progressState.progress}%</strong><span>tiến độ</span></div>
+        `;
+    }
+    if (catalogList) {
+        catalogList.innerHTML = SUBJECT_OVERVIEW.slice(0, 4).map(item => {
+            const itemState = getSubjectProgress(item.subject);
+            const isActive = item.subject === subject;
+            return `
+                <button class="course-catalog-item ${isActive ? "active" : ""}" data-course-subject="${escapeHTML(item.subject)}" data-course-grade="${item.grade}">
+                    <span class="course-code">${escapeHTML(item.subject.slice(0, 3).toUpperCase())}-${item.grade}</span>
+                    <strong>${escapeHTML(item.subject)} ${item.grade}</strong>
+                    <small>${itemState.progress}% · ${escapeHTML(itemState.status)}</small>
+                </button>
+            `;
+        }).join("");
+    }
+}
+
+function openAssignmentReview() {
+    const modal = document.getElementById("modal-diagnostic-inspector");
+    const body = document.getElementById("diagnostic-inspector-body");
+    if (!modal || !body) return;
+    modal.style.display = "flex";
+    body.innerHTML = `
+        <div class="assignment-review-modal">
+            <h3><i class="fa-solid fa-rotate-left"></i> Xem lại bài đã hoàn thành</h3>
+            <p class="card-subtitle-desc">Bài ôn Quy đồng phân số cơ bản: 10/10. Hệ thống dùng kết quả này làm bằng chứng em đã chắc nền phân số lớp 5.</p>
+            <div class="review-answer-grid">
+                <div><strong>Câu mẫu</strong><span>Quy đồng 3/4 và 5/6</span></div>
+                <div><strong>Đáp án đúng</strong><span>9/12 và 10/12</span></div>
+                <div><strong>AI ghi nhận</strong><span>Không còn lỗi chọn mẫu chung 24 thay vì 12.</span></div>
+            </div>
+        </div>
+    `;
+}
+
+function initActionableDemoControls() {
+    document.addEventListener("click", event => {
+        const courseButton = event.target.closest("[data-course-subject]");
+        if (courseButton) {
+            selectSubjectFromOverview(courseButton.getAttribute("data-course-subject"), parseInt(courseButton.getAttribute("data-course-grade") || "7"));
+            renderCoursesView();
+            showToast(`Đã mở khóa học ${courseButton.getAttribute("data-course-subject")}.`);
+            return;
+        }
+
+        const demoButton = event.target.closest(".demo-action-btn");
+        if (!demoButton) return;
+        const message = demoButton.getAttribute("data-message") || "";
+        const label = demoButton.textContent || "";
+        if (message.includes("lộ trình Toán") || label.includes("Làm tiếp") || message.includes("Bắt đầu")) {
+            openDashboardForSubject("Toán", 7, { startTest: message.includes("Bắt đầu") || label.includes("Làm tiếp") });
+        } else if (message.includes("bổ trợ lớp 6")) {
+            openDashboardForSubject("Toán", 6, { startTest: true });
+        } else if (message.includes("xem lại") || message.includes("bản xem lại")) {
+            openAssignmentReview();
+        } else if (message.includes("Ngữ văn")) {
+            selectSubjectFromOverview("Ngữ văn", 7);
+            renderCoursesView();
+        } else if (message.includes("Tiếng Anh")) {
+            selectSubjectFromOverview("Ngoại ngữ", 7);
+            renderCoursesView();
+        } else if (message.includes("KHTN")) {
+            selectSubjectFromOverview("Khoa học tự nhiên", 7);
+            renderCoursesView();
+        }
+        showToast(demoButton.getAttribute("data-message") || "Đã thực hiện thao tác.");
+    });
+}
+
+function renderStudentProfile() {
+    const body = document.getElementById("student-profile-modal-body");
+    if (!body) return;
+    const profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
+    const level = getLearningLevel();
+    const subjectRows = SUBJECT_OVERVIEW.map(item => {
+        const progress = getSubjectProgress(item.subject);
+        return `
+            <div class="profile-subject-row">
+                <div>
+                    <strong>${escapeHTML(item.subject)} ${item.grade}</strong>
+                    <span>${escapeHTML(progress.activeSkill)} · ${escapeHTML(progress.status)}</span>
+                </div>
+                <em>${progress.progress}%</em>
+                <div class="profile-progress-track"><span style="width:${progress.progress}%"></span></div>
+            </div>
+        `;
+    }).join("");
+    const badgeHtml = state.earnedBadges.length
+        ? state.earnedBadges.map(badge => `<span class="profile-badge"><i class="fa-solid fa-medal"></i> ${escapeHTML(badge)}</span>`).join("")
+        : `<span class="profile-empty">Chưa có huy hiệu. Đổi trong shop hoặc hoàn thành thử thách để mở.</span>`;
+    const ticketHtml = state.teacherBonusTickets.length
+        ? state.teacherBonusTickets.map(ticket => `
+            <div class="profile-ticket">
+                <strong>${escapeHTML(ticket.title)}</strong>
+                <span>${escapeHTML(ticket.status)} · ${escapeHTML(ticket.createdAt)}</span>
+            </div>
+        `).join("")
+        : `<span class="profile-empty">Chưa có phiếu giáo viên duyệt.</span>`;
+    const recentHtml = state.rewardHistory.length
+        ? state.rewardHistory.slice(0, 4).map(item => `
+            <div class="profile-activity">
+                <i class="${item.icon}"></i>
+                <span>${escapeHTML(item.label)}</span>
+                <small>${escapeHTML(item.time)}</small>
+            </div>
+        `).join("")
+        : `<span class="profile-empty">Chưa có hoạt động thưởng gần đây.</span>`;
+
+    body.innerHTML = `
+        <div class="student-profile-layout">
+            <section class="profile-hero-panel">
+                <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(profile.avatar)}" alt="Avatar học sinh">
+                <div>
+                    <span class="badge badge-skill">Hồ sơ học sinh</span>
+                    <h2>${escapeHTML(profile.name)}</h2>
+                    <p>Lớp ${profile.grade} · ${state.loginStreak} ngày liên tiếp · ${state.coins.toLocaleString()} xu</p>
+                </div>
+                <div class="profile-level-card">
+                    <strong>Level ${level.level}</strong>
+                    <span>${escapeHTML(level.title)}</span>
+                    <div class="level-progress-track"><span style="width:${level.progress}%"></span></div>
+                    <small>${level.next ? `${level.xpNeeded.toLocaleString()} XP nữa mở ${level.next.unlock}` : "Đã mở khóa cao nhất"}</small>
+                </div>
+            </section>
+            <section class="profile-grid">
+                <div class="profile-panel">
+                    <h3><i class="fa-solid fa-chart-line"></i> Tiến trình từng môn</h3>
+                    <div class="profile-subject-list">${subjectRows}</div>
+                </div>
+                <div class="profile-panel">
+                    <h3><i class="fa-solid fa-award"></i> Huy hiệu</h3>
+                    <div class="profile-badge-list">${badgeHtml}</div>
+                    <h3><i class="fa-solid fa-chalkboard-user"></i> Phiếu giáo viên</h3>
+                    <div class="profile-ticket-list">${ticketHtml}</div>
+                </div>
+                <div class="profile-panel">
+                    <h3><i class="fa-solid fa-clock-rotate-left"></i> Hoạt động gần đây</h3>
+                    <div class="profile-activity-list">${recentHtml}</div>
+                </div>
+            </section>
+        </div>
+    `;
+}
+
+function initStudentProfileModal() {
+    const avatar = document.getElementById("user-avatar-container");
+    const modal = document.getElementById("modal-student-profile");
+    const closeBtn = document.getElementById("btn-close-student-profile");
+    const overlay = document.getElementById("student-profile-overlay");
+    if (!avatar || !modal) return;
+
+    const open = () => {
+        renderStudentProfile();
+        modal.style.display = "flex";
+    };
+    const close = () => {
+        modal.style.display = "none";
+    };
+    avatar.setAttribute("role", "button");
+    avatar.setAttribute("tabindex", "0");
+    avatar.setAttribute("title", "Mở hồ sơ học tập");
+    avatar.addEventListener("click", open);
+    avatar.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            open();
+        }
+    });
+    if (closeBtn) closeBtn.addEventListener("click", close);
+    if (overlay) overlay.addEventListener("click", close);
 }
 
 function prepareTestSetup() {
@@ -326,6 +1205,44 @@ function getRandomSkillForCurrentSelection(excludeSkillId = null) {
     return pool[Math.floor(Math.random() * pool.length)] || skills[0];
 }
 
+function resolveActiveLearningSkillId() {
+    return state.currentQuestion?.skill_id || state.testSession.currentSkill || state.studentProgress.activeSkill || state.testSession.targetSkill || "MATH_G7";
+}
+
+function resolveActiveQuestionId() {
+    if (state.currentQuestion?.id) return state.currentQuestion.id;
+    const activeSkill = resolveActiveLearningSkillId();
+    return OFFLINE_MOCK_QUESTIONS[activeSkill]?.id || OFFLINE_MOCK_QUESTIONS.MATH_G7.id;
+}
+
+function getSkillDisplayName(skillId = resolveActiveLearningSkillId()) {
+    return state.knowledgeGraph?.[skillId]?.name || KNOWLEDGE_GRAPH_LOCAL_NAMES?.[skillId] || skillId;
+}
+
+function getOfflinePersonalReviewSteps(skillId = resolveActiveLearningSkillId()) {
+    const skillName = getSkillDisplayName(skillId);
+    const prereqs = state.knowledgeGraph?.[skillId]?.prerequisites || [];
+    const firstPrereq = prereqs[0];
+    const baseSkill = firstPrereq ? getSkillDisplayName(firstPrereq) : "kiến thức nền gần nhất";
+    return [
+        {
+            skill_name: baseSkill,
+            action: "Làm 3 câu mức nhận biết để xác nhận em có hổng nền hay không.",
+            success_signal: "Đúng ít nhất 2/3 câu và giải thích được cách làm."
+        },
+        {
+            skill_name: skillName,
+            action: "Luyện 5 câu thông hiểu, mỗi câu phải nói rõ bước đổi dấu hoặc quy đồng.",
+            success_signal: "Đạt 80% và không lặp lại cùng một lỗi sai."
+        },
+        {
+            skill_name: skillName,
+            action: "Làm 1 câu vận dụng ngắn để kiểm tra em đã nối được kiến thức nền với bài hiện tại.",
+            success_signal: "Hoàn thành trong 4 phút, có lời giải từng bước."
+        }
+    ];
+}
+
 // Load a question from backend API or local mock fallback
 async function loadStudentQuestion(skillId) {
     if (!state.testStarted || state.surveyCompleted) return;
@@ -384,7 +1301,8 @@ function getCurrentStageLabel() {
     const labels = {
         multiple_choice: "Trắc nghiệm",
         true_false: "Đúng/Sai",
-        short_answer: "Trả lời ngắn"
+        short_answer: "Trả lời ngắn",
+        essay: "Tự luận AI"
     };
     return labels[state.testSession.stage] || "Trắc nghiệm";
 }
@@ -412,6 +1330,10 @@ function buildTrueFalsePrompt(question) {
 
 function buildShortAnswerPrompt(question) {
     return `${question.text}\n\nNhập đáp án ngắn bằng đúng một số, một phân số, số thập phân, phần trăm hoặc ký hiệu <, >, =.`;
+}
+
+function buildEssayPrompt(question) {
+    return `${question.text}\n\nTự luận AI: Hãy viết cách làm hoặc giải thích vì sao em chọn đáp án. AI sẽ đọc lập luận, phát hiện lỗi gốc và tạo gói ôn cá nhân hóa.`;
 }
 
 function renderQuestionVisual(question) {
@@ -565,15 +1487,20 @@ function renderCurrentQuestion(question) {
             { key: "TRUE", label: "Đ", text: "Đúng" },
             { key: "FALSE", label: "S", text: "Sai" }
         ]);
-    } else if (state.testSession.stage === "short_answer") {
-        document.getElementById("question-text").textContent = buildShortAnswerPrompt(question);
+    } else if (state.testSession.stage === "short_answer" || state.testSession.stage === "essay") {
+        const isEssay = state.testSession.stage === "essay";
+        document.getElementById("question-text").textContent = isEssay ? buildEssayPrompt(question) : buildShortAnswerPrompt(question);
         textInputContainer.style.display = "block";
         if (textInput) {
             textInput.focus();
-            textInput.placeholder = "Nhập đáp án, ví dụ: -1/6, 1.25, <, >, =";
+            textInput.placeholder = isEssay
+                ? "Viết lời giải hoặc cách nghĩ của em. Ví dụ: Em quy đồng mẫu số rồi mới cộng tử số..."
+                : "Nhập đáp án, ví dụ: -1/6, 1.25, <, >, =";
+            textInput.classList.toggle("essay-answer-input", isEssay);
             textInput.oninput = handleShortAnswerInput;
-            textInput.onkeypress = (e) => {
-                if (e.key === "Enter" && state.selectedOption && !state.isSubmitting) submitAnswer();
+            textInput.onkeydown = (e) => {
+                if (isEssay && (e.metaKey || e.ctrlKey) && e.key === "Enter" && state.selectedOption && !state.isSubmitting) submitAnswer();
+                if (!isEssay && e.key === "Enter" && state.selectedOption && !state.isSubmitting) submitAnswer();
             };
         }
     } else {
@@ -694,11 +1621,15 @@ function resolveSubmissionOption() {
         return matchedOption?.key || getWrongOptions(question)[0]?.key || "__WRONG__";
     }
 
+    if (state.testSession.stage === "essay") {
+        return "__ESSAY_AI__";
+    }
+
     return state.selectedOption;
 }
 
 function updateTestStageUI() {
-    const stageOrder = ["multiple_choice", "true_false", "short_answer"];
+    const stageOrder = ["multiple_choice", "true_false", "short_answer", "essay"];
     document.querySelectorAll(".test-stage-pill").forEach(pill => {
         const stage = pill.getAttribute("data-stage");
         const stageIndex = stageOrder.indexOf(stage);
@@ -708,7 +1639,7 @@ function updateTestStageUI() {
 }
 
 function advanceQuestionFormatIfNeeded() {
-    const stageOrder = ["multiple_choice", "true_false", "short_answer"];
+    const stageOrder = ["multiple_choice", "true_false", "short_answer", "essay"];
     state.testSession.answeredInStage += 1;
     state.testSession.totalAnswered += 1;
     const currentTarget = state.testSession.stageTargets[state.testSession.stage];
@@ -757,14 +1688,23 @@ function recordSurveyAttempt(isCorrect, submittedOption) {
         isCorrect,
         submittedOption,
         typedAnswer: state.typedAnswer,
-        correctAnswerText: getCorrectAnswerText(question)
+        correctAnswerText: getCorrectAnswerText(question),
+        essayAnalysis: null
     });
+}
+
+function attachEssayAnalysisToLastAttempt(analysis) {
+    const lastAttempt = state.testSession.attempts[state.testSession.attempts.length - 1];
+    if (lastAttempt && lastAttempt.stage === "essay") {
+        lastAttempt.essayAnalysis = analysis;
+    }
 }
 
 function completeSurvey() {
     state.surveyCompleted = true;
     state.testStarted = false;
     state.isSubmitting = false;
+    updateSubjectProgressFromSurvey(generateSurveyAnalysis());
     setQuestionVisibility(false);
     setSurveyResultVisibility(true);
     const banner = document.getElementById("diagnostic-banner");
@@ -794,7 +1734,8 @@ function getStageStats() {
     const labels = {
         multiple_choice: "Trắc nghiệm",
         true_false: "Đúng/Sai",
-        short_answer: "Trả lời ngắn"
+        short_answer: "Trả lời ngắn",
+        essay: "Tự luận AI"
     };
     return Object.entries(state.testSession.stageTargets).map(([stage, target]) => {
         const attempts = state.testSession.attempts.filter(item => item.stage === stage);
@@ -807,6 +1748,51 @@ function getStageStats() {
             correct
         };
     });
+}
+
+function getEssayAnalysisAttempt() {
+    return [...state.testSession.attempts].reverse().find(attempt => attempt.stage === "essay" && attempt.essayAnalysis) || null;
+}
+
+function renderEssayAnalysisEvidence() {
+    const attempt = getEssayAnalysisAttempt();
+    if (!attempt) return "";
+
+    const analysis = attempt.essayAnalysis || {};
+    const misconception = analysis.misconception || {};
+    const measurement = analysis.measurement || {};
+    const pack = Array.isArray(analysis.remediation_pack) ? analysis.remediation_pack : [];
+    const confidence = Math.round(Number(misconception.confidence || 0) * 100);
+    const packHtml = pack.slice(0, 3).map((step, index) => `
+        <li><strong>${index + 1}. ${escapeHTML(step.title || step.type || "Bước ôn")}</strong>: ${escapeHTML(step.content || "Luyện lại kỹ năng nền.")}</li>
+    `).join("");
+
+    return `
+        <div class="survey-essay-ai-card">
+            <div>
+                <span class="badge badge-skill"><i class="fa-solid fa-brain"></i> AI chấm tự luận</span>
+                <h4>Giá trị AI nhìn thấy ngay</h4>
+            </div>
+            <div class="essay-ai-grid">
+                <div>
+                    <span>Lỗi lập luận</span>
+                    <strong>${escapeHTML(misconception.detected_error || "Chưa phát hiện lỗi lớn")}</strong>
+                    <p>${escapeHTML(misconception.wrong_step || "AI đọc phần tự luận để kiểm tra cách nghĩ, không chỉ đáp án cuối.")}</p>
+                </div>
+                <div>
+                    <span>Độ tin cậy</span>
+                    <strong>${confidence || 0}%</strong>
+                    <p>${escapeHTML(misconception.missing_prerequisite || analysis.skill_name || "Tự động nối lỗi về kỹ năng nền cần ôn.")}</p>
+                </div>
+                <div>
+                    <span>Đo lại</span>
+                    <strong>${escapeHTML(measurement.target || "Làm đúng gói ôn")}</strong>
+                    <p>${escapeHTML(analysis.why_ai_is_needed || "AI biến bài làm tự do thành can thiệp cá nhân hóa.")}</p>
+                </div>
+            </div>
+            <ul>${packHtml || "<li>AI chưa đủ dữ liệu để tạo gói ôn. Học sinh cần viết rõ bước làm hơn.</li>"}</ul>
+        </div>
+    `;
 }
 
 function chooseRootGap(skillGroups) {
@@ -941,13 +1927,14 @@ function renderSurveyResult() {
             <strong>${stat.correct}/${stat.total}</strong>
         </div>
     `).join("");
+    const essayEvidenceHtml = renderEssayAnalysisEvidence();
 
     resultCard.innerHTML = `
         <div class="survey-result-header">
             <div>
                 <span class="badge badge-skill"><i class="fa-solid fa-wand-magic-sparkles"></i> AI phân tích khảo sát</span>
                 <h3>Kết quả ${escapeHTML(state.testSession.subject)} lớp ${state.testSession.grade}</h3>
-                <p>Hoàn thành ${analysis.total} câu: 12 trắc nghiệm, 4 đúng/sai, 6 trả lời ngắn.</p>
+                <p>Hoàn thành ${analysis.total} câu: 6 trắc nghiệm, 2 đúng/sai, 2 trả lời ngắn, 1 tự luận AI.</p>
             </div>
             <div class="survey-score">
                 <strong>${analysis.score}</strong>
@@ -955,6 +1942,7 @@ function renderSurveyResult() {
             </div>
         </div>
         <div class="survey-stats-grid">${stageHtml}</div>
+        ${essayEvidenceHtml}
         <div class="survey-ai-summary">
             <h4><i class="fa-solid fa-magnifying-glass-chart"></i> Nhận định</h4>
             <p>${escapeHTML(analysis.level)}. Gốc cần kiểm tra trước tiên là <strong>${escapeHTML(analysis.rootGap.skillName)}</strong>.</p>
@@ -1105,6 +2093,12 @@ function updateAnswerFeedbackUI(result, isCorrect) {
 async function submitAnswer() {
     state.isSubmitting = true;
     document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
+
+    if (state.testSession.stage === "essay") {
+        await submitEssayAnswer();
+        return;
+    }
+
     const submittedOption = resolveSubmissionOption();
     
     showLoadingOverlay("Đang chấm điểm và cập nhật chẩn đoán...");
@@ -1119,18 +2113,10 @@ async function submitAnswer() {
             const stageMessage = advanceQuestionFormatIfNeeded();
             const nextSkill = chooseNextSkillAfterSubmit(result, isCorrect);
             updateAnswerFeedbackUI(result, isCorrect);
+            const reward = awardQuizRewards(isCorrect);
             
             if (isCorrect) {
-                // Streak & Rewards update
-                if (state.currentQuestion.difficulty_level === 3) {
-                    state.streak += 1;
-                    state.xp += 100;
-                    state.coins += 20;
-                } else {
-                    state.xp += 50;
-                    state.coins += 10;
-                }
-                updateStudentRewardsUI();
+                showToast(reward.message);
                 
                 setTimeout(() => {
                     state.isSubmitting = false;
@@ -1142,9 +2128,6 @@ async function submitAnswer() {
                     loadStudentQuestion(nextSkill);
                 }, 2000);
             } else {
-                state.streak = 0; // Reset streak
-                updateStudentRewardsUI();
-                
                 setTimeout(() => {
                     state.isSubmitting = false;
                     if (stageMessage?.message) showToast(stageMessage.message);
@@ -1165,16 +2148,553 @@ async function submitAnswer() {
     submitAnswerOffline();
 }
 
+async function submitEssayAnswer() {
+    const essayText = String(state.typedAnswer || "").trim();
+    showLoadingOverlay("AI đang chấm tự luận và tìm lỗi gốc...");
+
+    try {
+        const response = await fetch(`/api/ai/student/${state.studentId}/analyze-work`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                mode: "find_error",
+                subject: state.testSession.subject || "Toán",
+                grade: state.testSession.grade || 7,
+                skill_id: state.currentQuestion?.skill_id || state.testSession.currentSkill || state.testSession.targetSkill,
+                work_text: [
+                    `Đề bài: ${state.currentQuestion?.text || ""}`,
+                    `Bài tự luận của học sinh: ${essayText}`
+                ].join("\n"),
+                attachment_name: null
+            })
+        });
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.detail || `Essay analyzer failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const analysis = data.analysis || {};
+        const misconception = analysis.misconception || {};
+        const confidence = Number(misconception.confidence || 0);
+        const detectedError = normalizeAnswer(misconception.detected_error || "");
+        const hasClearError = confidence >= 0.7 && !detectedError.includes("can them du lieu") && !detectedError.includes("chua phat hien");
+        const isCorrect = !hasClearError;
+
+        hideLoadingOverlay();
+        recordSurveyAttempt(isCorrect, "__ESSAY_AI__");
+        attachEssayAnalysisToLastAttempt(analysis);
+        addAIDecisionLog({
+            source: "Chấm tự luận AI",
+            signal: misconception.detected_error || "AI đọc lập luận tự do của học sinh",
+            decision: hasClearError
+                ? `Tạo gói ôn để sửa lỗi: ${misconception.missing_prerequisite || "kiến thức nền"}`
+                : "Cho phép chuyển sang câu vận dụng vì chưa thấy lỗi lập luận lớn.",
+            measurement: analysis.measurement?.target || "Đo lại bằng 3-4 câu cùng dạng.",
+            confidence
+        });
+        const stageMessage = advanceQuestionFormatIfNeeded();
+        const reward = awardQuizRewards(isCorrect);
+
+        document.getElementById("mascot-comment").textContent = hasClearError
+            ? `AI phát hiện lỗi gốc: ${misconception.detected_error || "cần kiểm tra lại lập luận"}. Lộ trình ôn đã được cập nhật.`
+            : "AI chưa phát hiện lỗi lập luận lớn. Em đã giải thích khá rõ, tiếp tục luyện câu vận dụng nhé.";
+        showToast(hasClearError ? "AI đã tìm lỗi và tạo gói ôn cá nhân hóa." : reward.message);
+
+        if (Array.isArray(analysis.remediation_pack) && analysis.remediation_pack.length) {
+            renderPersonalReviewSteps(analysis.remediation_pack.map(step => ({
+                skill_name: step.title || step.type,
+                action: step.content,
+                success_signal: analysis.measurement?.target || "Làm đúng câu đo lại mastery."
+            })), analysis.summary || "AI đã tạo gói ôn từ bài tự luận.");
+        }
+
+        setTimeout(() => {
+            state.isSubmitting = false;
+            if (stageMessage?.message) showToast(stageMessage.message);
+            if (stageMessage?.completed) {
+                completeSurvey();
+                return;
+            }
+            loadStudentQuestion(chooseNextSkillAfterSubmit(null, isCorrect));
+        }, hasClearError ? 2600 : 1800);
+    } catch (error) {
+        console.warn("[Essay AI] Analyzer failed.", error);
+        hideLoadingOverlay();
+        recordSurveyAttempt(false, "__ESSAY_AI_ERROR__");
+        attachEssayAnalysisToLastAttempt({
+            summary: "AI chấm tự luận chưa phản hồi được trong phiên này.",
+            misconception: {
+                detected_error: "Chưa chấm được tự luận",
+                wrong_step: "Kết nối AI bị lỗi hoặc phản hồi không hợp lệ.",
+                missing_prerequisite: "Cần thử lại để lấy chẩn đoán.",
+                confidence: 0
+            },
+            remediation_pack: [],
+            measurement: {
+                target: "Gửi lại bài tự luận khi AI sẵn sàng."
+            },
+            why_ai_is_needed: "Tự luận cần AI đọc lập luận tự do, rule engine không đủ để hiểu bước giải."
+        });
+        const stageMessage = advanceQuestionFormatIfNeeded();
+        awardQuizRewards(false);
+        document.getElementById("mascot-comment").textContent = "AI chấm tự luận đang lỗi kết nối. Hệ thống vẫn lưu bài và đánh dấu cần chấm lại.";
+        showToast("AI chấm tự luận chưa hoạt động, đã lưu phần cần kiểm tra lại.");
+        setTimeout(() => {
+            state.isSubmitting = false;
+            if (stageMessage?.completed) completeSurvey();
+            else loadStudentQuestion(state.testSession.currentSkill);
+        }, 2000);
+    }
+}
+
+function awardQuizRewards(isCorrect) {
+    const difficultyLevel = Number(state.currentQuestion?.difficulty_level || 2);
+    if (!isCorrect) {
+        state.answerCombo = 0;
+        saveRewardState();
+        updateStudentRewardsUI();
+        return {
+            xp: 0,
+            coins: 0,
+            comboBonus: 0,
+            message: "Combo tạm dừng. Làm câu tiếp theo để lấy lại nhịp nhé."
+        };
+    }
+
+    const baseXp = difficultyLevel >= 3 ? 100 : 50;
+    const baseCoins = difficultyLevel >= 3 ? 20 : 10;
+    state.answerCombo += 1;
+    let comboBonus = 0;
+    if (state.answerCombo > 0 && state.answerCombo % 5 === 0) {
+        comboBonus = 40;
+    } else if (state.answerCombo > 0 && state.answerCombo % 3 === 0) {
+        comboBonus = 15;
+    }
+
+    state.xp += baseXp;
+    state.coins += baseCoins + comboBonus;
+    state.dailyQuest.correctAnswers += 1;
+    state.dailyQuest.coinsEarned += baseCoins + comboBonus;
+    if (difficultyLevel >= 3) state.dailyQuest.hardCorrectAnswers += 1;
+    if (state.dailyQuest.correctAnswers === 5) state.dailyQuest.aiReviewsUnlocked += 1;
+
+    saveRewardState();
+    updateStudentRewardsUI();
+    const comboText = comboBonus ? ` · combo +${comboBonus} xu` : "";
+    return {
+        xp: baseXp,
+        coins: baseCoins,
+        comboBonus,
+        message: `+${baseCoins + comboBonus} xu · +${baseXp} XP${comboText}`
+    };
+}
+
 // Update Student XP/Coins/Streak tags
 function updateStudentRewardsUI() {
     const rewardsRow = document.getElementById("student-rewards");
+    const level = getLearningLevel();
+    renderQuestShopPanel();
     if (!rewardsRow) return;
     
     rewardsRow.innerHTML = `
-        <span class="reward-tag streak-tag"><i class="fa-solid fa-fire"></i> Chuỗi: ${state.streak}</span>
-        <span class="reward-tag xp-tag"><i class="fa-solid fa-gem"></i> ${state.xp.toLocaleString()} XP</span>
+        <span class="reward-tag streak-tag"><i class="fa-solid fa-calendar-check"></i> ${state.loginStreak} ngày liên tiếp</span>
+        <span class="reward-tag xp-tag"><i class="fa-solid fa-gem"></i> Lv.${level.level} · ${state.xp.toLocaleString()} XP</span>
         <span class="reward-tag coin-tag"><i class="fa-solid fa-coins"></i> ${state.coins} Xu</span>
     `;
+}
+
+function updateLearningLevelUI() {
+    const level = getLearningLevel();
+    const label = document.getElementById("learning-level-label");
+    const next = document.getElementById("learning-level-next");
+    const fill = document.getElementById("learning-level-fill");
+    if (label) label.textContent = `Level ${level.level} · ${level.title}`;
+    if (next) {
+        next.textContent = level.next
+            ? `Còn ${level.xpNeeded.toLocaleString()} XP để mở: ${level.next.unlock}`
+            : `Đã mở khóa cao nhất: ${level.unlock}`;
+    }
+    if (fill) fill.style.width = `${level.progress}%`;
+}
+
+function renderQuestShopPanel() {
+    const questList = document.getElementById("daily-quest-list");
+    const pageQuestList = document.getElementById("reward-page-quest-list");
+    const shopList = document.getElementById("reward-shop-list");
+    const comboLabel = document.getElementById("quest-combo-label");
+    const notificationCount = document.getElementById("quest-notification-count");
+    const walletTitle = document.getElementById("reward-wallet-title");
+    const ticketCount = document.getElementById("reward-ticket-count");
+    const xpCount = document.getElementById("reward-xp-count");
+    const spinStatus = document.getElementById("reward-spin-status");
+    const spinButton = document.getElementById("btn-spin-reward");
+    const attendanceStreakLabel = document.getElementById("attendance-streak-label");
+    const attendanceStatusLabel = document.getElementById("attendance-status-label");
+    const attendanceButton = document.getElementById("btn-attendance-checkin");
+    if (comboLabel) comboLabel.textContent = "Nhiệm vụ hôm nay";
+    if (walletTitle) walletTitle.textContent = `${state.coins.toLocaleString()} xu khả dụng`;
+    if (ticketCount) ticketCount.textContent = String(state.spinTickets);
+    if (xpCount) xpCount.textContent = state.xp.toLocaleString();
+    updateLearningLevelUI();
+    if (spinStatus) spinStatus.textContent = state.spinTickets > 0 ? `${state.spinTickets} lượt quay sẵn sàng` : "Điểm danh để nhận lượt quay";
+    if (spinButton) {
+        spinButton.disabled = state.spinTickets <= 0;
+        spinButton.innerHTML = state.spinTickets > 0
+            ? '<i class="fa-solid fa-play"></i> Quay ngay'
+            : '<i class="fa-solid fa-lock"></i> Hết lượt quay';
+    }
+    if (attendanceStreakLabel) attendanceStreakLabel.textContent = `${state.loginStreak} ngày liên tiếp`;
+    const today = getTodayKey();
+    const checkedToday = state.attendance.checkedDates.includes(today);
+    const checkInTickets = getTodayCheckInTickets();
+    if (attendanceStatusLabel) {
+        attendanceStatusLabel.textContent = checkedToday
+            ? "Hôm nay đã điểm danh"
+            : `Hôm nay nhận ${checkInTickets} lượt quay`;
+    }
+    if (attendanceButton) {
+        attendanceButton.disabled = checkedToday;
+        attendanceButton.innerHTML = checkedToday
+            ? '<i class="fa-solid fa-circle-check"></i> Đã điểm danh'
+            : '<i class="fa-solid fa-calendar-plus"></i> Điểm danh';
+    }
+    renderAttendanceCalendar();
+
+    const quests = [
+        {
+            id: "correct5",
+            label: "Đúng 5 câu để mở bài ôn AI",
+            value: Math.min(state.dailyQuest.correctAnswers, 5),
+            target: 5,
+            icon: "fa-solid fa-bullseye"
+        },
+        {
+            id: "hard2",
+            label: "Đúng 2 câu khó",
+            value: Math.min(state.dailyQuest.hardCorrectAnswers, 2),
+            target: 2,
+            icon: "fa-solid fa-mountain"
+        },
+        {
+            id: "coins100",
+            label: "Kiếm 100 xu hôm nay",
+            value: Math.min(state.dailyQuest.coinsEarned, 100),
+            target: 100,
+            icon: "fa-solid fa-coins"
+        }
+    ];
+    const completedQuests = quests.filter(quest => quest.value >= quest.target).length;
+    if (notificationCount) notificationCount.textContent = String(completedQuests);
+    const questsHtml = quests.map(quest => {
+        const percent = Math.round((quest.value / quest.target) * 100);
+        const isComplete = quest.value >= quest.target;
+        const isClaimed = state.dailyQuest.claimed.includes(quest.id);
+        const actionLabel = isClaimed ? "Đã nhận" : isComplete ? "Nhận thưởng" : "Đang làm";
+        return `
+            <div class="daily-quest-item">
+                <div class="daily-quest-copy">
+                    <i class="${quest.icon}"></i>
+                    <span>${escapeHTML(quest.label)}</span>
+                    <strong>${quest.value}/${quest.target}</strong>
+                </div>
+                <div class="daily-quest-track"><span style="width: ${percent}%"></span></div>
+                <button class="quest-claim-btn" data-quest-id="${quest.id}" ${isComplete && !isClaimed ? "" : "disabled"}>${actionLabel}</button>
+            </div>
+        `;
+    }).join("");
+    if (questList) questList.innerHTML = questsHtml;
+    if (pageQuestList) pageQuestList.innerHTML = questsHtml;
+
+    if (shopList) {
+        shopList.innerHTML = REWARD_SHOP_ITEMS.map(item => {
+            const redeemedCount = state.redeemedRewards.filter(id => id === item.id).length;
+            const levelLocked = !canUseLevel(item.minLevel || 1);
+            const disabled = state.coins < item.cost || levelLocked;
+            const lockText = levelLocked ? ` · cần Lv.${item.minLevel}` : "";
+            return `
+                <button class="reward-shop-item tone-${item.tone || "blue"}" data-reward-id="${item.id}" ${disabled ? "disabled" : ""}>
+                    <i class="${item.icon}"></i>
+                    <span>
+                        <strong>${escapeHTML(item.title)}</strong>
+                        <small>${escapeHTML(item.description)}${lockText}</small>
+                    </span>
+                    <em>${item.cost} xu${redeemedCount ? ` · x${redeemedCount}` : ""}</em>
+                </button>
+            `;
+        }).join("");
+    }
+    renderRewardWheelPrizes();
+    renderRewardHistory();
+}
+
+function getTodayKey(offsetDays = 0) {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    return date.toISOString().slice(0, 10);
+}
+
+function getLocalDateFromKey(dateKey) {
+    const [year, month, day] = String(dateKey).split("-").map(Number);
+    return new Date(year, month - 1, day);
+}
+
+function getVietnameseWeekdayLabel(date) {
+    const labels = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+    return labels[date.getDay()] || "Hôm nay";
+}
+
+function getShortDateLabel(date) {
+    return `${date.getDate()}/${date.getMonth() + 1}`;
+}
+
+function renderAttendanceCalendar() {
+    const grid = document.getElementById("attendance-calendar-grid");
+    if (!grid) return;
+    const todayKey = getTodayKey();
+    grid.innerHTML = Array.from({ length: 7 }, (_, index) => {
+        const dateKey = getTodayKey(index - 6);
+        const date = getLocalDateFromKey(dateKey);
+        const isWeekend = [0, 6].includes(date.getDay());
+        const checked = state.attendance.checkedDates.includes(dateKey);
+        const isToday = dateKey === todayKey;
+        const rewardText = isWeekend ? "2 lượt" : "1 lượt";
+        return `
+            <div class="attendance-day ${checked ? "checked" : ""} ${isToday ? "today" : ""}">
+                <strong>${getVietnameseWeekdayLabel(date)}</strong>
+                <small>${getShortDateLabel(date)}</small>
+                <span>${checked ? "Đã học" : rewardText}</span>
+            </div>
+        `;
+    }).join("");
+}
+
+function getTodayCheckInTickets() {
+    const day = new Date().getDay();
+    return [0, 6].includes(day) ? 2 : 1;
+}
+
+function checkInToday() {
+    const today = getTodayKey();
+    if (state.attendance.checkedDates.includes(today)) {
+        showToast("Hôm nay đã điểm danh rồi.");
+        return;
+    }
+    state.attendance.checkedDates.push(today);
+    state.attendance.lastCheckInDate = today;
+    state.loginStreak += 1;
+    const earnedTickets = getTodayCheckInTickets();
+    state.spinTickets += earnedTickets;
+    state.xp += 30;
+    saveRewardState();
+    updateStudentRewardsUI();
+    renderStudentProfile();
+    setRewardFeedback(`Điểm danh thành công: +${earnedTickets} lượt quay, +30 XP.`);
+    showToast(`Điểm danh thành công: +${earnedTickets} lượt quay.`);
+}
+
+function renderRewardWheelPrizes() {
+    const prizeGrid = document.getElementById("reward-wheel-prizes");
+    if (!prizeGrid) return;
+    prizeGrid.innerHTML = REWARD_WHEEL_ITEMS.map(item => `
+        <div class="wheel-prize-chip">
+            <i class="${item.icon}" style="background:${item.color}"></i>
+            <span>${escapeHTML(item.label)}</span>
+        </div>
+    `).join("");
+}
+
+function renderRewardHistory() {
+    const historyList = document.getElementById("reward-history-list");
+    if (!historyList) return;
+    const recent = state.rewardHistory.slice(0, 5);
+    if (!recent.length) {
+        historyList.innerHTML = '<p>Chưa có quà nào. Điểm danh rồi quay thử nhé.</p>';
+        return;
+    }
+    historyList.innerHTML = recent.map(item => `
+        <div class="reward-history-item">
+            <i class="${item.icon}"></i>
+            <span>${escapeHTML(item.label)}</span>
+            <small>${escapeHTML(item.time)}</small>
+        </div>
+    `).join("");
+}
+
+function spinRewardWheel() {
+    if (state.spinTickets <= 0) {
+        showToast("Chưa có lượt quay. Điểm danh để nhận lượt quay nhé.");
+        return;
+    }
+    const wheel = document.getElementById("reward-wheel");
+    const button = document.getElementById("btn-spin-reward");
+    if (!wheel || !button || button.dataset.spinning === "true") return;
+
+    state.spinTickets -= 1;
+    button.dataset.spinning = "true";
+    button.disabled = true;
+    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang quay';
+
+    const prizeIndex = Math.floor(Math.random() * REWARD_WHEEL_ITEMS.length);
+    const prize = REWARD_WHEEL_ITEMS[prizeIndex];
+    const segmentAngle = 360 / REWARD_WHEEL_ITEMS.length;
+    const targetAngle = 360 * 5 + (360 - prizeIndex * segmentAngle) - segmentAngle / 2;
+    wheel.style.transform = `rotate(${targetAngle}deg)`;
+
+    setTimeout(() => {
+        const resultLabel = prize.apply();
+        state.rewardHistory.unshift({
+            id: prize.id,
+            icon: prize.icon,
+            label: resultLabel,
+            time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+        });
+        state.rewardHistory = state.rewardHistory.slice(0, 12);
+        saveRewardState();
+        updateStudentRewardsUI();
+        renderStudentProfile();
+        setRewardFeedback(`Vòng quay trúng ${resultLabel}.`);
+        showToast(`Bạn nhận được ${resultLabel}.`);
+        button.dataset.spinning = "false";
+    }, 1800);
+}
+
+function initQuestNotification() {
+    const wrapper = document.getElementById("quest-notification");
+    const button = document.getElementById("btn-quest-toggle");
+    if (!wrapper || !button) return;
+    button.addEventListener("click", event => {
+        event.stopPropagation();
+        const isOpen = wrapper.classList.toggle("open");
+        button.setAttribute("aria-expanded", String(isOpen));
+    });
+    document.addEventListener("click", event => {
+        if (wrapper.contains(event.target)) return;
+        wrapper.classList.remove("open");
+        button.setAttribute("aria-expanded", "false");
+    });
+}
+
+function setRewardFeedback(message) {
+    const feedback = document.getElementById("reward-feedback");
+    const wheelFeedback = document.getElementById("reward-wheel-feedback");
+    if (feedback) feedback.textContent = message;
+    if (wheelFeedback) wheelFeedback.textContent = message;
+}
+
+function claimDailyQuestReward(questId) {
+    const reward = DAILY_QUEST_REWARDS[questId];
+    if (!reward) return;
+    if (state.dailyQuest.claimed.includes(questId)) {
+        showToast("Nhiệm vụ này đã nhận thưởng rồi.");
+        return;
+    }
+
+    const questReady = {
+        correct5: state.dailyQuest.correctAnswers >= 5,
+        hard2: state.dailyQuest.hardCorrectAnswers >= 2,
+        coins100: state.dailyQuest.coinsEarned >= 100
+    };
+    if (!questReady[questId]) {
+        showToast("Nhiệm vụ chưa hoàn thành.");
+        return;
+    }
+
+    state.dailyQuest.claimed.push(questId);
+    state.coins += reward.coins;
+    state.xp += reward.xp;
+    state.spinTickets += reward.tickets;
+    state.rewardHistory.unshift({
+        id: `quest_${questId}`,
+        icon: "fa-solid fa-gift",
+        label: `${reward.label}: +${reward.coins} xu, +${reward.xp} XP${reward.tickets ? `, +${reward.tickets} lượt quay` : ""}`,
+        time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+    });
+    state.rewardHistory = state.rewardHistory.slice(0, 12);
+    saveRewardState();
+    updateStudentRewardsUI();
+    renderStudentProfile();
+    setRewardFeedback(`Đã nhận thưởng ${reward.label}.`);
+    showToast(`Nhận thưởng: +${reward.coins} xu, +${reward.xp} XP${reward.tickets ? `, +${reward.tickets} lượt quay` : ""}.`);
+}
+
+function openAITutorTab(action = "learning-path") {
+    const mascotTab = document.querySelector('[data-toolbox-tab="mascot"]');
+    if (mascotTab) mascotTab.click();
+    const aiButton = document.querySelector(`[data-ai-action="${action}"]`);
+    if (aiButton) aiButton.click();
+}
+
+function redeemRewardItem(rewardId) {
+    const item = REWARD_SHOP_ITEMS.find(entry => entry.id === rewardId);
+    if (!item) return;
+    if (!canUseLevel(item.minLevel || 1)) {
+        setRewardFeedback(`${item.title} cần Level ${item.minLevel}. Hãy lấy thêm XP bằng quiz hoặc điểm danh.`);
+        showToast(`Cần Level ${item.minLevel} để đổi món này.`);
+        return;
+    }
+    if (state.coins < item.cost) {
+        setRewardFeedback(`Cần thêm ${item.cost - state.coins} xu để đổi ${item.title}.`);
+        showToast("Chưa đủ xu để đổi phần thưởng này.");
+        return;
+    }
+
+    state.coins -= item.cost;
+    state.redeemedRewards.push(item.id);
+
+    if (item.id === "extra_hint") {
+        const hintButton = document.getElementById("btn-show-hint");
+        if (hintButton) hintButton.click();
+        setRewardFeedback("Đã đổi gợi ý thêm cho câu hiện tại.");
+    } else if (item.id === "ai_review") {
+        state.dailyQuest.aiReviewsUnlocked += 1;
+        buildPersonalAIReview({ silent: true });
+        setRewardFeedback("Đã mở bài ôn AI cá nhân hóa trong khung trợ lý.");
+    } else if (item.id === "focus_badge") {
+        if (!state.earnedBadges.includes("Vượt ải kiến thức")) state.earnedBadges.push("Vượt ải kiến thức");
+        setRewardFeedback("Đã gắn huy hiệu Vượt ải kiến thức vào hồ sơ.");
+    } else if (item.id === "teacher_bonus") {
+        state.teacherBonusTickets.unshift({
+            title: "Phiếu điểm thưởng",
+            status: "Chờ giáo viên duyệt",
+            createdAt: new Date().toLocaleDateString("vi-VN")
+        });
+        state.teacherBonusTickets = state.teacherBonusTickets.slice(0, 5);
+        setRewardFeedback("Đã tạo phiếu điểm thưởng trong hồ sơ, trạng thái chờ giáo viên duyệt.");
+    } else if (item.id === "lucky_spin") {
+        state.spinTickets += 1;
+        setRewardFeedback("Đã mua thêm 1 lượt quay may mắn.");
+    } else if (item.id === "avatar_frame") {
+        const avatar = document.getElementById("user-avatar-container");
+        if (avatar) avatar.classList.add("avatar-prize-frame");
+        setRewardFeedback("Đã mở khung avatar vui cho Emma.");
+    }
+
+    saveRewardState();
+    updateStudentRewardsUI();
+    renderStudentProfile();
+    showToast(`Đã đổi ${item.title}.`);
+}
+
+function initRewardShop() {
+    const shopList = document.getElementById("reward-shop-list");
+    if (shopList) {
+        shopList.addEventListener("click", event => {
+            const button = event.target.closest("[data-reward-id]");
+            if (!button) return;
+            redeemRewardItem(button.getAttribute("data-reward-id"));
+        });
+    }
+    document.addEventListener("click", event => {
+        const claimButton = event.target.closest("[data-quest-id]");
+        if (!claimButton) return;
+        claimDailyQuestReward(claimButton.getAttribute("data-quest-id"));
+    });
+    const attendanceButton = document.getElementById("btn-attendance-checkin");
+    if (attendanceButton) attendanceButton.addEventListener("click", checkInToday);
+    const spinButton = document.getElementById("btn-spin-reward");
+    if (spinButton) spinButton.addEventListener("click", spinRewardWheel);
+    renderQuestShopPanel();
 }
 
 // Render dynamic path based on knowledge graph API structure
@@ -1201,17 +2721,17 @@ function renderPersonalPath() {
         }
     }
     
-    const svgWidth = 320;
-    const svgHeight = 280;
+    const svgWidth = 620;
+    const svgHeight = 430;
     let svgHtml = `<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">`;
     
     const nodes = [];
     const edges = [];
 
     const getNodeX = (count, index) => {
-        if (count <= 1) return 160;
-        const start = count === 2 ? 100 : 70;
-        const step = count === 2 ? 120 : 90;
+        if (count <= 1) return 310;
+        const start = count === 2 ? 210 : 120;
+        const step = count === 2 ? 200 : 190;
         return start + index * step;
     };
 
@@ -1221,11 +2741,11 @@ function renderPersonalPath() {
             .replace(/[,;:]/g, "")
             .trim();
         const words = clean.split(/\s+/).filter(Boolean);
-        return words.slice(0, 2);
+        return words.slice(0, 4);
     };
 
     const renderNodeText = (x, y, labelLines) => labelLines.map((line, index) => (
-        `<tspan x="${x}" y="${y + 3 + index * 10}">${escapeHTML(line)}</tspan>`
+        `<tspan x="${x}" y="${y + 5 + index * 17}">${escapeHTML(line)}</tspan>`
     )).join("");
     
     // Base prerequisite knowledge sits above the current skill.
@@ -1235,21 +2755,21 @@ function renderPersonalPath() {
             nodes.push({
                 id: prereqId,
                 x,
-                y: 62,
+                y: 88,
                 labelLines: compactLabel(graph[prereqId].name),
                 fullName: graph[prereqId].name,
                 color: '#4CAF50',
                 status: 'completed'
             });
-            edges.push({ fromX: x, fromY: 84, toX: 160, toY: 126 });
+            edges.push({ fromX: x, fromY: 130, toX: 310, toY: 182 });
         }
     });
 
     // Current class skill is the unstable focus and stays in the middle.
     nodes.push({
         id: activeSkillId,
-        x: 160,
-        y: 148,
+        x: 310,
+        y: 220,
         labelLines: compactLabel(activeSkill.name),
         fullName: activeSkill.name,
         color: '#FCD075',
@@ -1263,27 +2783,27 @@ function renderPersonalPath() {
             nodes.push({
                 id: nextId,
                 x,
-                y: 232,
+                y: 350,
                 labelLines: compactLabel(graph[nextId].name),
                 fullName: graph[nextId].name,
                 color: '#cbd5e1',
                 status: 'locked'
             });
-            edges.push({ fromX: 160, fromY: 170, toX: x, toY: 210 });
+            edges.push({ fromX: 310, fromY: 262, toX: x, toY: 308 });
         }
     });
     
     // Render links
     edges.forEach(e => {
-        svgHtml += `<line x1="${e.fromX}" y1="${e.fromY}" x2="${e.toX}" y2="${e.toY}" stroke="#0f172a" stroke-width="2.5" />`;
+        svgHtml += `<line x1="${e.fromX}" y1="${e.fromY}" x2="${e.toX}" y2="${e.toY}" stroke="#0f172a" stroke-width="4" stroke-linecap="round" />`;
     });
     
     // Render nodes
     nodes.forEach(n => {
         svgHtml += `
             <g class="web-node" style="cursor: pointer;" data-full-name="${escapeHTML(n.fullName)}">
-                <circle cx="${n.x}" cy="${n.y}" r="26" fill="${n.color}" stroke="#000000" stroke-width="2.5" />
-                <text font-family="Poppins" font-size="8.2" font-weight="800" text-anchor="middle" fill="#000000">${renderNodeText(n.x, n.y - (n.labelLines.length > 1 ? 4 : 0), n.labelLines)}</text>
+                <circle cx="${n.x}" cy="${n.y}" r="48" fill="${n.color}" stroke="#000000" stroke-width="4" />
+                <text font-family="Poppins" font-size="13.5" font-weight="900" text-anchor="middle" fill="#000000">${renderNodeText(n.x, n.y - (n.labelLines.length > 1 ? 16 : 0), n.labelLines)}</text>
             </g>
         `;
     });
@@ -1829,7 +3349,7 @@ function loadOfflineMockQuestion(skillId) {
     
     document.getElementById("hint-content-box").style.display = "none";
     document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
-    document.getElementById("mascot-comment").textContent = "[MOCK] Hãy đọc kỹ đề bài nhé! Tôi tin bạn làm được!";
+    document.getElementById("mascot-comment").textContent = "Hãy đọc kỹ đề bài nhé! Tôi tin bạn làm được!";
     resetToolboxForNewQuestion();
     renderPersonalPath();
 }
@@ -1848,9 +3368,10 @@ function submitAnswerOffline() {
     const stageMessage = advanceQuestionFormatIfNeeded();
     
     if (isCorrect) {
+        const reward = awardQuizRewards(true);
         if (selectedBtn) selectedBtn.classList.add("correct-feedback");
         document.getElementById("mascot-comment").textContent = isShortAnswer ? buildShortAnswerFeedback(true) : "Tuyệt vời! Bạn đã làm hoàn toàn chính xác!";
-        showToast("[MOCK] Trả lời đúng!");
+        showToast(`Trả lời đúng! ${reward.message}`);
         
         setTimeout(() => {
             state.studentProgress.activeSkill = getNextSkillTowardTarget(state.currentQuestion.skill_id);
@@ -1864,9 +3385,10 @@ function submitAnswerOffline() {
             loadStudentQuestion(state.studentProgress.activeSkill);
         }, 2000);
     } else {
+        awardQuizRewards(false);
         if (selectedBtn) selectedBtn.classList.add("error-feedback");
         document.getElementById("mascot-comment").textContent = isShortAnswer ? buildShortAnswerFeedback(false) : "Chưa đúng rồi. Bạn thử suy nghĩ thêm một chút xem?";
-        showToast("[MOCK] Chưa chính xác!");
+        showToast("Chưa chính xác!");
         
         // Show distractor explanation
         const distractorBox = document.getElementById("distractor-feedback-box");
@@ -2030,10 +3552,41 @@ function initMascotReadAloud() {
 }
 
 function initAITutorChat() {
-    const chatInput = document.getElementById("tutor-chat-input");
-    const sendBtn = document.getElementById("btn-send-tutor");
+    const workInput = document.getElementById("ai-work-input");
+    const runTaskBtn = document.getElementById("btn-run-ai-task");
+    const imageInput = document.getElementById("ai-image-input");
+    const imageLabel = document.getElementById("ai-image-label");
     const chatHistory = document.getElementById("chat-history-box");
     const aiStatusPill = document.getElementById("ai-status-pill");
+    let selectedAIMode = "explain";
+
+    const aiModeConfig = {
+        explain: {
+            label: "Giải thích",
+            prompt: "Hãy giải thích nội dung này theo cách dễ hiểu cho học sinh, có ví dụ ngắn nếu cần.",
+            placeholder: "Dán phần em chưa hiểu, ví dụ: Vì sao 3/4 và 5/6 phải quy đồng mẫu số?"
+        },
+        find_error: {
+            label: "Tìm lỗi sai",
+            prompt: "Hãy tìm lỗi sai trong bài làm của học sinh. Chỉ ra bước sai, vì sao sai, và gợi ý sửa từng bước.",
+            placeholder: "Dán bài làm của em, ví dụ: 1/2 + 2/3 = 3/5 vì cộng tử với tử, mẫu với mẫu."
+        },
+        similar_question: {
+            label: "Tạo câu hỏi tương tự",
+            prompt: "Hãy tạo một câu hỏi tương tự dựa trên nội dung học sinh gửi. Không tự tạo thêm nếu dữ liệu chưa đủ; nếu thiếu, hãy hỏi lại.",
+            placeholder: "Dán câu mẫu để AI tạo một câu tương tự cùng kỹ năng và độ khó."
+        },
+        step_hint: {
+            label: "Gợi ý từng bước",
+            prompt: "Hãy đưa gợi ý Socratic từng bước, không tiết lộ đáp án cuối cùng ngay.",
+            placeholder: "Dán câu em đang làm để AI gợi ý bước tiếp theo."
+        },
+        summarize: {
+            label: "Tóm tắt kiến thức",
+            prompt: "Hãy tóm tắt kiến thức chính thành các ý ngắn, dễ nhớ, phù hợp học sinh cấp 1-2.",
+            placeholder: "Dán đoạn lý thuyết hoặc chủ đề em muốn tóm tắt."
+        }
+    };
 
     async function updateAIStatusBadge() {
         if (!aiStatusPill) return;
@@ -2116,25 +3669,146 @@ function initAITutorChat() {
         return response.json();
     }
 
-    async function sendUserMessage(msg) {
-        if (!msg.trim()) return;
+    async function fetchAIWorkAnalysis(rawText) {
+        const attachedFile = imageInput?.files?.[0];
+        const response = await fetch(`/api/ai/student/${state.studentId}/analyze-work`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                mode: selectedAIMode,
+                subject: state.testSession.subject || "Toán",
+                grade: state.testSession.grade || 7,
+                skill_id: resolveActiveTutorSkill(),
+                work_text: String(rawText || "").trim(),
+                attachment_name: attachedFile?.name || null
+            })
+        });
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.detail || `AI HTTP ${response.status}`);
+        }
+        return response.json();
+    }
 
-        appendTutorBubble("user", msg);
-        if (chatInput) chatInput.value = "";
+    function buildTutorTaskMessage(rawText) {
+        const mode = aiModeConfig[selectedAIMode] || aiModeConfig.explain;
+        const attachedFile = imageInput?.files?.[0];
+        const attachmentText = attachedFile
+            ? `\nẢnh đính kèm: ${attachedFile.name}. Hệ thống hiện chưa bật OCR ảnh trực tiếp, hãy xử lý theo mô tả học sinh đã nhập và nhắc học sinh mô tả phần trong ảnh nếu thiếu dữ liệu.`
+            : "";
+        return [
+            "Đây là một yêu cầu học tập trong PorcusAI. Hãy xử lý đúng chế độ và trả lời trực tiếp nhiệm vụ.",
+            `Chế độ AI: ${mode.label}.`,
+            `Yêu cầu: ${mode.prompt}`,
+            `Môn/lớp hiện tại: ${state.testSession.subject || "Toán"} lớp ${state.testSession.grade || 7}.`,
+            `Kỹ năng hiện tại: ${getSkillDisplayName(resolveActiveTutorSkill())}.`,
+            `Nội dung học sinh gửi: ${rawText.trim() || "(chưa nhập nội dung)"}`,
+            attachmentText
+        ].filter(Boolean).join("\n");
+    }
 
-        const replyParagraph = appendTutorBubble("bot", "Đang hỏi AI theo lộ trình học của bạn...");
+    function validateAITaskInput(rawText) {
+        const text = String(rawText || "").trim();
+        const attachedFile = imageInput?.files?.[0];
+        const mode = aiModeConfig[selectedAIMode] || aiModeConfig.explain;
+        if (!text && !attachedFile) {
+            return `Em cần nhập câu hỏi, dán bài làm hoặc gửi ảnh trước khi dùng chế độ "${mode.label}".`;
+        }
+        if (!text && attachedFile) {
+            return "Ảnh đã được nhận. Hệ thống hiện chưa bật OCR thật, em hãy mô tả nội dung trong ảnh hoặc nhập vài bước làm để AI phân tích đúng.";
+        }
+        if (text.length > 0 && text.length < 8 && !attachedFile) {
+            if (selectedAIMode === "similar_question") {
+                return "Để tạo câu tương tự, em hãy dán nguyên câu mẫu hoặc mô tả dạng bài rõ hơn.";
+            }
+            if (selectedAIMode === "find_error") {
+                return "Để tìm lỗi sai, em hãy dán bài làm hoặc bước giải em đang nghi ngờ.";
+            }
+            return "Em viết rõ hơn một chút nhé, ví dụ: phần nào chưa hiểu hoặc câu em đang làm.";
+        }
+        return "";
+    }
+
+    async function sendUserMessage(msg, { useMode = false } = {}) {
+        if (!String(msg || "").trim() && !imageInput?.files?.[0]) return;
+
+        const mode = aiModeConfig[selectedAIMode] || aiModeConfig.explain;
+        const validationMessage = useMode ? validateAITaskInput(msg) : "";
+        if (validationMessage) {
+            appendTutorBubble("user", `[${mode.label}] ${String(msg || "").trim() || "Đã chọn ảnh"}`);
+            appendTutorBubble("bot", validationMessage);
+            return;
+        }
+
+        const attachedFile = imageInput?.files?.[0];
+        const displayText = String(msg || "").trim() || `Ảnh bài làm: ${attachedFile?.name || "đã chọn"}`;
+        const displayMessage = useMode ? `[${mode.label}] ${displayText}` : displayText;
+        const aiMessage = useMode ? buildTutorTaskMessage(msg) : msg;
+
+        appendTutorBubble("user", displayMessage);
+        if (workInput) workInput.value = "";
+
+        const replyParagraph = appendTutorBubble("bot", "AI đang phân tích bài làm và nối với lộ trình học...");
         try {
-            const data = await fetchAITutorReply(msg);
-            replyParagraph.textContent = data.content;
+            if (useMode && ["find_error", "similar_question", "step_hint"].includes(selectedAIMode)) {
+                const data = await fetchAIWorkAnalysis(msg);
+                renderAIAnalysisReply(replyParagraph, data.analysis || {});
+                applyAIAnalysisToReview(data.analysis || {});
+            } else {
+                const data = await fetchAITutorReply(aiMessage);
+                replyParagraph.textContent = data.content;
+            }
             await updateAIStatusBadge();
         } catch (error) {
             console.warn("[AI Tutor] Fallback offline.", error);
-            replyParagraph.textContent = buildOfflineTutorReply(msg);
+            replyParagraph.textContent = useMode
+                ? `Tôi đã nhận chế độ "${mode.label}". ${buildOfflineTutorReply(msg)}`
+                : buildOfflineTutorReply(msg);
             if (aiStatusPill) {
                 aiStatusPill.className = "realtime-status polling";
                 aiStatusPill.textContent = "AI fallback offline";
             }
         }
+    }
+
+    function renderAIAnalysisReply(paragraph, analysis) {
+        const misconception = analysis.misconception || {};
+        const measurement = analysis.measurement || {};
+        const pack = Array.isArray(analysis.remediation_pack) ? analysis.remediation_pack : [];
+        paragraph.style.whiteSpace = "pre-wrap";
+        paragraph.textContent = [
+            `AI phát hiện lỗi: ${misconception.detected_error || "Cần thêm dữ liệu bài làm"}`,
+            `Bước sai: ${misconception.wrong_step || "Chưa xác định"}`,
+            `Kiến thức nền thiếu: ${misconception.missing_prerequisite || analysis.skill_name || "Chưa xác định"}`,
+            `Độ tin cậy: ${Math.round(Number(misconception.confidence || 0) * 100)}%`,
+            "",
+            "Gói ôn cá nhân hóa:",
+            ...pack.slice(0, 4).map((step, index) => `${index + 1}. ${step.title || step.type}: ${step.content || ""}`),
+            "",
+            `Đo lại: ${measurement.target || "Làm đúng các câu kiểm tra lại."}`,
+            `Vì sao cần AI: ${analysis.why_ai_is_needed || "AI đọc bài làm tự do và biến lỗi sai thành can thiệp."}`
+        ].join("\n");
+    }
+
+    function applyAIAnalysisToReview(analysis) {
+        const pack = Array.isArray(analysis.remediation_pack) ? analysis.remediation_pack : [];
+        if (!pack.length) return;
+        const misconception = analysis.misconception || {};
+        addAIDecisionLog({
+            source: "Trợ lý học tập",
+            signal: misconception.detected_error || "Bài làm/câu hỏi tự do của học sinh",
+            decision: `Cập nhật bài ôn theo lỗi: ${misconception.missing_prerequisite || analysis.skill_name || "kỹ năng hiện tại"}.`,
+            measurement: analysis.measurement?.target || "Làm đúng gói ôn để đo lại mastery.",
+            confidence: misconception.confidence ?? 0.75
+        });
+        renderPersonalReviewSteps(pack.map(step => ({
+            skill_name: step.title || step.type,
+            action: step.content,
+            success_signal: analysis.measurement?.target || "Làm đúng gói ôn để đo lại mastery."
+        })), analysis.summary || "AI đã tạo gói ôn từ lỗi sai trong bài làm.");
+        state.dailyQuest.aiReviewsUnlocked += 1;
+        saveRewardState();
+        updateStudentRewardsUI();
     }
 
     async function generateAIQuestion() {
@@ -2198,16 +3872,35 @@ function initAITutorChat() {
         }
     }
     
-    if (sendBtn && chatInput) {
-        sendBtn.addEventListener("click", () => sendUserMessage(chatInput.value));
-        chatInput.addEventListener("keypress", (e) => {
-            if (e.key === 'Enter') sendUserMessage(chatInput.value);
+    document.querySelectorAll("[data-ai-mode]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            selectedAIMode = btn.getAttribute("data-ai-mode") || "explain";
+            document.querySelectorAll("[data-ai-mode]").forEach(item => item.classList.remove("active"));
+            btn.classList.add("active");
+            const mode = aiModeConfig[selectedAIMode] || aiModeConfig.explain;
+            if (workInput) workInput.placeholder = mode.placeholder;
+        });
+    });
+
+    if (runTaskBtn && workInput) {
+        runTaskBtn.addEventListener("click", () => sendUserMessage(workInput.value, { useMode: true }));
+        workInput.addEventListener("keydown", event => {
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                sendUserMessage(workInput.value, { useMode: true });
+            }
+        });
+    }
+
+    if (imageInput && imageLabel) {
+        imageInput.addEventListener("change", () => {
+            const file = imageInput.files?.[0];
+            imageLabel.textContent = file ? file.name : "Gửi ảnh bài làm";
         });
     }
     
     document.querySelectorAll(".quick-pill-btn").forEach(btn => {
         btn.addEventListener("click", () => {
-            sendUserMessage(btn.getAttribute("data-prompt") || btn.textContent);
+            sendUserMessage(btn.getAttribute("data-prompt") || btn.textContent, { useMode: true });
         });
     });
 
@@ -2216,12 +3909,6 @@ function initAITutorChat() {
             const action = btn.getAttribute("data-ai-action");
             if (action === "generate-question") generateAIQuestion();
             if (action === "learning-path") generateAILearningPath();
-        });
-    });
-
-    document.querySelectorAll(".demo-action-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            showToast(btn.getAttribute("data-message") || "Đã ghi nhận thao tác.");
         });
     });
 
@@ -2267,93 +3954,108 @@ function initStudentMascotChat() {
 
     if (!chatInput || !sendBtn || !chatHistory) return;
 
-    function appendTutorReply(reply) {
-        const botMsg = document.createElement("div");
-        botMsg.className = "mascot-msg bot";
-        botMsg.textContent = reply;
-        chatHistory.appendChild(botMsg);
+    function appendMascotMessage(role, text) {
+        chatHistory.style.display = "flex";
+        const message = document.createElement("div");
+        message.className = `mascot-msg ${role === "user" ? "user" : "bot"}`;
+        message.textContent = text;
+        if (text.includes("\n")) message.style.whiteSpace = "pre-wrap";
+        chatHistory.appendChild(message);
         chatHistory.scrollTop = chatHistory.scrollHeight;
-        commentPara.textContent = reply;
+        if (role !== "user" && commentPara) commentPara.textContent = text.split("\n")[0];
+        return message;
     }
 
-    async function handleSend() {
-        const text = chatInput.value.trim();
-        if (!text) return;
+    function buildOfflineMascotReply(text) {
+        let reply = "Tôi sẽ không đưa đáp án ngay. Em hãy nói rõ mình kẹt ở bước nào: hiểu đề, chọn công thức, hay tính toán?";
+        const activeSkill = resolveActiveLearningSkillId();
+        const textL = text.toLowerCase();
 
-        // Show chat history if hidden
-        chatHistory.style.display = "flex";
-
-        // Append user message
-        const userMsg = document.createElement("div");
-        userMsg.className = "mascot-msg user";
-        userMsg.textContent = text;
-        chatHistory.appendChild(userMsg);
-        chatHistory.scrollTop = chatHistory.scrollHeight;
-
-        chatInput.value = "";
-        commentPara.textContent = "Trợ lý đang suy nghĩ...";
-
-        if (state.currentQuestion && state.isLoggedIn) {
-            try {
-                const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        question_id: state.currentQuestion.id,
-                        message: text
-                    })
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    appendTutorReply(data.content);
-                    return;
-                }
-            } catch (error) {
-                console.warn("[FPT AI] Không khả dụng, chuyển sang trợ lý offline.", error);
-            }
+        if (textL.includes("ôn") || textL.includes("lộ trình") || textL.includes("bài ôn")) {
+            const steps = getOfflinePersonalReviewSteps(activeSkill);
+            return [
+                `Bài ôn nhanh cho ${getSkillDisplayName(activeSkill)}:`,
+                ...steps.map((step, index) => `${index + 1}. ${step.skill_name}: ${step.action}`)
+            ].join("\n");
         }
 
-        // Deterministic offline fallback
-        setTimeout(() => {
-            let reply = "Tôi là trợ lý Socratic của PorcusAI. Bạn hãy thử làm tiếp và hỏi tôi nếu có bước nào chưa rõ nhé!";
-            const activeSkill = state.studentProgress.activeSkill;
-            const textL = text.toLowerCase();
-
-            if (activeSkill === 'MATH_G7') {
-                if (textL.includes("quy đồng") || textL.includes("mẫu số") || textL.includes("làm sao") || textL.includes("mẫu chung")) {
-                    reply = "Để quy đồng 1/2 và -2/3, ta tìm mẫu số chung nhỏ nhất của 2 và 3. Đó chính là 6. Bạn hãy nhân cả tử và mẫu của 1/2 với 3, và nhân cả tử và mẫu của -2/3 với 2 nhé.";
-                } else if (textL.includes("dấu") || textL.includes("âm")) {
-                    reply = "Khi cộng hai số trái dấu ở tử số (3 và -4), bạn lấy trị tuyệt đối lớn trừ nhỏ: 4 - 3 = 1, rồi lấy dấu âm của số lớn hơn. Kết quả tử số là -1.";
-                } else {
-                    reply = "Gợi ý: Mẫu số chung nhỏ nhất là 6. Bạn hãy quy đồng hai phân số này rồi thực hiện phép cộng các tử số nhé.";
-                }
-            } else if (activeSkill === 'MATH_G6') {
-                if (textL.includes("trái dấu") || textL.includes("cộng") || textL.includes("làm sao")) {
-                    reply = "Để cộng (-15) và 8 (hai số trái dấu), bạn hãy tìm hiệu hai giá trị tuyệt đối: 15 - 8 = 7, sau đó đặt dấu âm của số -15 trước kết quả.";
-                } else {
-                    reply = "Gợi ý: Đây là phép cộng hai số nguyên trái dấu. Bạn hãy lấy hiệu hai trị tuyệt đối rồi lấy dấu của số có trị tuyệt đối lớn hơn.";
-                }
-            } else if (activeSkill === 'MATH_G5') {
-                if (textL.includes("bcnn") || textL.includes("mẫu chung") || textL.includes("nhỏ nhất")) {
-                    reply = "Bội chung nhỏ nhất của 4 và 6 là số nhỏ nhất chia hết cho cả hai số này. Bội của 4 là 4, 8, 12... Bội của 6 là 6, 12... Vậy số nhỏ nhất là 12.";
-                } else {
-                    reply = "Gợi ý: Hãy liệt kê các bội số của 4 và 6, sau đó tìm số nhỏ nhất xuất hiện ở cả hai danh sách nhé.";
-                }
-            } else if (activeSkill === 'MATH_G5_LCM') {
-                if (textL.includes("bcnn") || textL.includes("bội chung") || textL.includes("làm thế nào")) {
-                    reply = "BCNN của 6 và 8 là số nhỏ nhất chia hết cho cả hai. Bạn thử tìm xem bội nào của 8 chia hết cho 6 nhé (8, 16, 24...). Số 24 chính là số cần tìm.";
-                } else {
-                    reply = "Gợi ý: BCNN(6, 8) là số nhỏ nhất khác 0 chia hết cho cả 6 và 8. Hãy thử nhân nhẩm bội của 8 xem số nào đầu tiên chia hết cho 6 nhé.";
-                }
+        if (activeSkill === 'MATH_G7') {
+            if (textL.includes("quy đồng") || textL.includes("mẫu số") || textL.includes("làm sao") || textL.includes("mẫu chung")) {
+                reply = "Bước 1: tìm mẫu chung nhỏ nhất. Với 1/2 và -2/3, mẫu chung là 6. Bước 2: đổi 1/2 thành 3/6 và -2/3 thành -4/6. Bây giờ em thử cộng tử số.";
+            } else if (textL.includes("dấu") || textL.includes("âm") || textL.includes("sai")) {
+                reply = "Hãy kiểm tra dấu ở tử số sau khi quy đồng. 3/6 + (-4/6) nghĩa là 3 + (-4), kết quả là số âm vì 4 lớn hơn 3.";
+            } else {
+                reply = "Gợi ý từng bước: xác định mẫu chung, quy đồng từng phân số, giữ nguyên mẫu, rồi cộng tử số. Em thử viết bước quy đồng trước nhé.";
             }
-
-            appendTutorReply(reply);
-        }, 1200);
+        } else if (activeSkill === 'MATH_G6') {
+            reply = "Đây là dạng cộng trừ số nguyên. Em hãy so sánh trị tuyệt đối hai số trước, rồi lấy dấu của số có trị tuyệt đối lớn hơn.";
+        } else if (activeSkill === 'MATH_G5' || activeSkill === 'MATH_G5_LCM') {
+            reply = "Hãy liệt kê bội của từng mẫu số, tìm bội chung nhỏ nhất, rồi dùng nó làm mẫu chung. Đừng nhân tử mà quên nhân mẫu nhé.";
+        }
+        return reply;
     }
 
-    sendBtn.addEventListener("click", handleSend);
+    async function fetchMascotAIReply(text) {
+        const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                question_id: resolveActiveQuestionId(),
+                message: text
+            })
+        });
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.detail || `AI HTTP ${response.status}`);
+        }
+        return response.json();
+    }
+
+    async function handleSend(rawText = chatInput.value) {
+        const text = String(rawText || "").trim();
+        if (!text) return;
+
+        appendMascotMessage("user", text);
+        chatInput.value = "";
+        if (commentPara) commentPara.textContent = "Trợ lý đang suy nghĩ...";
+        const pending = appendMascotMessage("bot", "Đang phân tích câu hỏi theo lộ trình của em...");
+
+        try {
+            const data = await fetchMascotAIReply(text);
+            pending.textContent = data.content || buildOfflineMascotReply(text);
+            if (commentPara) commentPara.textContent = pending.textContent.split("\n")[0];
+            return;
+        } catch (error) {
+            console.warn("[Mascot AI] Fallback offline.", error);
+        }
+
+        pending.textContent = buildOfflineMascotReply(text);
+        if (pending.textContent.includes("\n")) pending.style.whiteSpace = "pre-wrap";
+        if (commentPara) commentPara.textContent = pending.textContent.split("\n")[0];
+    }
+
+    sendBtn.addEventListener("click", () => handleSend());
     chatInput.addEventListener("keypress", (e) => {
         if (e.key === "Enter") handleSend();
+    });
+
+    document.querySelectorAll("[data-mascot-prompt]").forEach(btn => {
+        btn.addEventListener("click", () => handleSend(btn.getAttribute("data-mascot-prompt")));
+    });
+
+    document.querySelectorAll("[data-mascot-action='review']").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            appendMascotMessage("user", "Tạo bài ôn AI cá nhân hóa cho em.");
+            const pending = appendMascotMessage("bot", "Đang tạo bài ôn theo skill hiện tại...");
+            const path = await buildPersonalAIReview({ silent: true });
+            const steps = path.steps || getOfflinePersonalReviewSteps();
+            pending.textContent = [
+                path.summary || `Bài ôn cho ${getSkillDisplayName()}`,
+                ...steps.slice(0, 3).map((step, index) => `${index + 1}. ${step.skill_name || step.skill_id}: ${step.action}`)
+            ].join("\n");
+            pending.style.whiteSpace = "pre-wrap";
+            if (commentPara) commentPara.textContent = "Đã tạo bài ôn cá nhân hóa cho em.";
+        });
     });
 }
 
@@ -2392,6 +4094,7 @@ function switchPortalUI(targetRole) {
     const progressWrapper = document.getElementById("student-progress-wrapper");
     const teacherTitleWrapper = document.getElementById("teacher-title-wrapper");
     const studentRewards = document.getElementById("student-rewards");
+    const questNotification = document.getElementById("quest-notification");
     const userDisplayName = document.getElementById("user-display-name");
     const userAvatarImg = document.getElementById("user-avatar-img");
 
@@ -2403,6 +4106,7 @@ function switchPortalUI(targetRole) {
         if (teacherSidebarMenu) teacherSidebarMenu.style.display = "flex";
         if (progressWrapper) progressWrapper.style.display = "none";
         if (studentRewards) studentRewards.style.display = "none";
+        if (questNotification) questNotification.style.display = "none";
         if (teacherTitleWrapper) teacherTitleWrapper.style.display = "block";
         if (userDisplayName) userDisplayName.textContent = "Thầy Hùng (GV Toán)";
         if (userAvatarImg) userAvatarImg.src = "https://api.dicebear.com/7.x/adventurer/svg?seed=TeacherHung";
@@ -2420,10 +4124,15 @@ function switchPortalUI(targetRole) {
     if (teacherSidebarMenu) teacherSidebarMenu.style.display = "none";
     if (progressWrapper) progressWrapper.style.display = "block";
     if (studentRewards) studentRewards.style.display = "flex";
+    if (questNotification) questNotification.style.display = "block";
     if (teacherTitleWrapper) teacherTitleWrapper.style.display = "none";
     if (userDisplayName) userDisplayName.textContent = profile.name;
     if (userAvatarImg) userAvatarImg.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${profile.avatar}`;
+    const avatarContainer = document.getElementById("user-avatar-container");
+    if (avatarContainer) avatarContainer.classList.toggle("avatar-prize-frame", state.redeemedRewards.includes("avatar_frame"));
     if (btnTogglePortal) btnTogglePortal.style.display = "none";
+    renderSubjectOverview();
+    updateLearningLevelUI();
 }
 
 function initAuthFlow() {
@@ -2487,9 +4196,7 @@ function initAuthFlow() {
             state.loggedInRole = "student";
             state.baseStudentId = studentId;
             state.studentId = studentId;
-            state.xp = profile.xp;
-            state.coins = profile.coins;
-            state.streak = profile.streak;
+            applyRewardState(loadRewardState(profile));
             state.studentProgress.activeSkill = profile.skill;
 
             localStorage.setItem("isLoggedIn", "true");
@@ -2534,9 +4241,7 @@ function initAuthFlow() {
             const profile = getStudentLoginProfile(storedStudentId);
             state.baseStudentId = storedStudentId;
             state.studentId = storedStudentId;
-            state.xp = profile.xp;
-            state.coins = profile.coins;
-            state.streak = profile.streak;
+            applyRewardState(loadRewardState(profile));
             state.studentProgress.activeSkill = profile.skill;
             switchPortalUI("student");
             updateStudentRewardsUI();
