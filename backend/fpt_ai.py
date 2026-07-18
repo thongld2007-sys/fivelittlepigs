@@ -48,6 +48,10 @@ class FPTAIClient:
     def complete(self, *, system_prompt: str, user_prompt: str) -> FPTAIResult:
         if not self.configured:
             raise FPTAIError("FPT AI chưa được cấu hình đầy đủ.")
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
         return self._send({
             "model": self.model,
             "messages": messages,
