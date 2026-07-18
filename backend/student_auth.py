@@ -73,6 +73,7 @@ def _student_payload(student: Student, user: User) -> dict:
         "name": student.name,
         "grade": student.grade,
         "username": user.username,
+        "initial_assessment_completed": bool(student.initial_assessment_completed)
     }
 
 
@@ -81,7 +82,7 @@ def _audit(session, user_id: str | None, action: str, entity_id: str | None = No
         actor_user_id=user_id,
         action=action,
         entity_type="student_account",
-        entity_id=entity_id,
+        entity_id=entity_id if entity_id is not None else "",
         metadata_json=metadata or {},
     ))
 
@@ -100,6 +101,7 @@ def register_student(*, username: str, password: str, name: str, grade: int, ema
             raise StudentAuthError("Email đã được sử dụng.", 409)
         user = User(
             username=username,
+            display_name=name,
             email=normalized_email,
             password_hash=password_hasher.hash(password),
             role="student",
@@ -161,7 +163,7 @@ def activate_student(*, student_id: str, activation_code: str, username: str,
             raise StudentAuthError("Tên đăng nhập đã được sử dụng.", 409)
         if session.scalar(select(User.id).where(User.email == normalized_email)):
             raise StudentAuthError("Email đã được sử dụng.", 409)
-        user = User(username=username, email=normalized_email,
+        user = User(username=username, display_name=student.name, email=normalized_email,
                     password_hash=password_hasher.hash(password), role="student", is_active=True)
         session.add(user)
         session.flush()
@@ -244,7 +246,8 @@ def create_session(user_id: str, student: dict, remember_me: bool = False) -> di
         session.add(RefreshToken(user_id=user_id, token_hash=_token_hash(raw_refresh), expires_at=expires))
     access = create_access_token(user_id, {"role": "student", "student_id": student["id"]})
     return {"access_token": access, "refresh_token": raw_refresh,
-            "expires_in": 3600, "student": student, "remember_me": remember_me}
+            "expires_in": 3600, "student": student, "remember_me": remember_me,
+            "user": {"id": user_id, "role": "student", "student_id": student["id"], "initial_assessment_completed": student.get("initial_assessment_completed", False)}}
 
 
 def refresh_session(raw_refresh: str) -> dict:
@@ -275,6 +278,7 @@ def refresh_session(raw_refresh: str) -> dict:
                     "expires_in": 3600,
                     "student": student_data,
                     "remember_me": remember_me,
+                    "user": {"id": user.id, "role": "student", "student_id": student.id, "initial_assessment_completed": student_data.get("initial_assessment_completed", False)}
                 }
     if error:
         raise error

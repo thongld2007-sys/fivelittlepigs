@@ -583,12 +583,6 @@ class LoginRequest(BaseModel):
     password: str
     role: Optional[str] = None
 
-class StudentRegisterRequest(BaseModel):
-    username: str
-    password: str
-    name: str
-    grade: int
-
 class AnswerSubmission(BaseModel):
     question_id: str
     selected_option: str
@@ -764,17 +758,88 @@ def student_refresh(response: FastAPIResponse, vgap_refresh: str | None = Cookie
 
 
 @app.post("/api/auth/logout", status_code=204)
-def student_logout(response: FastAPIResponse, vgap_refresh: str | None = Cookie(default=None)):
+def logout(response: FastAPIResponse, authorization: Optional[str] = Header(default=None), vgap_refresh: str | None = Cookie(default=None)):
     revoke_session(vgap_refresh)
     response.delete_cookie("vgap_refresh", path="/api/auth")
-
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+        if "." not in token:
+            import hashlib, time
+            token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+            conn = get_db_connection()
+            conn.execute("UPDATE auth_sessions SET revoked_at=? WHERE token_hash=?", (int(time.time()), token_hash))
+            conn.commit()
+            conn.close()
 
 @app.get("/api/auth/me")
-def student_me(claims: dict = Depends(require_student_session)):
-    student = get_student_for_user(claims["sub"])
-    if not student:
-        raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ học sinh.")
-    return {"role": "student", "student": student}
+def auth_me(authorization: Optional[str] = Header(default=None)):
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+        if "." in token:
+            from backend.auth import verify_access_token
+            claims = verify_access_token(token)
+            if claims.get("role") == "student":
+                student = get_student_for_user(claims["sub"])
+                if not student:
+                    raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ học sinh.")
+                user_data = {"id": claims["sub"], "role": "student", "student_id": student["id"], "initial_assessment_completed": student.get("initial_assessment_completed", False)}
+                return {"role": "student", "student": student, "user": user_data}
+            else:
+                return {"role": claims.get("role"), "user": {"id": claims["sub"], "role": claims.get("role")}}
+        else:
+            import hashlib, time
+            token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+            conn = get_db_connection()
+            row = conn.execute("""SELECT u.id,u.display_name,u.role,s.id AS student_id,s.initial_assessment_completed
+                                  FROM auth_sessions a JOIN users u ON u.id=a.user_id
+                                  LEFT JOIN students s ON s.user_id=u.id
+                                  WHERE a.token_hash=? AND a.revoked_at IS NULL AND a.expires_at>?""",
+                               (token_hash, int(time.time()))).fetchone()
+            conn.close()
+            if not row:
+                raise HTTPException(status_code=401, detail="Session expired or invalid")
+            user_data = dict(row)
+            if user_data.get("initial_assessment_completed") is not None:
+                user_data["initial_assessment_completed"] = bool(user_data["initial_assessment_completed"])
+            else:
+                user_data["initial_assessment_completed"] = True
+            return {"user": user_data}
+    raise HTTPException(status_code=401, detail="Missing bearer token")
+
+def verify_password(password: str, encoded: str) -> bool:
+    import hashlib, hmac
+    try:
+        algorithm, salt, expected = encoded.split('$', 2)
+        if algorithm != 'pbkdf2_sha256':
+            return False
+        actual = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt), 120_000).hex()
+        return hmac.compare_digest(actual, expected)
+    except (ValueError, TypeError):
+        return False
+
+@app.post("/api/auth/login")
+def login(payload: LoginRequest):
+    import secrets, time, hashlib
+    username = payload.username.strip()
+    conn = get_db_connection()
+    row = conn.execute("""SELECT id,display_name,role,password_hash,status FROM users
+                          WHERE email=? OR id=?""", (username, username)).fetchone()
+    if not row or row["status"] != "active" or not verify_password(payload.password, row["password_hash"] or ""):
+        conn.close()
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    if payload.role and payload.role != row["role"]:
+        conn.close()
+        raise HTTPException(status_code=403, detail="Account role does not match")
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    now = int(time.time())
+    conn.execute("INSERT INTO auth_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)",
+                 (token_hash, row["id"], now, now + 12 * 3600))
+    conn.execute("UPDATE users SET last_login_at=? WHERE id=?", (now, row["id"]))
+    conn.commit()
+    conn.close()
+    return {"access_token": token, "token_type": "bearer", "expires_in": 12 * 3600,
+            "user": {"id": row["id"], "display_name": row["display_name"], "role": row["role"]}}
 
 @app.post("/api/ai/student/{student_id}/tutor", dependencies=[Depends(require_auth)])
 def ai_tutor(student_id: str, payload: AITutorRequest):
@@ -1390,99 +1455,6 @@ def get_safety_evidence():
         "controls": SAFETY_CONTROLS
     }
 
-def verify_password(password: str, encoded: str) -> bool:
-    import hashlib, hmac
-    try:
-        algorithm, salt, expected = encoded.split('$', 2)
-        if algorithm != 'pbkdf2_sha256':
-            return False
-        actual = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt), 120_000).hex()
-        return hmac.compare_digest(actual, expected)
-    except (ValueError, TypeError):
-        return False
-
-@app.post("/api/auth/login")
-def login(payload: LoginRequest):
-    import secrets, time, hashlib
-    username = payload.username.strip()
-    conn = get_db_connection()
-    row = conn.execute("""SELECT id,display_name,role,password_hash,status FROM users
-                          WHERE email=? OR id=?""", (username, username)).fetchone()
-    if not row or row["status"] != "active" or not verify_password(payload.password, row["password_hash"] or ""):
-        conn.close()
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-    if payload.role and payload.role != row["role"]:
-        conn.close()
-        raise HTTPException(status_code=403, detail="Account role does not match")
-    token = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-    now = int(time.time())
-    conn.execute("INSERT INTO auth_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)",
-                 (token_hash, row["id"], now, now + 12 * 3600))
-    conn.execute("UPDATE users SET last_login_at=? WHERE id=?", (now, row["id"]))
-    student = conn.execute("SELECT id, initial_assessment_completed FROM students WHERE user_id=?", (row["id"],)).fetchone()
-    conn.commit()
-    conn.close()
-    return {"access_token": token, "token_type": "bearer", "expires_in": 12 * 3600,
-            "user": {"id": row["id"], "display_name": row["display_name"], "role": row["role"],
-                     "student_id": student["id"] if student else None,
-                     "initial_assessment_completed": bool(student["initial_assessment_completed"]) if student else True}}
-
-@app.post("/api/auth/student/register", status_code=201)
-def register_student(payload: StudentRegisterRequest):
-    import re
-    username = payload.username.strip().lower()
-    name = payload.name.strip()
-    if not re.fullmatch(r"[a-z0-9_.-]{3,32}", username):
-        raise HTTPException(status_code=422, detail="Username must contain 3-32 lowercase letters, numbers, dot, dash or underscore")
-    if len(name) < 2 or len(name) > 80:
-        raise HTTPException(status_code=422, detail="Student name must contain 2-80 characters")
-    if not 1 <= payload.grade <= 12:
-        raise HTTPException(status_code=422, detail="Grade must be between 1 and 12")
-    password = payload.password
-    if len(password) < 8 or not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
-        raise HTTPException(status_code=422, detail="Password must contain at least 8 characters, one letter and one number")
-    try:
-        account = create_student_account(username, password, name, payload.grade)
-    except ValueError as exc:
-        if str(exc) == "username_exists":
-            raise HTTPException(status_code=409, detail="Username already exists") from exc
-        raise
-    auth = login(LoginRequest(username=username, password=password, role="student"))
-    return {**auth, "student": account}
-
-@app.get("/api/auth/me")
-def auth_me(authorization: Optional[str] = Header(default=None)):
-    import hashlib, time
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Missing bearer token")
-    token_hash = hashlib.sha256(authorization.split(" ", 1)[1].encode("utf-8")).hexdigest()
-    conn = get_db_connection()
-    row = conn.execute("""SELECT u.id,u.display_name,u.role,s.id AS student_id,s.initial_assessment_completed
-                          FROM auth_sessions a JOIN users u ON u.id=a.user_id
-                          LEFT JOIN students s ON s.user_id=u.id
-                          WHERE a.token_hash=? AND a.revoked_at IS NULL AND a.expires_at>?""",
-                       (token_hash, int(time.time()))).fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=401, detail="Session expired or invalid")
-    user_data = dict(row)
-    if user_data.get("initial_assessment_completed") is not None:
-        user_data["initial_assessment_completed"] = bool(user_data["initial_assessment_completed"])
-    else:
-        user_data["initial_assessment_completed"] = True
-    return {"user": user_data}
-
-@app.post("/api/auth/logout")
-def logout(authorization: Optional[str] = Header(default=None)):
-    import hashlib, time
-    if authorization and authorization.lower().startswith("bearer "):
-        token_hash = hashlib.sha256(authorization.split(" ", 1)[1].encode("utf-8")).hexdigest()
-        conn = get_db_connection()
-        conn.execute("UPDATE auth_sessions SET revoked_at=? WHERE token_hash=?", (int(time.time()), token_hash))
-        conn.commit()
-        conn.close()
-    return {"status": "logged_out"}
 
 @app.get("/api/evidence/final-scorecard")
 def get_evidence_final_scorecard():

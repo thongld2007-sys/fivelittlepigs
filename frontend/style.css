@@ -75,6 +75,12 @@ body {
     border-bottom: var(--border-width) dashed var(--border-color);
 }
 
+.brand-logo-img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+}
+
 .brand-icon {
     font-size: 2rem;
     color: var(--primary);
@@ -4500,6 +4506,13 @@ body {
     font-size: 2rem;
     margin: 0 auto 0.8rem;
     box-shadow: 4px 4px 0 #000;
+    overflow: hidden;
+}
+
+.login-logo-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 .login-title {
