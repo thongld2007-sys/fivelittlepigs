@@ -75,6 +75,18 @@ body {
     border-bottom: var(--border-width) dashed var(--border-color);
 }
 
+.brand-logo-img {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    object-fit: contain;
+    display: block;
+    border: var(--border-width) solid var(--border-color);
+    border-radius: 12px;
+    background: var(--primary-light);
+    box-shadow: var(--shadow-flat-sm);
+}
+
 .brand-icon {
     font-size: 2rem;
     color: var(--primary);
@@ -4500,6 +4512,13 @@ body {
     font-size: 2rem;
     margin: 0 auto 0.8rem;
     box-shadow: 4px 4px 0 #000;
+}
+
+.login-logo-icon img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    display: block;
 }
 
 .login-title {
