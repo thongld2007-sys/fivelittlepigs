@@ -1,5 +1,5 @@
 /* 
- * VGap AI Memphis Flat Design System Tokens
+ * PorcusAI Memphis Flat Design System Tokens
  * Aligned to: Primary #557AFA, Secondary #FCD075, Accent #F9A46B
  */
 :root {
@@ -75,12 +75,13 @@ body {
     border-bottom: var(--border-width) dashed var(--border-color);
 }
 
-.brand-icon {
-    font-size: 2rem;
-    color: var(--primary);
-    background: var(--secondary);
-    padding: 0.5rem;
-    border-radius: 12px;
+.brand-logo-img {
+    width: 54px;
+    height: 54px;
+    object-fit: cover;
+    object-position: center;
+    background: #ffffff;
+    border-radius: 14px;
     border: var(--border-width) solid var(--border-color);
     box-shadow: var(--shadow-flat-sm);
 }
@@ -3322,7 +3323,7 @@ body {
 .login-logo-icon {
     width: 64px;
     height: 64px;
-    background: var(--primary-light);
+    background: #ffffff;
     border: 3px solid #000000;
     border-radius: 16px;
     display: flex;
@@ -3331,6 +3332,14 @@ body {
     font-size: 2rem;
     margin: 0 auto 0.8rem;
     box-shadow: 4px 4px 0 #000;
+}
+
+.login-logo-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    border-radius: 12px;
 }
 
 .login-title {

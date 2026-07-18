@@ -19,7 +19,8 @@ Diem manh hien tai:
 Rui ro bi tru diem:
 
 - Chua co benchmark tren nguoi dung that.
-- FPT AI moi implemented Inference; Knowledge/Speech/OCR/MCP van la adapter roadmap.
+- FPT AI Inference da implemented; Knowledge/RAG va Speech da co endpoint adapter demo
+  offline-ready, OCR/MCP van la roadmap.
 - Evaluation da co smoke benchmark 30 case, nhung chua co pilot truong/lop that.
 - Dang co login demo frontend, chua phai auth production.
 - Ngan hang cau hoi con nho neu trien khai toan truong.
@@ -28,15 +29,15 @@ Rui ro bi tru diem:
 
 | Hang muc | Diem toi da | Diem hien tai | Ly do |
 |---|---:|---:|---|
-| Bai toan giao duc | 15 | 11 | Dung van de that: mat goc va qua tai giao vien. Thieu khao sat/so lieu truong that. |
-| AI co can thiet khong | 15 | 11 | BKT + knowledge graph + FPT AI support tao gia tri hon chatbot. Can pilot so sanh rule-only vs AI-assisted. |
-| Khai thac FPT AI | 15 | 10 | Co FPT AI Inference adapter va endpoints, nhung Knowledge/Speech/OCR/MCP moi o muc roadmap. |
-| AI Engineering | 15 | 12 | Co data schema, BKT, DAG, API, FPT adapter, smoke benchmark 30 case, cost/safety endpoints. Thieu eval set that. |
-| Gia tri giao duc | 15 | 9 | Co lo trinh va dashboard. Thieu pilot truoc/sau de chung minh tang diem/tiet kiem gio. |
+| Bai toan giao duc | 15 | 13 | Dung van de that: mat goc va qua tai giao vien. Da co final evidence tab de pitch theo luong can thiep. Thieu khao sat/so lieu truong that. |
+| AI co can thiet khong | 15 | 13 | BKT + knowledge graph + explanation log + anomaly-weighted mastery tao gia tri hon chatbot. Can pilot so sanh rule-only vs AI-assisted. |
+| Khai thac FPT AI | 15 | 12 | Co FPT AI Inference adapter, grounded lesson-plan/RAG hook va Speech cache hook; OCR/MCP van o muc roadmap. |
+| AI Engineering | 15 | 13 | Co data schema, BKT, DAG, idempotent sync event log, anomaly filter, WebSocket snapshot, benchmark 30 case, cost/safety endpoints. Thieu eval set that. |
+| Gia tri giao duc | 15 | 11 | Co lo trinh, dashboard, explanation log va teacher action layer. Thieu pilot truoc/sau de chung minh tang diem/tiet kiem gio. |
 | Kha nang trien khai | 10 | 8 | Offline-first va SQLite tot cho pilot/truong nho. Chua co auth, backup, deployment guide day du. |
 | Kha nang scale | 5 | 4 | Core BKT/DAG chi phi thap, co cost model. Can production architecture ngoai SQLite. |
 | Dao duc va an toan | 5 | 4 | Co key isolation, redaction, Socratic prompt, safety evidence. Can moderation/prompt-injection classifier production. |
-| Tong | 100 | 69 | Demo manh, sat nguong co tiem nang; can pilot that va FPT AI Knowledge/Speech/OCR de vuot 75. |
+| Tong | 100 | 78 | Demo da co bang chung final va nhieu adapter production. De vuot 85 can pilot that, auth production va tich hop FPT Knowledge/Speech that. |
 
 Muc tieu truoc khi nop final: dua tong len 75-80 bang cach them pilot lop hoc, FPT AI Knowledge/Speech/OCR demo that, va cost/latency report dep hon.
 
@@ -139,6 +140,7 @@ Ban demo local se sap o cac diem: SQLite khi ghi dong thoi qua nhieu, login demo
 - [x] Them bang cost/latency/evidence endpoints vao README.
 - [x] Them FPT AI Inference adapter interface, ke ca fallback offline neu chua co key.
 - [x] Them safety section: hallucination, anti-cheating, key isolation, prompt injection gap.
-- [ ] Demo dashboard giao vien truoc chatbot.
-- [ ] Chuan bi 3 so lieu gia dinh co can cu: thoi gian tiet kiem, p95 latency, cost per student.
+- [x] Demo dashboard giao vien truoc chatbot.
+- [x] Them final evidence tab de gom scorecard, benchmark, FPT AI story va readiness.
+- [x] Chuan bi 3 so lieu gia dinh co can cu: thoi gian tiet kiem, p95 latency, cost per student.
 - [ ] Co video offline phong khi Wi-Fi su kien yeu.

@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VGap AI - Hệ thống Gia sư Thích ứng chẩn đoán Lỗ hổng Kiến thức Gốc</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧠%3C/text%3E%3C/svg%3E">
+    <title>PorcusAI - Hệ thống Gia sư Thích ứng chẩn đoán Lỗ hổng Kiến thức Gốc</title>
+    <link rel="icon" href="assets/porcus-ai-logo.png">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,8 +18,8 @@
         <!-- Sidebar Navigation (Chung cho cả 2 view) -->
         <aside class="sidebar-navigation">
             <div class="sidebar-brand">
-                <i class="fa-solid fa-brain brand-icon"></i>
-                <span class="brand-text">VGap AI</span>
+                <img src="assets/porcus-ai-logo.png" alt="PorcusAI logo" class="brand-logo-img">
+                <span class="brand-text">PorcusAI</span>
             </div>
             <nav class="sidebar-menu" id="student-sidebar-menu">
                 <a href="#" class="menu-item active" data-tab="dashboard"><i class="fa-solid fa-house"></i><span>Tổng quan</span></a>
@@ -463,6 +463,7 @@
                         <div class="tutor-header mb-4">
                             <h2><i class="fa-solid fa-robot"></i> Trợ lý học tập của bạn</h2>
                             <p class="card-subtitle-desc">Hỏi nhanh các khái niệm nền và nhận gợi ý theo kỹ năng đang luyện.</p>
+                            <span id="ai-status-pill" class="realtime-status polling">Đang kiểm tra AI</span>
                         </div>
                         <div class="tutor-chat-layout">
                             <!-- Chat box area -->
@@ -471,7 +472,7 @@
                                     <div class="chat-bubble robot-bubble">
                                         <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
                                         <div class="bubble-content">
-                                            <p>Xin chào Emma! Tôi là trợ lý học tập VGap. Hôm nay bạn muốn tìm hiểu hay luyện tập phần kiến thức nào?</p>
+                                            <p>Xin chào Emma! Tôi là trợ lý học tập PorcusAI. Hôm nay bạn muốn tìm hiểu hay luyện tập phần kiến thức nào?</p>
                                         </div>
                                     </div>
                                     <div class="chat-bubble user-bubble">
@@ -508,7 +509,8 @@
                                 <h4>Câu hỏi gợi ý nhanh</h4>
                                 <div class="quick-pills-col">
                                     <button class="btn btn-hint-outline btn-sm quick-pill-btn" data-prompt="Giải thích phép cộng số hữu tỉ lớp 7"><i class="fa-solid fa-lightbulb"></i> Giải thích bài này</button>
-                                    <button class="btn btn-hint-outline btn-sm quick-pill-btn" data-prompt="Tạo cho em 1 bài tập trắc nghiệm toán lớp 6"><i class="fa-solid fa-square-plus"></i> Tạo câu hỏi tương tự</button>
+                                    <button class="btn btn-hint-outline btn-sm" data-ai-action="generate-question"><i class="fa-solid fa-square-plus"></i> Sinh câu hỏi AI</button>
+                                    <button class="btn btn-hint-outline btn-sm" data-ai-action="learning-path"><i class="fa-solid fa-route"></i> Sinh lộ trình AI</button>
                                     <button class="btn btn-hint-outline btn-sm quick-pill-btn" data-prompt="Tìm lỗi sai trong bài toán 1/2 + 2/3 = 3/5"><i class="fa-solid fa-circle-xmark"></i> Tìm lỗi sai giúp em</button>
                                 </div>
                             </div>
@@ -522,7 +524,7 @@
                         <div class="teacher-command-copy">
                             <span class="teacher-command-kicker"><i class="fa-solid fa-satellite-dish"></i> Teacher Command Center</span>
                             <h1>Bảng quản lý lớp học theo dữ liệu</h1>
-                            <p>VGap AI giúp giáo viên nhìn nhanh tình trạng lớp, phát hiện lỗ hổng gốc, gom nhóm học sinh và chọn hành động dạy lại hoặc giao bài luyện phù hợp.</p>
+                            <p>PorcusAI giúp giáo viên nhìn nhanh tình trạng lớp, phát hiện lỗ hổng gốc, gom nhóm học sinh và chọn hành động dạy lại hoặc giao bài luyện phù hợp.</p>
                         </div>
                         <div class="teacher-command-actions">
                             <button class="btn btn-primary-memphis" id="btn-command-lesson-plan"><i class="fa-solid fa-wand-magic-sparkles"></i> Tạo kế hoạch 15 phút</button>
@@ -761,9 +763,9 @@
         <div class="memphis-card login-card animate-pop-in" id="login-card-main">
             <div class="login-header">
                 <div class="login-logo-icon">
-                    <i class="fa-solid fa-brain"></i>
+                    <img src="assets/porcus-ai-logo.png" alt="PorcusAI logo">
                 </div>
-                <h1 class="login-title">VGap AI</h1>
+                <h1 class="login-title">PorcusAI</h1>
                 <p class="login-subtitle">Hệ thống học tập thích ứng và chẩn đoán lỗ hổng kiến thức</p>
             </div>
             
@@ -812,7 +814,7 @@
             </div>
             
             <div class="login-footer">
-                <p>Demo nội bộ VGap AI</p>
+                <p>Demo nội bộ PorcusAI</p>
             </div>
         </div>
     </div>

@@ -40,12 +40,14 @@ class BKTProcessor:
         # Clamp between 0.01 and 0.99
         return max(0.01, min(0.99, p_new))
 
-def update_student_skill(student_id, skill_id, is_correct):
+def update_student_skill(student_id, skill_id, is_correct, weight=1.0):
     """
     Updates the student's mastery of the skill using BKT.
     """
     current_p = get_student_mastery(student_id, skill_id)
-    new_p = BKTProcessor.calculate_posterior(current_p, is_correct)
+    raw_new_p = BKTProcessor.calculate_posterior(current_p, is_correct)
+    bounded_weight = max(0.0, min(1.0, weight))
+    new_p = current_p + ((raw_new_p - current_p) * bounded_weight)
     update_student_mastery(student_id, skill_id, new_p)
     return new_p
 

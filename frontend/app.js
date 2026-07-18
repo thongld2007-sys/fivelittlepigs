@@ -1,4 +1,4 @@
-// VGap AI - Frontend Interactive Engine (Memphis Style)
+// PorcusAI - Frontend Interactive Engine (Memphis Style)
 // Supporting both Offline Fallback Mode and Online API integration.
 
 // Global State
@@ -1594,9 +1594,13 @@ function renderPriorityList(students) {
                 <button class="btn btn-primary-memphis btn-sm" data-student-id="${escapeHTML(std.id)}">
                     <i class="fa-solid fa-hand-holding-hand"></i> Kèm cặp ngay
                 </button>
+                <button class="btn btn-hint-outline btn-sm" data-ai-path-student-id="${escapeHTML(std.id)}" data-ai-path-skill="${escapeHTML(std.current_skill)}">
+                    <i class="fa-solid fa-route"></i> Lộ trình AI
+                </button>
             </td>
         `;
         row.querySelector("button[data-student-id]").addEventListener("click", () => openDiagnosticInspector(std.id));
+        row.querySelector("button[data-ai-path-student-id]").addEventListener("click", () => openTeacherAILearningPath(std.id));
         tableBody.appendChild(row);
     });
 }
@@ -2029,41 +2033,169 @@ function initAITutorChat() {
     const chatInput = document.getElementById("tutor-chat-input");
     const sendBtn = document.getElementById("btn-send-tutor");
     const chatHistory = document.getElementById("chat-history-box");
-    
-    function sendUserMessage(msg) {
-        if (!msg.trim()) return;
-        
-        const userBubble = document.createElement("div");
-        userBubble.className = "chat-bubble user-bubble";
-        userBubble.innerHTML = `
-            <div class="bubble-content"><p>${escapeHTML(msg)}</p></div>
-            <div class="bubble-avatar"><i class="fa-solid fa-user-ninja"></i></div>
-        `;
-        chatHistory.appendChild(userBubble);
+    const aiStatusPill = document.getElementById("ai-status-pill");
+
+    async function updateAIStatusBadge() {
+        if (!aiStatusPill) return;
+        try {
+            const response = await fetch("/api/ai/status");
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const status = await response.json();
+            aiStatusPill.className = `realtime-status ${status.configured ? "connected" : "polling"}`;
+            aiStatusPill.textContent = status.configured ? `FPT AI online · ${status.model || "model"}` : "AI chưa cấu hình · dùng offline";
+        } catch (error) {
+            aiStatusPill.className = "realtime-status disconnected";
+            aiStatusPill.textContent = "Không kết nối AI";
+        }
+    }
+
+    function buildOfflineTutorReply(msg) {
+        let replyText = "Tôi là trợ lý học tập PorcusAI. Đang phân tích câu hỏi của bạn...";
+        if (msg.toLowerCase().includes("bcnn")) {
+            replyText = "Bội chung nhỏ nhất (BCNN) của hai số là số tự nhiên nhỏ nhất khác 0 chia hết cho cả hai số đó. Ví dụ: BCNN(6, 8) = 24.";
+        } else if (msg.toLowerCase().includes("quy đồng")) {
+            replyText = "Để quy đồng mẫu số, ta tìm BCNN của các mẫu số làm mẫu chung, rồi nhân cả tử và mẫu với nhân tử phụ tương ứng.";
+        } else if (msg.toLowerCase().includes("số hữu tỉ")) {
+            replyText = "Số hữu tỉ là số viết được dưới dạng phân số a/b (a, b thuộc Z, b khác 0). Ví dụ: 0.5, -3/4, 2.";
+        }
+        return replyText;
+    }
+
+    function appendTutorBubble(role, text) {
+        const bubble = document.createElement("div");
+        bubble.className = `chat-bubble ${role === "user" ? "user-bubble" : "robot-bubble"}`;
+        const avatar = document.createElement("div");
+        avatar.className = "bubble-avatar";
+        const icon = document.createElement("i");
+        icon.className = role === "user" ? "fa-solid fa-user-ninja" : "fa-solid fa-robot";
+        avatar.appendChild(icon);
+
+        const content = document.createElement("div");
+        content.className = "bubble-content";
+        const paragraph = document.createElement("p");
+        paragraph.textContent = text;
+        content.appendChild(paragraph);
+
+        if (role === "user") {
+            bubble.append(content, avatar);
+        } else {
+            bubble.append(avatar, content);
+        }
+        chatHistory.appendChild(bubble);
         chatHistory.scrollTop = chatHistory.scrollHeight;
-        
+        return paragraph;
+    }
+
+    function resolveTutorQuestionId() {
+        if (state.currentQuestion?.id) return state.currentQuestion.id;
+        const activeSkill = state.studentProgress.activeSkill || "MATH_G7";
+        return OFFLINE_MOCK_QUESTIONS[activeSkill]?.id || OFFLINE_MOCK_QUESTIONS.MATH_G7.id;
+    }
+
+    function resolveActiveTutorSkill() {
+        return state.currentQuestion?.skill_id || state.testSession.currentSkill || state.studentProgress.activeSkill || "MATH_G7";
+    }
+
+    function resolveActiveTutorDifficulty() {
+        return state.currentQuestion?.difficulty_level || 2;
+    }
+
+    async function fetchAITutorReply(msg) {
+        const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                question_id: resolveTutorQuestionId(),
+                message: msg
+            })
+        });
+        if (!response.ok) {
+            const errorPayload = await response.json().catch(() => ({}));
+            throw new Error(errorPayload.detail || `AI HTTP ${response.status}`);
+        }
+        return response.json();
+    }
+
+    async function sendUserMessage(msg) {
+        if (!msg.trim()) return;
+
+        appendTutorBubble("user", msg);
         if (chatInput) chatInput.value = "";
-        
-        setTimeout(() => {
-            const robotBubble = document.createElement("div");
-            robotBubble.className = "chat-bubble robot-bubble";
-            
-            let replyText = "Tôi là trợ lý học tập VGap. Đang phân tích câu hỏi của bạn...";
-            if (msg.toLowerCase().includes("bcnn")) {
-                replyText = "Bội chung nhỏ nhất (BCNN) của hai số là số tự nhiên nhỏ nhất khác 0 chia hết cho cả hai số đó. Ví dụ: BCNN(6, 8) = 24.";
-            } else if (msg.toLowerCase().includes("quy đồng")) {
-                replyText = "Để quy đồng mẫu số, ta tìm BCNN của các mẫu số làm mẫu chung, rồi nhân cả tử và mẫu với nhân tử phụ tương ứng.";
-            } else if (msg.toLowerCase().includes("số hữu tỉ")) {
-                replyText = "Số hữu tỉ là số viết được dưới dạng phân số a/b (a, b thuộc Z, b khác 0). Ví dụ: 0.5, -3/4, 2.";
+
+        const replyParagraph = appendTutorBubble("bot", "Đang hỏi AI theo lộ trình học của bạn...");
+        try {
+            const data = await fetchAITutorReply(msg);
+            replyParagraph.textContent = data.content;
+            await updateAIStatusBadge();
+        } catch (error) {
+            console.warn("[AI Tutor] Fallback offline.", error);
+            replyParagraph.textContent = buildOfflineTutorReply(msg);
+            if (aiStatusPill) {
+                aiStatusPill.className = "realtime-status polling";
+                aiStatusPill.textContent = "AI fallback offline";
             }
-            
-            robotBubble.innerHTML = `
-                <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
-                <div class="bubble-content"><p>${escapeHTML(replyText)}</p></div>
-            `;
-            chatHistory.appendChild(robotBubble);
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        }, 1000);
+        }
+    }
+
+    async function generateAIQuestion() {
+        appendTutorBubble("user", "Sinh cho em một câu hỏi theo mức hiện tại.");
+        const replyParagraph = appendTutorBubble("bot", "AI đang sinh câu hỏi theo skill và độ khó hiện tại...");
+        try {
+            const response = await fetch(`/api/ai/student/${state.studentId}/generate-question`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    subject: state.testSession.subject || "Toán",
+                    grade: state.testSession.grade || 7,
+                    skill_id: resolveActiveTutorSkill(),
+                    difficulty_level: resolveActiveTutorDifficulty(),
+                    count: 1,
+                    question_type: "multiple_choice"
+                })
+            });
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload.detail || `AI HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            const question = data.questions?.[0];
+            if (!question) throw new Error("AI không trả về câu hỏi.");
+            const options = (question.options || [])
+                .map(opt => `${opt.key}. ${opt.text}`)
+                .join("\n");
+            replyParagraph.textContent = [
+                `${question.difficulty || "Thông hiểu"} · ${question.text}`,
+                options,
+                `Gợi ý: ${question.hint || "Hãy phân tích kiến thức nền trước."}`
+            ].join("\n");
+            replyParagraph.style.whiteSpace = "pre-wrap";
+        } catch (error) {
+            console.warn("[AI Question] Không thể sinh câu hỏi.", error);
+            replyParagraph.textContent = "Hiện chưa sinh được câu hỏi AI. Em tiếp tục làm bài thích ứng, hệ thống vẫn chọn câu theo luật độ khó 3 mức.";
+        }
+    }
+
+    async function generateAILearningPath() {
+        appendTutorBubble("user", "Tạo lộ trình học cá nhân cho em.");
+        const replyParagraph = appendTutorBubble("bot", "AI đang đọc mastery và prerequisite graph để tạo lộ trình...");
+        try {
+            const params = new URLSearchParams({ target_skill: resolveActiveTutorSkill() });
+            const response = await fetch(`/api/ai/student/${state.studentId}/learning-path?${params.toString()}`);
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(payload.detail || `AI HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            const path = data.learning_path || {};
+            const steps = (path.steps || []).map((step, index) => {
+                return `${index + 1}. ${step.skill_name || step.skill_id} - ${step.recommended_difficulty || "Thông hiểu"}\n   ${step.action || "Luyện tập theo gợi ý hệ thống."}\n   Đạt khi: ${step.success_signal || "đúng liên tiếp các câu cùng kỹ năng."}`;
+            }).join("\n");
+            replyParagraph.textContent = `${path.summary || "Lộ trình học cá nhân"}\n${steps}`;
+            replyParagraph.style.whiteSpace = "pre-wrap";
+        } catch (error) {
+            console.warn("[AI Path] Không thể sinh lộ trình.", error);
+            replyParagraph.textContent = "Hiện chưa sinh được lộ trình AI. Em vẫn có thể tiếp tục bài test để hệ thống cập nhật lộ trình bằng BKT.";
+        }
     }
     
     if (sendBtn && chatInput) {
@@ -2079,11 +2211,21 @@ function initAITutorChat() {
         });
     });
 
+    document.querySelectorAll("[data-ai-action]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const action = btn.getAttribute("data-ai-action");
+            if (action === "generate-question") generateAIQuestion();
+            if (action === "learning-path") generateAILearningPath();
+        });
+    });
+
     document.querySelectorAll(".demo-action-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             showToast(btn.getAttribute("data-message") || "Đã ghi nhận thao tác.");
         });
     });
+
+    updateAIStatusBadge();
 }
 
 // AI Learning Toolbox Tab Switching Logic
@@ -2173,7 +2315,7 @@ function initStudentMascotChat() {
 
         // Deterministic offline fallback
         setTimeout(() => {
-            let reply = "Tôi là trợ lý Socratic của VGap. Bạn hãy thử làm tiếp và hỏi tôi nếu có bước nào chưa rõ nhé!";
+            let reply = "Tôi là trợ lý Socratic của PorcusAI. Bạn hãy thử làm tiếp và hỏi tôi nếu có bước nào chưa rõ nhé!";
             const activeSkill = state.studentProgress.activeSkill;
             const textL = text.toLowerCase();
 
@@ -2695,7 +2837,7 @@ function initFinalReportModal() {
             console.warn("[-] Could not load final scorecard. Using offline report.", error);
             renderFinalReport({
                 summary: {
-                    product: "VGap AI",
+                    product: "PorcusAI",
                     positioning: "Hệ thống chẩn đoán lỗ hổng kiến thức gốc, không phải chatbot học tập.",
                     current_score: 76,
                     max_score: 100,
@@ -2728,6 +2870,9 @@ function renderFinalReport(payload) {
     const body = document.getElementById("final-report-modal-body");
     if (!body) return;
     const summary = payload.summary || {};
+    const productName = summary.product === "VGap AI" ? "PorcusAI" : (summary.product || "PorcusAI");
+    const positioning = String(summary.positioning || "Báo cáo bằng chứng cho vòng final.").replaceAll("VGap AI", "PorcusAI");
+    const finalMessage = String(summary.final_message || "Dùng phần này khi giám khảo hỏi bằng chứng, không đặt nó thành workflow chính của giáo viên.").replaceAll("VGap AI", "PorcusAI");
     const scoreRows = (payload.judge_barem || []).map(item => `
         <tr>
             <td>${escapeHTML(item.category)}</td>
@@ -2752,12 +2897,12 @@ function renderFinalReport(payload) {
         <div class="final-report-summary">
             <div>
                 <span class="teacher-command-kicker"><i class="fa-solid fa-scale-balanced"></i> Judge mode</span>
-                <h2>${escapeHTML(summary.product || "VGap AI")}: ${escapeHTML(summary.current_score ?? "76")}/${escapeHTML(summary.max_score || 100)}</h2>
-                <p>${escapeHTML(summary.positioning || "Báo cáo bằng chứng cho vòng final.")}</p>
+                <h2>${escapeHTML(productName)}: ${escapeHTML(summary.current_score ?? "76")}/${escapeHTML(summary.max_score || 100)}</h2>
+                <p>${escapeHTML(positioning)}</p>
             </div>
             <strong>${escapeHTML(summary.current_score ?? "76")}</strong>
         </div>
-        <p class="card-subtitle-desc">${escapeHTML(summary.final_message || "Dùng phần này khi giám khảo hỏi bằng chứng, không đặt nó thành workflow chính của giáo viên.")}</p>
+        <p class="card-subtitle-desc">${escapeHTML(finalMessage)}</p>
         <div class="final-report-chip-grid">${benchmarkItems}</div>
         <div class="table-container">
             <table class="memphis-table final-report-table">
@@ -2949,6 +3094,44 @@ function showLoadingOverlay(text = "Đang tải...") {
 }
 function hideLoadingOverlay() {
     document.getElementById("loading-overlay").style.display = "none";
+}
+
+async function openTeacherAILearningPath(studentId) {
+    const modal = document.getElementById("modal-diagnostic-inspector");
+    const container = document.getElementById("diagnostic-inspector-body");
+    if (!modal || !container) return;
+
+    modal.style.display = "flex";
+    container.textContent = "AI đang tạo lộ trình can thiệp theo mastery và prerequisite graph...";
+    try {
+        const response = await fetch(`/api/ai/teacher/student/${studentId}/learning-path?target_skill=MATH_G7`);
+        if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.detail || `AI HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        const path = data.learning_path || {};
+        const steps = (path.steps || []).map((step, index) => `
+            <article class="reasoning-step-card">
+                <strong>${index + 1}. ${escapeHTML(step.skill_name || step.skill_id)}</strong>
+                <p><span class="badge badge-warning">${escapeHTML(step.recommended_difficulty || "Thông hiểu")}</span></p>
+                <p>${escapeHTML(step.action || "Giao bài luyện phù hợp với lỗ hổng hiện tại.")}</p>
+                <small>Đo tiến bộ: ${escapeHTML(step.success_signal || "đúng liên tiếp các câu cùng kỹ năng.")}</small>
+            </article>
+        `).join("");
+
+        container.innerHTML = `
+            <div class="diagnostic-ai-path">
+                <h3><i class="fa-solid fa-route"></i> Lộ trình AI cho học sinh</h3>
+                <p class="card-subtitle-desc">${escapeHTML(path.summary || "Đề xuất dựa trên dữ liệu mastery và prerequisite graph.")}</p>
+                <div class="reasoning-step-list">${steps}</div>
+                <p class="card-subtitle-desc">${escapeHTML(path.teacher_notes || "Giáo viên có thể gom nhóm học sinh cùng skill_id để dạy lại 15 phút.")}</p>
+            </div>
+        `;
+    } catch (error) {
+        console.warn("[Teacher AI Path] Không thể sinh lộ trình.", error);
+        container.textContent = "Chưa tạo được lộ trình AI. Kiểm tra FPT AI key/model hoặc thử lại sau.";
+    }
 }
 
 function openDiagnosticInspector(studentId) {

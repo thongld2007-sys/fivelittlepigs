@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import json
+import time
 from backend.config import Config
 
 def get_db_connection():
@@ -42,15 +43,62 @@ def init_db():
             difficulty_level INTEGER DEFAULT 2,
             is_correct INTEGER,
             timestamp INTEGER,
+            event_id TEXT UNIQUE,
+            response_time_ms INTEGER,
+            client_timestamp INTEGER,
+            bkt_weight REAL DEFAULT 1.0,
+            anomaly_flags TEXT DEFAULT '[]',
+            synced_at INTEGER,
             FOREIGN KEY (student_id) REFERENCES students(id)
         )
     """)
     
-    # Try adding the difficulty_level column in case the table already existed
-    try:
-        cursor.execute("ALTER TABLE responses ADD COLUMN difficulty_level INTEGER DEFAULT 2")
-    except sqlite3.OperationalError:
-        pass
+    response_columns = {
+        "difficulty_level": "INTEGER DEFAULT 2",
+        "event_id": "TEXT",
+        "response_time_ms": "INTEGER",
+        "client_timestamp": "INTEGER",
+        "bkt_weight": "REAL DEFAULT 1.0",
+        "anomaly_flags": "TEXT DEFAULT '[]'",
+        "synced_at": "INTEGER",
+    }
+    for column_name, column_type in response_columns.items():
+        try:
+            cursor.execute(f"ALTER TABLE responses ADD COLUMN {column_name} {column_type}")
+        except sqlite3.OperationalError:
+            pass
+
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_responses_event_id
+        ON responses(event_id)
+        WHERE event_id IS NOT NULL
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sync_events (
+            event_id TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            aggregate_id TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            vector_clock TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            synced_at INTEGER
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pedagogical_explanations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL,
+            response_event_id TEXT NOT NULL,
+            skill_id TEXT NOT NULL,
+            next_skill_id TEXT NOT NULL,
+            explanation_text TEXT NOT NULL,
+            mastery_before REAL NOT NULL,
+            mastery_after REAL NOT NULL,
+            created_at INTEGER NOT NULL
+        )
+    """)
         
     conn.commit()
     
@@ -137,14 +185,150 @@ def update_student_mastery(student_id, skill_id, prob):
     conn.commit()
     conn.close()
 
-def record_response(student_id, question_id, skill_id, difficulty_level, is_correct, timestamp):
+def record_response(
+    student_id,
+    question_id,
+    skill_id,
+    difficulty_level,
+    is_correct,
+    timestamp,
+    event_id=None,
+    response_time_ms=None,
+    client_timestamp=None,
+    bkt_weight=1.0,
+    anomaly_flags=None,
+):
     conn = get_db_connection()
+    flags = anomaly_flags or []
     conn.execute("""
-        INSERT INTO responses (student_id, question_id, skill_id, difficulty_level, is_correct, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (student_id, question_id, skill_id, difficulty_level, 1 if is_correct else 0, timestamp))
+        INSERT INTO responses (
+            student_id, question_id, skill_id, difficulty_level, is_correct, timestamp,
+            event_id, response_time_ms, client_timestamp, bkt_weight, anomaly_flags
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        student_id,
+        question_id,
+        skill_id,
+        difficulty_level,
+        1 if is_correct else 0,
+        timestamp,
+        event_id,
+        response_time_ms,
+        client_timestamp,
+        bkt_weight,
+        json.dumps(flags, ensure_ascii=False),
+    ))
     conn.commit()
     conn.close()
+
+def get_response_by_event_id(event_id):
+    if not event_id:
+        return None
+    conn = get_db_connection()
+    row = conn.execute(
+        "SELECT * FROM responses WHERE event_id = ?",
+        (event_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def upsert_sync_event(event_id, event_type, aggregate_id, payload, vector_clock):
+    conn = get_db_connection()
+    conn.execute("""
+        INSERT OR IGNORE INTO sync_events (
+            event_id, event_type, aggregate_id, payload_json, vector_clock, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        event_id,
+        event_type,
+        aggregate_id,
+        json.dumps(payload, ensure_ascii=False),
+        vector_clock,
+        int(time.time()),
+    ))
+    conn.commit()
+    conn.close()
+
+def list_unsynced_events(limit=100):
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT event_id, event_type, aggregate_id, payload_json, vector_clock, created_at
+        FROM sync_events
+        WHERE synced_at IS NULL
+        ORDER BY created_at ASC, event_id ASC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+    events = []
+    for row in rows:
+        item = dict(row)
+        item["payload"] = json.loads(item.pop("payload_json"))
+        events.append(item)
+    return events
+
+def mark_events_synced(event_ids):
+    if not event_ids:
+        return 0
+    placeholders = ",".join("?" for _ in event_ids)
+    now = int(time.time())
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"UPDATE sync_events SET synced_at = ? WHERE event_id IN ({placeholders})",
+        [now, *event_ids],
+    )
+    cursor.execute(
+        f"UPDATE responses SET synced_at = ? WHERE event_id IN ({placeholders})",
+        [now, *event_ids],
+    )
+    changed = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return changed
+
+def add_pedagogical_explanation(
+    student_id,
+    response_event_id,
+    skill_id,
+    next_skill_id,
+    explanation_text,
+    mastery_before,
+    mastery_after,
+):
+    conn = get_db_connection()
+    conn.execute("""
+        INSERT INTO pedagogical_explanations (
+            student_id, response_event_id, skill_id, next_skill_id, explanation_text,
+            mastery_before, mastery_after, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        student_id,
+        response_event_id,
+        skill_id,
+        next_skill_id,
+        explanation_text,
+        mastery_before,
+        mastery_after,
+        int(time.time()),
+    ))
+    conn.commit()
+    conn.close()
+
+def list_pedagogical_explanations(student_id, limit=10):
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT response_event_id, skill_id, next_skill_id, explanation_text,
+               mastery_before, mastery_after, created_at
+        FROM pedagogical_explanations
+        WHERE student_id = ?
+        ORDER BY id DESC
+        LIMIT ?
+    """, (student_id, limit)).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 def get_consecutive_failed_count(student_id, skill_id):
     conn = get_db_connection()
