@@ -21,11 +21,16 @@
                 <i class="fa-solid fa-brain brand-icon"></i>
                 <span class="brand-text">VGap AI</span>
             </div>
-            <nav class="sidebar-menu">
+            <nav class="sidebar-menu" id="student-sidebar-menu">
                 <a href="#" class="menu-item active" data-tab="dashboard"><i class="fa-solid fa-house"></i><span>Tổng quan</span></a>
                 <a href="#" class="menu-item" data-tab="courses"><i class="fa-solid fa-book-open"></i><span>Khóa học</span></a>
                 <a href="#" class="menu-item" data-tab="assignments"><i class="fa-solid fa-file-signature"></i><span>Bài tập</span></a>
                 <a href="#" class="menu-item" data-tab="tutor"><i class="fa-solid fa-robot"></i><span>Trợ lý học tập</span></a>
+            </nav>
+            <nav class="sidebar-menu teacher-sidebar-menu" id="teacher-sidebar-menu" style="display: none;">
+                <a href="#" class="menu-item active" data-teacher-nav="grouping"><i class="fa-solid fa-table-columns"></i><span>Tổng quan lớp</span></a>
+                <a href="#" class="menu-item" data-teacher-nav="priority"><i class="fa-solid fa-list-check"></i><span>Học sinh ưu tiên</span></a>
+                <a href="#" class="menu-item" data-teacher-nav="tree"><i class="fa-solid fa-diagram-project"></i><span>Lộ trình AI</span></a>
             </nav>
             <div class="sidebar-footer">
                 <button id="btn-toggle-portal" class="btn btn-switch"><i class="fa-solid fa-arrows-rotate"></i> Chuyển Bảng</button>
@@ -84,9 +89,46 @@
                         <div class="student-workspace">
                             <!-- Column 1: Mini Personal Path Graph -->
                             <div class="memphis-card path-card">
-                                <h3 class="card-header-title"><i class="fa-solid fa-route"></i> Lộ trình cá nhân</h3>
+                                <div class="path-card-header">
+                                    <div>
+                                        <span class="badge badge-skill"><i class="fa-solid fa-route"></i> Lộ trình cá nhân</span>
+                                        <h3 class="card-header-title">Kế hoạch học hôm nay</h3>
+                                        <p>AI xác định em nên luyện phần nào trước để không học nhảy qua lỗ hổng nền.</p>
+                                    </div>
+                                    <div class="path-score-badge">
+                                        <strong>42%</strong>
+                                        <span>tiến độ</span>
+                                    </div>
+                                </div>
+                                <div class="path-focus-strip">
+                                    <div>
+                                        <span>Đang học</span>
+                                        <strong>Toán 7 · Cộng trừ số hữu tỉ</strong>
+                                    </div>
+                                    <div>
+                                        <span>AI kiểm tra</span>
+                                        <strong>Hổng phân số lớp 5-6?</strong>
+                                    </div>
+                                </div>
                                 <div class="personal-path-flow" id="personal-path-flow">
                                     <!-- Dynamic path nodes -->
+                                </div>
+                                <div class="path-action-grid">
+                                    <div class="path-action-item done">
+                                        <i class="fa-solid fa-check"></i>
+                                        <strong>Đã chắc</strong>
+                                        <span>Quy đồng mẫu số</span>
+                                    </div>
+                                    <div class="path-action-item active">
+                                        <i class="fa-solid fa-location-dot"></i>
+                                        <strong>Chưa ổn định</strong>
+                                        <span>Cộng trừ số hữu tỉ</span>
+                                    </div>
+                                    <div class="path-action-item locked">
+                                        <i class="fa-solid fa-lock-open"></i>
+                                        <strong>Chưa đạt</strong>
+                                        <span>Biểu thức nhiều bước</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="question-workspace">
@@ -128,6 +170,29 @@
                                     <div class="test-stage-pill" data-stage="true_false"><i class="fa-solid fa-scale-balanced"></i> Đúng/Sai</div>
                                     <div class="test-stage-pill" data-stage="short_answer"><i class="fa-solid fa-keyboard"></i> Trả lời ngắn</div>
                                 </div>
+                                <div class="student-path-summary">
+                                    <div class="student-path-summary-item">
+                                        <i class="fa-solid fa-location-dot"></i>
+                                        <div>
+                                            <strong>Đang học</strong>
+                                            <span>Toán 7 · Cộng trừ số hữu tỉ</span>
+                                        </div>
+                                    </div>
+                                    <div class="student-path-summary-item">
+                                        <i class="fa-solid fa-magnifying-glass-chart"></i>
+                                        <div>
+                                            <strong>AI đang kiểm tra</strong>
+                                            <span>Lỗi lớp 7 hay hổng phân số lớp 5-6</span>
+                                        </div>
+                                    </div>
+                                    <div class="student-path-summary-item">
+                                        <i class="fa-solid fa-forward-step"></i>
+                                        <div>
+                                            <strong>Bước tiếp theo</strong>
+                                            <span>Làm bài test thích ứng để mở khóa lộ trình</span>
+                                        </div>
+                                    </div>
+                                </div>
                                 <div id="survey-result-card" class="memphis-card survey-result-card" style="display: none;"></div>
                                 <div id="question-card" class="memphis-card question-card" style="padding: 1.5rem; display: none;">
                                     <div class="question-card-header" style="display: flex; justify-content: space-between; margin-bottom: 1.2rem;">
@@ -163,7 +228,7 @@
                                     </div>
 
                                     <!-- Action Buttons -->
-                                    <div class="question-actions" style="display: flex; gap: 0.8rem; margin-top: 1.5rem; border-top: 2.5px dashed #000; padding-top: 1.2rem;">
+                                    <div class="question-actions" style="display: flex; gap: 1rem; margin-top: 1.5rem; border-top: 2.5px dashed #000; padding-top: 1.2rem; flex-wrap: wrap;">
                                         <button id="btn-show-hint" class="btn btn-hint-outline" style="flex: 1; padding: 0.6rem; font-weight: 700;"><i class="fa-solid fa-lightbulb"></i> Gợi ý</button>
                                         <button id="btn-submit-answer" class="btn btn-primary-memphis" disabled style="flex: 1.5; padding: 0.6rem; font-weight: 700;"><i class="fa-solid fa-paper-plane"></i> Gửi đáp án</button>
                                     </div>
@@ -173,9 +238,9 @@
                             <!-- Column 3: AI Learning Assistant (Unified Toolbox) -->
                             <div class="memphis-card toolbox-card">
                                 <div class="toolbox-tabs" style="display: flex; border-bottom: 3.5px solid #000; background: #e8ecff; border-top-left-radius: 12px; border-top-right-radius: 12px;">
-                                    <button class="toolbox-tab-btn active" data-toolbox-tab="scratchpad" style="flex: 1; padding: 0.8rem; font-family: Poppins; font-weight: 800; font-size: 0.8rem; background: none; border: none; border-right: 3.5px solid #000; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"><i class="fa-solid fa-pen-ruler"></i> Bảng Nháp</button>
-                                    <button class="toolbox-tab-btn" data-toolbox-tab="mascot" style="flex: 1; padding: 0.8rem; font-family: Poppins; font-weight: 800; font-size: 0.8rem; background: none; border: none; border-right: 3.5px solid #000; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"><i class="fa-solid fa-robot"></i> Hỏi trợ lý</button>
-                                    <button class="toolbox-tab-btn" data-toolbox-tab="hint" style="flex: 1; padding: 0.8rem; font-family: Poppins; font-weight: 800; font-size: 0.8rem; background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.3rem;"><i class="fa-solid fa-lightbulb"></i> Gợi ý</button>
+                                    <button class="toolbox-tab-btn active" data-toolbox-tab="scratchpad" style="flex: 1 1 90px; padding: 0.9rem 0.7rem; font-family: Poppins; font-weight: 800; font-size: 0.78rem; line-height: 1.25; background: none; border: none; border-right: 3.5px solid #000; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.35rem; flex-wrap: wrap; text-align: center;"><i class="fa-solid fa-pen-ruler"></i> Bảng Nháp</button>
+                                    <button class="toolbox-tab-btn" data-toolbox-tab="mascot" style="flex: 1 1 90px; padding: 0.9rem 0.7rem; font-family: Poppins; font-weight: 800; font-size: 0.78rem; line-height: 1.25; background: none; border: none; border-right: 3.5px solid #000; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.35rem; flex-wrap: wrap; text-align: center;"><i class="fa-solid fa-robot"></i> Hỏi trợ lý</button>
+                                    <button class="toolbox-tab-btn" data-toolbox-tab="hint" style="flex: 1 1 90px; padding: 0.9rem 0.7rem; font-family: Poppins; font-weight: 800; font-size: 0.78rem; line-height: 1.25; background: none; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.35rem; flex-wrap: wrap; text-align: center;"><i class="fa-solid fa-lightbulb"></i> Gợi ý</button>
                                 </div>
 
                                 <div class="toolbox-content" style="padding: 1.2rem; min-height: 350px;">
@@ -248,41 +313,87 @@
                     <div id="student-view-courses" class="student-view-panel" style="display: none;">
                         <div class="courses-header mb-4">
                             <h2><i class="fa-solid fa-graduation-cap"></i> Khóa học của tôi</h2>
-                            <p class="card-subtitle-desc">Lộ trình luyện tập thích ứng theo môn học và lớp học đã chọn.</p>
+                            <p class="card-subtitle-desc">Theo dõi nhiều môn học, mỗi môn có lộ trình riêng và trạng thái chẩn đoán riêng.</p>
                         </div>
-                        <div class="courses-grid-layout">
-                            <!-- Course Card 1 -->
-                            <div class="memphis-card course-card">
-                                <div class="course-card-icon bg-success-light"><i class="fa-solid fa-circle-check text-green"></i></div>
-                                <h3>Toán 5: Phân số & BCNN</h3>
-                                <p>Học về các phép tính phân số, quy đồng mẫu số và bội chung nhỏ nhất.</p>
-                                <div class="course-progress">
-                                    <span class="progress-percent">Hoàn thành 100%</span>
-                                    <div class="progress-track"><div class="progress-fill" style="width: 100%; background: var(--success);"></div></div>
+                        <div class="courses-overview-layout">
+                            <div class="memphis-card course-focus-card">
+                                <div class="course-focus-header">
+                                    <div class="course-card-icon bg-primary-light"><i class="fa-solid fa-route text-blue"></i></div>
+                                    <div>
+                                        <span class="badge badge-skill">Đang ưu tiên hôm nay</span>
+                                        <h3>Toán 7: Số hữu tỉ và phép tính phân số</h3>
+                                        <p>Hệ thống đang kiểm tra xem em sai vì phần lớp 7 hay vì hổng kiến thức phân số từ lớp 5-6.</p>
+                                    </div>
                                 </div>
-                                <button class="btn btn-secondary btn-sm demo-action-btn" data-message="Đã mở lại lộ trình Toán 5."><i class="fa-solid fa-eye"></i> Xem lại bài học</button>
+                                <div class="course-progress course-progress-large">
+                                    <div class="course-progress-meta">
+                                        <span>Tiến độ lộ trình</span>
+                                        <strong>42%</strong>
+                                    </div>
+                                    <div class="progress-track"><div class="progress-fill" style="width: 42%; background: var(--primary);"></div></div>
+                                </div>
+                                <div class="course-milestones">
+                                    <div class="course-milestone done"><i class="fa-solid fa-check"></i><span>Quy đồng mẫu số</span></div>
+                                    <div class="course-milestone active"><i class="fa-solid fa-location-dot"></i><span>Cộng trừ số hữu tỉ</span></div>
+                                    <div class="course-milestone locked"><i class="fa-solid fa-lock"></i><span>Biểu thức nhiều bước</span></div>
+                                </div>
+                                <button class="btn btn-primary-memphis demo-action-btn" data-message="Đã mở lộ trình Toán 7 đang học."><i class="fa-solid fa-circle-play"></i> Vào lộ trình</button>
                             </div>
-                            <!-- Course Card 2 -->
-                            <div class="memphis-card course-card">
-                                <div class="course-card-icon bg-primary-light"><i class="fa-solid fa-spinner text-blue animate-pulse"></i></div>
-                                <h3>Toán 6: Số nguyên & GTTĐ</h3>
-                                <p>Số âm, phép cộng trừ số nguyên và tính toán giá trị tuyệt đối.</p>
-                                <div class="course-progress">
-                                    <span class="progress-percent">Hoàn thành 75%</span>
-                                    <div class="progress-track"><div class="progress-fill" style="width: 75%; background: var(--primary);"></div></div>
+
+                            <div class="course-side-stack">
+                                <div class="memphis-card course-snapshot-card course-catalog-card">
+                                    <h3><i class="fa-solid fa-book-open-reader"></i> Các khóa học đang theo</h3>
+                                    <div class="course-catalog-list">
+                                        <button class="course-catalog-item active demo-action-btn" data-message="Đang xem lộ trình Toán 7.">
+                                            <span class="course-code">MATH-7A</span>
+                                            <strong>Toán 7</strong>
+                                            <small>42% · cần ôn phân số</small>
+                                        </button>
+                                        <button class="course-catalog-item demo-action-btn" data-message="Đã mở khóa Ngữ văn 7.">
+                                            <span class="course-code">LIT-7A</span>
+                                            <strong>Ngữ văn 7</strong>
+                                            <small>68% · đọc hiểu ổn định</small>
+                                        </button>
+                                        <button class="course-catalog-item demo-action-btn" data-message="Đã mở khóa Tiếng Anh 7.">
+                                            <span class="course-code">ENG-7A</span>
+                                            <strong>Tiếng Anh 7</strong>
+                                            <small>55% · cần luyện so sánh</small>
+                                        </button>
+                                        <button class="course-catalog-item demo-action-btn" data-message="Đã mở khóa KHTN 7.">
+                                            <span class="course-code">SCI-7A</span>
+                                            <strong>KHTN 7</strong>
+                                            <small>73% · đang đúng tiến độ</small>
+                                        </button>
+                                    </div>
                                 </div>
-                                <button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Đã chuyển sang bài luyện Toán 6."><i class="fa-solid fa-circle-play"></i> Học tiếp</button>
-                            </div>
-                            <!-- Course Card 3 -->
-                            <div class="memphis-card course-card">
-                                <div class="course-card-icon bg-warning-light"><i class="fa-solid fa-lock text-orange"></i></div>
-                                <h3>Toán 7: Số hữu tỉ</h3>
-                                <p>Tập hợp số hữu tỉ, các phép tính cộng, trừ, nhân, chia số hữu tỉ.</p>
-                                <div class="course-progress">
-                                    <span class="progress-percent">Hoàn thành 20%</span>
-                                    <div class="progress-track"><div class="progress-fill" style="width: 20%; background: var(--accent);"></div></div>
+
+                                <div class="memphis-card course-snapshot-card">
+                                    <h3><i class="fa-solid fa-layer-group"></i> Lộ trình cá nhân môn Toán</h3>
+                                    <div class="course-roadmap-list">
+                                        <div class="course-roadmap-item complete">
+                                            <strong>Toán 5: Phân số & BCNN</strong>
+                                            <span>Chắc nền, dùng để giải thích lỗi sai hiện tại.</span>
+                                        </div>
+                                        <div class="course-roadmap-item active">
+                                            <strong>Toán 6: Số nguyên & GTTĐ</strong>
+                                            <span>Đang cần ôn lại dấu âm và phép cộng trái dấu.</span>
+                                        </div>
+                                        <div class="course-roadmap-item next">
+                                            <strong>Toán 7: Số hữu tỉ</strong>
+                                            <span>Mở khóa dần theo kết quả chẩn đoán.</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Đã chuyển sang bài luyện Toán 7."><i class="fa-solid fa-circle-play"></i> Học tiếp</button>
+
+                                <div class="memphis-card course-snapshot-card">
+                                    <h3><i class="fa-solid fa-compass"></i> Khác với Bài tập</h3>
+                                    <p class="course-note">Khóa học là bản đồ đường dài. Bài tập là các việc cụ thể phải nộp trong tuần.</p>
+                                    <div class="course-stat-grid">
+                                        <div><strong>3</strong><span>học phần</span></div>
+                                        <div><strong>11</strong><span>kỹ năng</span></div>
+                                        <div><strong>42%</strong><span>tiến độ</span></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -291,48 +402,58 @@
                     <div id="student-view-assignments" class="student-view-panel" style="display: none;">
                         <div class="assignments-header mb-4">
                             <h2><i class="fa-solid fa-file-signature"></i> Bài tập cần hoàn thành</h2>
-                            <p class="card-subtitle-desc">Hoàn thành đúng hạn để duy trì chuỗi học tập liên tiếp!</p>
+                            <p class="card-subtitle-desc">Nơi xử lý các nhiệm vụ ngắn hạn: bài nào cần nộp hôm nay, bài nào trễ hạn, bài nào chỉ cần xem lại.</p>
                         </div>
-                        <div class="memphis-card">
-                            <div class="table-container">
-                                <table class="memphis-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Tên bài tập</th>
-                                            <th>Kỹ năng</th>
-                                            <th>Trạng thái</th>
-                                            <th>Điểm số</th>
-                                            <th>Hạn chót</th>
-                                            <th>Hành động</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td><strong>Ôn tập: Quy đồng phân số cơ bản</strong></td>
-                                            <td><span class="badge badge-skill">Quy đồng phân số (L5)</span></td>
-                                            <td><span class="badge badge-success">Đã hoàn thành</span></td>
-                                            <td><strong>10/10</strong></td>
-                                            <td>15/07/2026</td>
-                                            <td><button class="btn btn-secondary btn-sm demo-action-btn" data-message="Đã mở bản xem lại bài làm."><i class="fa-solid fa-rotate-left"></i> Xem lại</button></td>
-                                        </tr>
-                                        <tr class="priority-pulsing-row">
-                                            <td><strong>Bài test thích ứng: Số hữu tỉ</strong></td>
-                                            <td><span class="badge badge-skill">Cộng số hữu tỉ (L7)</span></td>
-                                            <td><span class="badge badge-warning">Đang làm</span></td>
-                                            <td><strong>3/5 câu</strong></td>
-                                            <td>Hôm nay, 17/07/2026</td>
-                                            <td><button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Mở Tổng quan, chọn Toán - Lớp 7 rồi bấm Bắt đầu để làm tiếp bài test thích ứng."><i class="fa-solid fa-play"></i> Làm tiếp</button></td>
-                                        </tr>
-                                        <tr>
-                                            <td><strong>Bổ trợ: GTTĐ & Cộng số nguyên</strong></td>
-                                            <td><span class="badge badge-skill">Cộng số nguyên (L6)</span></td>
-                                            <td><span class="badge badge-danger">Trễ hạn</span></td>
-                                            <td><strong>0/10</strong></td>
-                                            <td>14/07/2026</td>
-                                            <td><button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Đã chuyển sang lộ trình bổ trợ lớp 6 để nộp bù."><i class="fa-solid fa-triangle-exclamation"></i> Nộp bù</button></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                        <div class="assignments-board">
+                            <div class="assignment-lane">
+                                <div class="assignment-lane-title"><i class="fa-solid fa-bolt"></i> Cần làm ngay</div>
+                                <article class="memphis-card assignment-task-card urgent">
+                                    <div class="assignment-task-top">
+                                        <span class="badge badge-danger">Trễ hạn</span>
+                                        <span class="assignment-due">14/07/2026</span>
+                                    </div>
+                                    <h3>Bổ trợ: GTTĐ & cộng số nguyên</h3>
+                                    <p>Hoàn thành 10 câu nền lớp 6 để hệ thống kiểm tra lại lỗi dấu âm.</p>
+                                    <div class="assignment-task-meta">
+                                        <span><i class="fa-solid fa-list-check"></i> 0/10 câu</span>
+                                        <span><i class="fa-solid fa-brain"></i> Cộng số nguyên</span>
+                                    </div>
+                                    <button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Đã chuyển sang bài bổ trợ lớp 6 để nộp bù."><i class="fa-solid fa-triangle-exclamation"></i> Nộp bù</button>
+                                </article>
+                            </div>
+
+                            <div class="assignment-lane">
+                                <div class="assignment-lane-title"><i class="fa-solid fa-clock"></i> Đang làm</div>
+                                <article class="memphis-card assignment-task-card active-task">
+                                    <div class="assignment-task-top">
+                                        <span class="badge badge-warning">Hôm nay</span>
+                                        <span class="assignment-due">17/07/2026</span>
+                                    </div>
+                                    <h3>Bài test thích ứng: Số hữu tỉ</h3>
+                                    <p>Làm tiếp phần trắc nghiệm để xác định em đang kẹt ở lớp 7 hay kiến thức nền lớp 5-6.</p>
+                                    <div class="assignment-task-meta">
+                                        <span><i class="fa-solid fa-list-check"></i> 3/5 câu</span>
+                                        <span><i class="fa-solid fa-route"></i> Chẩn đoán</span>
+                                    </div>
+                                    <button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Mở Tổng quan, chọn Toán - Lớp 7 rồi bấm Bắt đầu để làm tiếp bài test thích ứng."><i class="fa-solid fa-play"></i> Làm tiếp</button>
+                                </article>
+                            </div>
+
+                            <div class="assignment-lane">
+                                <div class="assignment-lane-title"><i class="fa-solid fa-circle-check"></i> Đã xong</div>
+                                <article class="memphis-card assignment-task-card completed">
+                                    <div class="assignment-task-top">
+                                        <span class="badge badge-success">Đã hoàn thành</span>
+                                        <span class="assignment-due">15/07/2026</span>
+                                    </div>
+                                    <h3>Ôn tập: Quy đồng phân số cơ bản</h3>
+                                    <p>Điểm tốt, dùng làm nền để học tiếp phép cộng trừ số hữu tỉ.</p>
+                                    <div class="assignment-task-meta">
+                                        <span><i class="fa-solid fa-star"></i> 10/10</span>
+                                        <span><i class="fa-solid fa-layer-group"></i> Phân số lớp 5</span>
+                                    </div>
+                                    <button class="btn btn-secondary btn-sm demo-action-btn" data-message="Đã mở bản xem lại bài làm."><i class="fa-solid fa-rotate-left"></i> Xem lại</button>
+                                </article>
                             </div>
                         </div>
                     </div>
@@ -397,11 +518,60 @@
 
                 <!-- ================= KHU VỰC B: GIÁO VIÊN ================= -->
                 <section id="portal-teacher" class="portal-section">
+                    <div class="teacher-command-hero">
+                        <div class="teacher-command-copy">
+                            <span class="teacher-command-kicker"><i class="fa-solid fa-satellite-dish"></i> Teacher Command Center</span>
+                            <h1>Bảng quản lý lớp học theo dữ liệu</h1>
+                            <p>VGap AI giúp giáo viên nhìn nhanh tình trạng lớp, phát hiện lỗ hổng gốc, gom nhóm học sinh và chọn hành động dạy lại hoặc giao bài luyện phù hợp.</p>
+                        </div>
+                        <div class="teacher-command-actions">
+                            <button class="btn btn-primary-memphis" id="btn-command-lesson-plan"><i class="fa-solid fa-wand-magic-sparkles"></i> Tạo kế hoạch 15 phút</button>
+                            <button class="btn btn-hint-outline" id="btn-open-final-report"><i class="fa-solid fa-file-shield"></i> Báo cáo final</button>
+                        </div>
+                    </div>
+
+                    <div class="teacher-class-switcher memphis-card">
+                        <div>
+                            <span class="teacher-command-kicker"><i class="fa-solid fa-school"></i> Lớp đang quản lý</span>
+                            <h3 id="teacher-active-class-name">Toán 7A · THCS FPT Cầu Giấy</h3>
+                            <p id="teacher-active-class-desc">Mã lớp: <strong>VGAP-MATH-7A-2026</strong> · 40 học sinh · tiết 3 sáng thứ Hai</p>
+                        </div>
+                        <label for="teacher-class-select" class="sr-only">Chọn lớp giáo viên quản lý</label>
+                        <select id="teacher-class-select" class="teacher-class-select">
+                            <option value="math7a" data-name="Toán 7A · THCS FPT Cầu Giấy" data-code="VGAP-MATH-7A-2026" data-meta="40 học sinh · tiết 3 sáng thứ Hai">VGAP-MATH-7A-2026 · Toán 7A</option>
+                            <option value="math7b" data-name="Toán 7B · THCS FPT Cầu Giấy" data-code="VGAP-MATH-7B-2026" data-meta="38 học sinh · tiết 5 chiều thứ Ba">VGAP-MATH-7B-2026 · Toán 7B</option>
+                            <option value="math6b" data-name="Toán 6B · THCS FPT Cầu Giấy" data-code="VGAP-MATH-6B-2026" data-meta="42 học sinh · tiết 2 sáng thứ Tư">VGAP-MATH-6B-2026 · Toán 6B</option>
+                        </select>
+                    </div>
+
+                    <div class="teacher-command-grid">
+                        <div class="memphis-card command-stat-card urgent">
+                            <span class="command-stat-label">Cần can thiệp hôm nay</span>
+                            <strong id="teacher-risk-students">7 học sinh</strong>
+                            <small>Ưu tiên theo số câu sai, thời gian kẹt và mastery.</small>
+                        </div>
+                        <div class="memphis-card command-stat-card">
+                            <span class="command-stat-label">Nhóm hổng đang mở</span>
+                            <strong id="teacher-gap-group-summary">2 nhóm</strong>
+                            <small>Gom nhóm để dạy lại thay vì kèm từng em thủ công.</small>
+                        </div>
+                        <div class="memphis-card command-stat-card">
+                            <span class="command-stat-label">Kỹ năng nên dạy lại</span>
+                            <strong id="teacher-top-gap-skill">Quy đồng phân số</strong>
+                            <small>Đề xuất từ lỗi lặp lại và prerequisite graph.</small>
+                        </div>
+                        <div class="memphis-card command-stat-card success">
+                            <span class="command-stat-label">Thời gian tiết kiệm ước tính</span>
+                            <strong id="teacher-time-saved">90 phút/tuần</strong>
+                            <small>So với phân loại bài làm và chia nhóm thủ công.</small>
+                        </div>
+                    </div>
+
                     <!-- Class Reteach Alert Banner -->
                     <div id="class-reteach-banner" class="memphis-banner banner-danger" style="display: none;">
                         <div class="banner-icon"><i class="fa-solid fa-triangle-exclamation animate-pulse"></i></div>
                         <div class="banner-body">
-                            <h4>⚠️ Cảnh báo giảng lại toàn lớp!</h4>
+                            <h4>Cảnh báo giảng lại toàn lớp!</h4>
                             <p>Hơn 20% học sinh đang bị hổng kiến thức gốc: <strong id="class-reteach-skill-name">[Kỹ năng]</strong>. Vui lòng thiết kế buổi giảng bổ trợ.</p>
                         </div>
                         <button class="btn btn-hint-outline btn-sm" id="btn-create-lesson-plan" style="margin-left: auto;"><i class="fa-solid fa-wand-magic-sparkles"></i> Tạo giáo án</button>
@@ -409,14 +579,14 @@
 
                     <!-- Teacher Dashboard Tabs Header -->
                     <div class="teacher-tabs-nav">
-                        <button class="teacher-tab-btn active" data-teacher-tab="grouping"><i class="fa-solid fa-people-group"></i> 1. Phân nhóm tự động</button>
-                        <button class="teacher-tab-btn" data-teacher-tab="priority"><i class="fa-solid fa-list-ol"></i> 2. Danh sách kèm cặp ưu tiên</button>
-                        <button class="teacher-tab-btn" data-teacher-tab="tree"><i class="fa-solid fa-diagram-project"></i> 3. Sơ đồ tư duy chẩn đoán</button>
+                        <button class="teacher-tab-btn active" data-teacher-tab="grouping"><i class="fa-solid fa-table-columns"></i> Tổng quan lớp</button>
+                        <button class="teacher-tab-btn" data-teacher-tab="priority"><i class="fa-solid fa-list-ol"></i> Học sinh ưu tiên</button>
+                        <button class="teacher-tab-btn" data-teacher-tab="tree"><i class="fa-solid fa-diagram-project"></i> Lộ trình AI đề xuất</button>
                     </div>
 
                     <!-- Teacher Tabs Contents -->
                     <div class="teacher-tabs-content">
-                        <!-- TAB 1: AUTO GROUPING -->
+                        <!-- TAB 1: CLASS OVERVIEW -->
                         <div id="teacher-tab-grouping" class="teacher-tab-panel active">
                             <div class="teacher-grouping-layout">
                                 <!-- Left: Metrics & Heatmap -->
@@ -436,10 +606,10 @@
                                     <div class="memphis-card class-progress-card">
                                         <div class="class-progress-header">
                                             <div>
-                                                <h3 class="card-header-title"><i class="fa-solid fa-chart-column"></i> Tiến trình học tập của lớp</h3>
-                                                <p class="card-subtitle-desc">Biểu đồ cột HTML/CSS nhẹ, cập nhật theo dữ liệu realtime hoặc polling.</p>
+                                                <h3 class="card-header-title"><i class="fa-solid fa-chart-column"></i> Mức thành thạo theo kỹ năng</h3>
+                                                <p class="card-subtitle-desc">Giáo viên dùng biểu đồ này để biết lớp đang yếu ở kỹ năng nào trước khi giao bài hoặc dạy lại.</p>
                                             </div>
-                                            <span id="teacher-realtime-status" class="realtime-status">Đang kết nối...</span>
+                                            <span class="realtime-status" id="teacher-realtime-status">Đang kết nối...</span>
                                         </div>
                                         <div id="class-progress-chart" class="class-progress-chart" aria-label="Biểu đồ tiến trình học tập của lớp">
                                             <!-- Bars rendered by JS -->
@@ -448,8 +618,8 @@
                                     
                                     <!-- Classroom Heatmap Grid -->
                                     <div class="memphis-card heatmap-card">
-                                        <h3 class="card-header-title"><i class="fa-solid fa-border-all"></i> Bản đồ nhiệt lớp học (Heatmap)</h3>
-                                        <p class="card-subtitle-desc">Lưới 40 học sinh. Các ô nhấp nháy đỏ/cam biểu thị học sinh cần hỗ trợ khẩn cấp.</p>
+                                        <h3 class="card-header-title"><i class="fa-solid fa-border-all"></i> Bản đồ rủi ro học sinh</h3>
+                                        <p class="card-subtitle-desc">Các ô đỏ/cam là học sinh cần được xem lý do chẩn đoán hoặc hỗ trợ trước.</p>
                                         <div class="heatmap-grid" id="heatmap-grid-container">
                                             <!-- 40 boxes rendered by JS -->
                                         </div>
@@ -459,7 +629,8 @@
                                 <!-- Right: Group list -->
                                 <div class="teacher-grouping-right">
                                     <div class="memphis-card">
-                                        <h3 class="card-header-title"><i class="fa-solid fa-people-group"></i> Phân nhóm hổng kiến thức tự động</h3>
+                                        <h3 class="card-header-title"><i class="fa-solid fa-people-group"></i> Nhóm lỗ hổng kiến thức</h3>
+                                        <p class="card-subtitle-desc">Các nhóm được tạo từ lỗi sai và Knowledge Graph để giáo viên dạy lại theo cụm, không phải dò từng bài làm.</p>
                                         <div class="groups-grid" id="groups-grid-container">
                                             <!-- Group Cards dynamically rendered -->
                                         </div>
@@ -472,7 +643,7 @@
                         <div id="teacher-tab-priority" class="teacher-tab-panel">
                             <div class="memphis-card">
                                 <h3 class="card-header-title"><i class="fa-solid fa-heart-circle-exclamation text-red animate-pulse"></i> Học sinh cần kèm cặp ngay</h3>
-                                <p class="card-subtitle-desc">Danh sách được sắp xếp tự động dựa trên chỉ số bế tắc (Priority Score - PS) của học sinh. Click vào học sinh để kiểm tra chi tiết.</p>
+                                <p class="card-subtitle-desc">Danh sách được sắp xếp tự động theo chỉ số bế tắc để giáo viên biết nên gọi em nào, kèm gì, và vì sao.</p>
                                 <div class="table-container">
                                     <table class="memphis-table">
                                         <thead>
@@ -517,6 +688,7 @@
                                 </div>
                             </div>
                         </div>
+
                     </div>
                 </section>
             </main>
@@ -547,6 +719,20 @@
                 <button class="modal-close-btn" id="btn-close-diagnostic">&times;</button>
             </div>
             <div class="modal-body" id="diagnostic-inspector-body">
+                <!-- Content injected dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Judge Evidence Report (demo-only, not part of daily teacher workflow) -->
+    <div class="memphis-modal" id="modal-final-report" style="display: none;">
+        <div class="modal-overlay" id="final-report-overlay"></div>
+        <div class="modal-card modal-card-wide">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-shield text-blue"></i> Báo cáo bằng chứng final</h3>
+                <button class="modal-close-btn" id="btn-close-final-report">&times;</button>
+            </div>
+            <div class="modal-body" id="final-report-modal-body">
                 <!-- Content injected dynamically -->
             </div>
         </div>

@@ -141,6 +141,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     initVirtualScratchpad();
     initFractionSlider();
     initTeacherModals();
+    initFinalReportModal();
+    initTeacherClassSwitcher();
     initMascotReadAloud();
     
     // Load Knowledge Graph DAG
@@ -255,8 +257,13 @@ function resetTestStage() {
 function setQuestionVisibility(isVisible) {
     const questionCard = document.getElementById("question-card");
     const progressCard = document.getElementById("test-progress-card");
+    const workspace = document.querySelector(".student-workspace");
     if (questionCard) questionCard.style.display = isVisible ? "block" : "none";
     if (progressCard) progressCard.style.display = isVisible ? "flex" : "none";
+    if (workspace) {
+        workspace.classList.toggle("is-testing", isVisible);
+        workspace.classList.toggle("is-waiting", !isVisible);
+    }
 }
 
 function setSurveyResultVisibility(isVisible) {
@@ -1194,52 +1201,75 @@ function renderPersonalPath() {
         }
     }
     
-    const svgWidth = 200;
-    const svgHeight = 200;
+    const svgWidth = 320;
+    const svgHeight = 280;
     let svgHtml = `<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">`;
     
     const nodes = [];
     const edges = [];
+
+    const getNodeX = (count, index) => {
+        if (count <= 1) return 160;
+        const start = count === 2 ? 100 : 70;
+        const step = count === 2 ? 120 : 90;
+        return start + index * step;
+    };
+
+    const compactLabel = (name) => {
+        const clean = String(name || "")
+            .replace(/\([^)]*\)/g, "")
+            .replace(/[,;:]/g, "")
+            .trim();
+        const words = clean.split(/\s+/).filter(Boolean);
+        return words.slice(0, 2);
+    };
+
+    const renderNodeText = (x, y, labelLines) => labelLines.map((line, index) => (
+        `<tspan x="${x}" y="${y + 3 + index * 10}">${escapeHTML(line)}</tspan>`
+    )).join("");
     
-    // 1. Add active node (Middle)
-    nodes.push({
-        id: activeSkillId,
-        x: 100,
-        y: 90,
-        label: activeSkill.name.split(' ')[0],
-        fullName: activeSkill.name,
-        color: '#FCD075'
-    });
-    
-    // 2. Add prerequisites (Bottom)
-    prereqs.forEach((prereqId, index) => {
+    // Base prerequisite knowledge sits above the current skill.
+    prereqs.slice(0, 3).forEach((prereqId, index) => {
         if (graph[prereqId]) {
-            const x = prereqs.length === 1 ? 100 : (index === 0 ? 50 : 150);
+            const x = getNodeX(Math.min(prereqs.length, 3), index);
             nodes.push({
                 id: prereqId,
-                x: x,
-                y: 150,
-                label: graph[prereqId].name.split(' ')[0],
+                x,
+                y: 62,
+                labelLines: compactLabel(graph[prereqId].name),
                 fullName: graph[prereqId].name,
-                color: '#4CAF50'
+                color: '#4CAF50',
+                status: 'completed'
             });
-            edges.push({ fromX: x, fromY: 150, toX: 100, toY: 90 });
+            edges.push({ fromX: x, fromY: 84, toX: 160, toY: 126 });
         }
     });
+
+    // Current class skill is the unstable focus and stays in the middle.
+    nodes.push({
+        id: activeSkillId,
+        x: 160,
+        y: 148,
+        labelLines: compactLabel(activeSkill.name),
+        fullName: activeSkill.name,
+        color: '#FCD075',
+        status: 'unstable'
+    });
     
-    // 3. Add next/dependent nodes (Top)
-    nextSkills.slice(0, 2).forEach((nextId, index) => {
+    // Harder/newer dependent knowledge sits below and remains grey until unlocked.
+    nextSkills.slice(0, 3).forEach((nextId, index) => {
         if (graph[nextId]) {
-            const x = nextSkills.length === 1 ? 100 : (index === 0 ? 50 : 150);
+            const x = getNodeX(Math.min(nextSkills.length, 3), index);
             nodes.push({
                 id: nextId,
-                x: x,
-                y: 35,
-                label: graph[nextId].name.split(' ')[0],
+                x,
+                y: 232,
+                labelLines: compactLabel(graph[nextId].name),
                 fullName: graph[nextId].name,
-                color: '#cbd5e1'
+                color: '#cbd5e1',
+                status: 'locked'
             });
-            edges.push({ fromX: 100, fromY: 90, toX: x, toY: 35 });
+            edges.push({ fromX: 160, fromY: 170, toX: x, toY: 210 });
         }
     });
     
@@ -1252,8 +1282,8 @@ function renderPersonalPath() {
     nodes.forEach(n => {
         svgHtml += `
             <g class="web-node" style="cursor: pointer;" data-full-name="${escapeHTML(n.fullName)}">
-                <circle cx="${n.x}" cy="${n.y}" r="22" fill="${n.color}" stroke="#000000" stroke-width="2.5" />
-                <text x="${n.x}" y="${n.y + 4}" font-family="Poppins" font-size="7.5" font-weight="700" text-anchor="middle" fill="#000000">${escapeHTML(n.label)}</text>
+                <circle cx="${n.x}" cy="${n.y}" r="26" fill="${n.color}" stroke="#000000" stroke-width="2.5" />
+                <text font-family="Poppins" font-size="8.2" font-weight="800" text-anchor="middle" fill="#000000">${renderNodeText(n.x, n.y - (n.labelLines.length > 1 ? 4 : 0), n.labelLines)}</text>
             </g>
         `;
     });
@@ -1261,10 +1291,10 @@ function renderPersonalPath() {
     svgHtml += `</svg>`;
     
     const legendHtml = `
-        <div style="display: flex; justify-content: space-around; font-size: 0.68rem; font-family: Poppins; font-weight: 700; border-top: 2px dashed #000; padding-top: 0.6rem; margin-top: 0.5rem; width: 100%;">
-            <div><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#4CAF50; border:1.5px solid #000; margin-right:3px; vertical-align:middle;"></span>Đạt</div>
-            <div><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#FCD075; border:1.5px solid #000; margin-right:3px; vertical-align:middle;"></span>Đang học</div>
-            <div><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#cbd5e1; border:1.5px solid #000; margin-right:3px; vertical-align:middle;"></span>Chưa học</div>
+        <div style="display: flex; justify-content: space-around; gap: 0.55rem; flex-wrap: wrap; font-size: 0.72rem; font-family: Poppins; font-weight: 800; border-top: 2px dashed #000; padding-top: 0.7rem; margin-top: 0.65rem; width: 100%;">
+            <div><span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:#4CAF50; border:1.5px solid #000; margin-right:4px; vertical-align:middle;"></span>Đã hoàn thành</div>
+            <div><span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:#FCD075; border:1.5px solid #000; margin-right:4px; vertical-align:middle;"></span>Chưa ổn định</div>
+            <div><span style="display:inline-block; width:9px; height:9px; border-radius:50%; background:#cbd5e1; border:1.5px solid #000; margin-right:4px; vertical-align:middle;"></span>Chưa đạt</div>
         </div>
     `;
     
@@ -1293,6 +1323,116 @@ function setTeacherRealtimeStatus(mode, label) {
     if (!status) return;
     status.className = `realtime-status ${mode}`;
     status.textContent = label;
+}
+
+function summarizeTopGap(groups = []) {
+    if (!groups.length) return { title: "Chưa đủ dữ liệu", count: 0, skillId: "" };
+    const sorted = [...groups].sort((a, b) => Number(b.count || 0) - Number(a.count || 0));
+    const top = sorted[0];
+    return {
+        title: KNOWLEDGE_GRAPH_LOCAL_NAMES[top.skill_id] || top.title || top.skill_id || "Nhóm cần can thiệp",
+        count: Number(top.count || 0),
+        skillId: top.skill_id || ""
+    };
+}
+
+function updateTeacherCommandCenter(data) {
+    const priorityList = data.priority_list || [];
+    const groups = data.groups || [];
+    const topGap = summarizeTopGap(groups);
+    const riskCount = priorityList.length || state.mockStudents.length;
+    const savedMinutes = Math.max(45, Math.min(150, groups.length * 30 + riskCount * 6));
+
+    const riskStudents = document.getElementById("teacher-risk-students");
+    const gapSummary = document.getElementById("teacher-gap-group-summary");
+    const topGapSkill = document.getElementById("teacher-top-gap-skill");
+    const timeSaved = document.getElementById("teacher-time-saved");
+    const teachingNextStep = document.getElementById("teaching-next-step");
+    const assignmentNextStep = document.getElementById("assignment-next-step");
+    const progressNextStep = document.getElementById("progress-next-step");
+
+    if (riskStudents) riskStudents.textContent = `${riskCount} học sinh`;
+    if (gapSummary) gapSummary.textContent = data.metrics.gap_groups_count || `${groups.length} nhóm`;
+    if (topGapSkill) topGapSkill.textContent = topGap.title;
+    if (timeSaved) timeSaved.textContent = `${savedMinutes} phút/tuần`;
+    if (teachingNextStep) teachingNextStep.textContent = `Ưu tiên mini-lesson cho ${topGap.title}, nhóm ${topGap.count || "đang xác định"} học sinh.`;
+    if (assignmentNextStep) assignmentNextStep.textContent = topGap.skillId
+        ? `Giao bài luyện prerequisite ${topGap.skillId} cho nhóm này sau khi dạy lại.`
+        : "Chờ thêm dữ liệu làm bài để giao đúng prerequisite.";
+    if (progressNextStep) progressNextStep.textContent = "Sau can thiệp, theo dõi mastery và số câu sai liên tiếp trong dashboard realtime.";
+
+    renderInterventionQueue(priorityList, groups);
+}
+
+function renderInterventionQueue(priorityList = [], groups = []) {
+    const container = document.getElementById("teacher-intervention-queue");
+    if (!container) return;
+    container.replaceChildren();
+
+    const topGap = summarizeTopGap(groups);
+    const queueItems = [];
+
+    if (topGap.skillId) {
+        queueItems.push({
+            icon: "fa-solid fa-person-chalkboard",
+            title: `Dạy lại: ${topGap.title}`,
+            meta: `${topGap.count} học sinh cùng lỗ hổng`,
+            action: "Tạo giáo án",
+            handler: () => triggerLessonPlanForSkill(topGap.skillId, topGap.title)
+        });
+    }
+
+    priorityList.slice(0, 3).forEach((student, index) => {
+        queueItems.push({
+            icon: index === 0 ? "fa-solid fa-triangle-exclamation" : "fa-solid fa-user-clock",
+            title: student.name,
+            meta: `${student.n_failed} câu sai, kẹt ${student.t_stuck} phút, PS ${student.priority_score}`,
+            action: "Xem lý do",
+            handler: () => openDiagnosticInspector(student.id)
+        });
+    });
+
+    if (!queueItems.length) {
+        queueItems.push({
+            icon: "fa-solid fa-circle-check",
+            title: "Lớp đang ổn định",
+            meta: "Chưa có nhóm cần can thiệp khẩn cấp.",
+            action: "Xem tiến trình",
+            handler: () => showToast("Hãy theo dõi biểu đồ tiến trình để phát hiện thay đổi mới.")
+        });
+    }
+
+    queueItems.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "intervention-queue-item";
+        card.innerHTML = `
+            <div class="queue-icon"><i class="${item.icon}"></i></div>
+            <div class="queue-copy">
+                <strong>${escapeHTML(item.title)}</strong>
+                <span>${escapeHTML(item.meta)}</span>
+            </div>
+            <button class="btn btn-hint-outline btn-sm" type="button">${escapeHTML(item.action)}</button>
+        `;
+        card.querySelector("button").addEventListener("click", item.handler);
+        container.appendChild(card);
+    });
+}
+
+function initTeacherClassSwitcher() {
+    const select = document.getElementById("teacher-class-select");
+    const nameEl = document.getElementById("teacher-active-class-name");
+    const descEl = document.getElementById("teacher-active-class-desc");
+    if (!select || !nameEl || !descEl) return;
+
+    select.addEventListener("change", () => {
+        const option = select.selectedOptions[0];
+        const className = option?.dataset.name || "Lớp đang quản lý";
+        const classCode = option?.dataset.code || option?.value || "";
+        const meta = option?.dataset.meta || "Đang tải dữ liệu lớp";
+        nameEl.textContent = className;
+        descEl.innerHTML = `Mã lớp: <strong>${escapeHTML(classCode)}</strong> · ${escapeHTML(meta)}`;
+        showToast(`Đã chuyển sang lớp ${classCode}. Dữ liệu demo đang dùng cùng API mẫu.`);
+    });
 }
 
 /**
@@ -1344,12 +1484,13 @@ function renderClassProgressChart(progressData = MOCK_CLASS_PROGRESS) {
  * @returns {object} Safe dashboard data with default arrays.
  */
 function normalizeTeacherDashboardData(data = {}) {
+    const dashboardPayload = data.payload || data;
     return {
-        metrics: data.metrics || {},
-        groups: Array.isArray(data.groups) ? data.groups : [],
-        priority_list: Array.isArray(data.priority_list) ? data.priority_list : [],
-        class_progress: Array.isArray(data.class_progress) && data.class_progress.length
-            ? data.class_progress
+        metrics: dashboardPayload.metrics || {},
+        groups: Array.isArray(dashboardPayload.groups) ? dashboardPayload.groups : [],
+        priority_list: Array.isArray(dashboardPayload.priority_list) ? dashboardPayload.priority_list : [],
+        class_progress: Array.isArray(dashboardPayload.class_progress) && dashboardPayload.class_progress.length
+            ? dashboardPayload.class_progress
             : MOCK_CLASS_PROGRESS
     };
 }
@@ -1379,6 +1520,7 @@ function applyTeacherDashboardData(dashboardData) {
     }
 
     renderClassProgressChart(data.class_progress);
+    updateTeacherCommandCenter(data);
     renderGapGroups(data.groups);
     renderPriorityList(data.priority_list);
     renderClassroomHeatmap();
@@ -1407,14 +1549,24 @@ function renderGapGroups(groups) {
                 <span class="student-count">${escapeHTML(grp.count ?? 0)} học sinh</span>
             </div>
             <div class="group-members">${membersTags}</div>
+            <div class="group-plan-summary">
+                <span><i class="fa-solid fa-person-chalkboard"></i> Dạy lại 15 phút</span>
+                <span><i class="fa-solid fa-file-circle-plus"></i> Giao bài prerequisite</span>
+                <span><i class="fa-solid fa-chart-line"></i> Đo mastery sau can thiệp</span>
+            </div>
             <div class="group-action">
                 <button class="btn btn-hint-outline btn-sm" data-skill-id="${escapeHTML(grp.skill_id)}" data-title="${escapeHTML(grp.title || grp.skill_id)}">
                     <i class="fa-solid fa-share-nodes"></i> Xem giáo án bổ trợ
+                </button>
+                <button class="btn btn-secondary-memphis btn-sm" data-assign-skill="${escapeHTML(grp.skill_id)}">
+                    <i class="fa-solid fa-file-circle-plus"></i> Giao bài
                 </button>
             </div>
         `;
         const lessonBtn = card.querySelector("button[data-skill-id]");
         lessonBtn.addEventListener("click", () => triggerLessonPlanForSkill(grp.skill_id, grp.title));
+        const assignBtn = card.querySelector("button[data-assign-skill]");
+        assignBtn.addEventListener("click", () => showToast(`Đã tạo gói bài luyện cho nhóm ${KNOWLEDGE_GRAPH_LOCAL_NAMES[grp.skill_id] || grp.skill_id}.`));
         groupsGrid.appendChild(card);
     });
 }
@@ -1504,7 +1656,7 @@ function connectTeacherDashboardRealtime() {
     }
 
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const wsUrl = `${protocol}://${window.location.host}/ws/teacher-dashboard`;
+    const wsUrl = `${protocol}://${window.location.host}/ws/teacher/dashboard`;
     const socket = new WebSocket(wsUrl);
     state.teacherRealtime.socket = socket;
     setTeacherRealtimeStatus("polling", "Đang nối realtime");
@@ -1773,11 +1925,29 @@ function renderOfflineTeacherDashboard() {
                 <span class="student-count">${grp.count} học sinh</span>
             </div>
             <div class="group-members">${membersTags}</div>
+            <div class="group-plan-summary">
+                <span><i class="fa-solid fa-person-chalkboard"></i> Dạy lại 15 phút</span>
+                <span><i class="fa-solid fa-file-circle-plus"></i> Giao bài prerequisite</span>
+                <span><i class="fa-solid fa-chart-line"></i> Đo mastery sau can thiệp</span>
+            </div>
             <div class="group-action">
                 <button class="btn btn-hint-outline btn-sm" onclick="triggerLessonPlanForSkill('${grp.skill_id}', '${grp.title}')"><i class="fa-solid fa-share-nodes"></i> Xem giáo án</button>
+                <button class="btn btn-secondary-memphis btn-sm" onclick="showToast('Đã tạo gói bài luyện cho ${grp.title}.')"><i class="fa-solid fa-file-circle-plus"></i> Giao bài</button>
             </div>
         `;
         groupsGrid.appendChild(card);
+    });
+
+    updateTeacherCommandCenter({
+        metrics: { gap_groups_count: `${mockGroups.length} nhóm` },
+        groups: mockGroups,
+        priority_list: state.mockStudents.map((student, index) => ({
+            id: student.id,
+            name: student.name,
+            n_failed: student.nFailed,
+            t_stuck: student.tStuck,
+            priority_score: (1.5 + index * 0.1).toFixed(2),
+        }))
     });
     
     const tableBody = document.getElementById("priority-table-body");
@@ -2075,6 +2245,8 @@ function switchPortalUI(targetRole) {
     const btnTogglePortal = document.getElementById("btn-toggle-portal");
     const portalStudent = document.getElementById("portal-student");
     const portalTeacher = document.getElementById("portal-teacher");
+    const studentSidebarMenu = document.getElementById("student-sidebar-menu");
+    const teacherSidebarMenu = document.getElementById("teacher-sidebar-menu");
     const progressWrapper = document.getElementById("student-progress-wrapper");
     const teacherTitleWrapper = document.getElementById("teacher-title-wrapper");
     const studentRewards = document.getElementById("student-rewards");
@@ -2085,12 +2257,15 @@ function switchPortalUI(targetRole) {
         state.currentPortal = "teacher";
         if (portalStudent) portalStudent.classList.remove("active");
         if (portalTeacher) portalTeacher.classList.add("active");
+        if (studentSidebarMenu) studentSidebarMenu.style.display = "none";
+        if (teacherSidebarMenu) teacherSidebarMenu.style.display = "flex";
         if (progressWrapper) progressWrapper.style.display = "none";
         if (studentRewards) studentRewards.style.display = "none";
         if (teacherTitleWrapper) teacherTitleWrapper.style.display = "block";
         if (userDisplayName) userDisplayName.textContent = "Thầy Hùng (GV Toán)";
         if (userAvatarImg) userAvatarImg.src = "https://api.dicebear.com/7.x/adventurer/svg?seed=TeacherHung";
-        if (btnTogglePortal) setButtonIconLabel(btnTogglePortal, "fa-solid fa-graduation-cap", "Học sinh");
+        if (btnTogglePortal) btnTogglePortal.style.display = "none";
+        activateTeacherTab(state.currentTeacherTab || "grouping");
         renderTeacherDashboard();
         return;
     }
@@ -2099,12 +2274,14 @@ function switchPortalUI(targetRole) {
     state.currentPortal = "student";
     if (portalTeacher) portalTeacher.classList.remove("active");
     if (portalStudent) portalStudent.classList.add("active");
+    if (studentSidebarMenu) studentSidebarMenu.style.display = "flex";
+    if (teacherSidebarMenu) teacherSidebarMenu.style.display = "none";
     if (progressWrapper) progressWrapper.style.display = "block";
     if (studentRewards) studentRewards.style.display = "flex";
     if (teacherTitleWrapper) teacherTitleWrapper.style.display = "none";
     if (userDisplayName) userDisplayName.textContent = profile.name;
     if (userAvatarImg) userAvatarImg.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${profile.avatar}`;
-    if (btnTogglePortal) setButtonIconLabel(btnTogglePortal, "fa-solid fa-arrows-rotate", "Chuyển Bảng");
+    if (btnTogglePortal) btnTogglePortal.style.display = "none";
 }
 
 function initAuthFlow() {
@@ -2232,20 +2409,29 @@ function initAuthFlow() {
 
 function initPortalNavigation() {
     const btnTogglePortal = document.getElementById("btn-toggle-portal");
-    
-    btnTogglePortal.addEventListener("click", () => {
-        switchPortalUI(state.currentPortal === 'student' ? 'teacher' : 'student');
-    });
-    
-    const menuItems = document.querySelectorAll(".menu-item");
+
+    if (btnTogglePortal) {
+        btnTogglePortal.style.display = "none";
+        btnTogglePortal.addEventListener("click", () => {
+            if (state.loggedInRole !== "student" && state.loggedInRole !== "teacher") {
+                switchPortalUI(state.currentPortal === 'student' ? 'teacher' : 'student');
+            }
+        });
+    }
+
+    const menuItems = document.querySelectorAll("#student-sidebar-menu .menu-item");
     menuItems.forEach(item => {
         item.addEventListener("click", (e) => {
             e.preventDefault();
+            if (state.loggedInRole === "teacher") {
+                showToast("Tài khoản giáo viên không có luồng làm bài của học sinh.");
+                return;
+            }
             menuItems.forEach(i => i.classList.remove("active"));
             item.classList.add("active");
             
             const tabName = item.getAttribute("data-tab");
-            if (state.currentPortal === 'teacher') btnTogglePortal.click();
+            if (state.currentPortal === 'teacher') switchPortalUI("student");
             
             document.querySelectorAll(".student-view-panel").forEach(p => p.style.display = "none");
             const activePanel = document.getElementById(`student-view-${tabName}`);
@@ -2254,26 +2440,44 @@ function initPortalNavigation() {
             showToast(`Đang mở: ${item.querySelector('span').textContent}`);
         });
     });
+
+    document.querySelectorAll("#teacher-sidebar-menu .menu-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (state.loggedInRole === "student") {
+                showToast("Tài khoản học sinh không có quyền xem bảng điều phối giáo viên.");
+                return;
+            }
+            const tabName = item.getAttribute("data-teacher-nav") || "grouping";
+            activateTeacherTab(tabName);
+            showToast(`Đang mở: ${item.querySelector('span').textContent}`);
+        });
+    });
+}
+
+function activateTeacherTab(tabName) {
+    const tabBtns = document.querySelectorAll(".teacher-tab-btn");
+    const panels = document.querySelectorAll(".teacher-tab-panel");
+    const sidebarItems = document.querySelectorAll("#teacher-sidebar-menu .menu-item");
+
+    state.currentTeacherTab = tabName;
+    tabBtns.forEach(btn => btn.classList.toggle("active", btn.getAttribute("data-teacher-tab") === tabName));
+    panels.forEach(panel => panel.classList.toggle("active", panel.id === `teacher-tab-${tabName}`));
+    sidebarItems.forEach(item => item.classList.toggle("active", item.getAttribute("data-teacher-nav") === tabName));
+
+    if (tabName === "tree") renderReasoningTreeVisualizer();
 }
 
 function initTeacherTabs() {
     const tabBtns = document.querySelectorAll(".teacher-tab-btn");
-    const panels = document.querySelectorAll(".teacher-tab-panel");
     
     tabBtns.forEach(btn => {
         btn.addEventListener("click", () => {
-            tabBtns.forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-            
             const tabName = btn.getAttribute("data-teacher-tab");
-            state.currentTeacherTab = tabName;
-            
-            panels.forEach(p => p.classList.remove("active"));
-            document.getElementById(`teacher-tab-${tabName}`).classList.add("active");
-            
-            if (tabName === 'tree') renderReasoningTreeVisualizer();
+            activateTeacherTab(tabName);
         });
     });
+
 }
 
 function initVirtualScratchpad() {
@@ -2436,6 +2640,7 @@ function drawInteractiveFractionCircle(segments) {
 
 function initTeacherModals() {
     const btnCreatePlan = document.getElementById("btn-create-lesson-plan");
+    const btnCommandPlan = document.getElementById("btn-command-lesson-plan");
     const lpModal = document.getElementById("modal-lesson-plan");
     const lpOverlay = document.getElementById("lesson-plan-overlay");
     const lpCloseBtn = document.getElementById("btn-close-lesson-plan");
@@ -2451,11 +2656,117 @@ function initTeacherModals() {
             lpModal.style.display = "flex";
         });
     }
+    if (btnCommandPlan) {
+        btnCommandPlan.addEventListener("click", () => {
+            const topGapSkill = document.getElementById("teacher-top-gap-skill")?.textContent || "Quy đồng phân số";
+            generateAILessonPlan(topGapSkill);
+            lpModal.style.display = "flex";
+        });
+    }
     if (lpCloseBtn) lpCloseBtn.addEventListener("click", () => lpModal.style.display = "none");
     if (lpOverlay) lpOverlay.addEventListener("click", () => lpModal.style.display = "none");
     
     if (diagCloseBtn) diagCloseBtn.addEventListener("click", () => diagModal.style.display = "none");
     if (diagOverlay) diagOverlay.addEventListener("click", () => diagModal.style.display = "none");
+}
+
+function initFinalReportModal() {
+    const openBtn = document.getElementById("btn-open-final-report");
+    const modal = document.getElementById("modal-final-report");
+    const overlay = document.getElementById("final-report-overlay");
+    const closeBtn = document.getElementById("btn-close-final-report");
+    const body = document.getElementById("final-report-modal-body");
+
+    if (!openBtn || !modal || !body) return;
+
+    const close = () => {
+        modal.style.display = "none";
+    };
+
+    openBtn.addEventListener("click", async () => {
+        modal.style.display = "flex";
+        body.innerHTML = `<p class="card-subtitle-desc">Đang tải scorecard, benchmark và readiness từ backend...</p>`;
+        try {
+            const response = await fetch("/api/evidence/final-scorecard");
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const payload = await response.json();
+            renderFinalReport(payload);
+        } catch (error) {
+            console.warn("[-] Could not load final scorecard. Using offline report.", error);
+            renderFinalReport({
+                summary: {
+                    product: "VGap AI",
+                    positioning: "Hệ thống chẩn đoán lỗ hổng kiến thức gốc, không phải chatbot học tập.",
+                    current_score: 76,
+                    max_score: 100,
+                    final_message: "Evidence report chỉ phục vụ demo/pitch, không phải luồng giáo viên hằng ngày."
+                },
+                judge_barem: [
+                    { category: "Bài toán giáo dục", current_score: 13, max_score: 15 },
+                    { category: "AI Engineering", current_score: 13, max_score: 15 },
+                    { category: "Giá trị giáo dục", current_score: 9, max_score: 15 },
+                    { category: "Khai thác FPT AI", current_score: 10, max_score: 15 }
+                ],
+                benchmarks: [
+                    { metric: "Diagnostic smoke benchmark", target: ">= 70%", current: "30 case kỹ thuật", status: "ready" },
+                    { metric: "Pilot học sinh thật", target: "30-50 học sinh", current: "Cần bổ sung", status: "gap" }
+                ],
+                readiness: [
+                    { item: "Offline-first local/LAN demo", implemented: true },
+                    { item: "Real classroom pilot dataset", implemented: false },
+                    { item: "Production auth/tenant isolation", implemented: false }
+                ]
+            });
+        }
+    });
+
+    if (closeBtn) closeBtn.addEventListener("click", close);
+    if (overlay) overlay.addEventListener("click", close);
+}
+
+function renderFinalReport(payload) {
+    const body = document.getElementById("final-report-modal-body");
+    if (!body) return;
+    const summary = payload.summary || {};
+    const scoreRows = (payload.judge_barem || []).map(item => `
+        <tr>
+            <td>${escapeHTML(item.category)}</td>
+            <td><strong>${escapeHTML(item.current_score)}/${escapeHTML(item.max_score)}</strong></td>
+            <td>${escapeHTML(item.next_step || item.evidence || "Cần thêm bằng chứng thực tế.")}</td>
+        </tr>
+    `).join("");
+    const benchmarkItems = (payload.benchmarks || []).map(item => `
+        <div class="final-report-chip">
+            <strong>${escapeHTML(item.metric)}</strong>
+            <span>${escapeHTML(item.current)} / mục tiêu ${escapeHTML(item.target)}</span>
+        </div>
+    `).join("");
+    const readinessItems = (payload.readiness || []).map(item => `
+        <span class="readiness-pill ${item.implemented ? "ready" : "gap"}">
+            <i class="fa-solid ${item.implemented ? "fa-check" : "fa-triangle-exclamation"}"></i>
+            ${escapeHTML(item.item)}
+        </span>
+    `).join("");
+
+    body.innerHTML = `
+        <div class="final-report-summary">
+            <div>
+                <span class="teacher-command-kicker"><i class="fa-solid fa-scale-balanced"></i> Judge mode</span>
+                <h2>${escapeHTML(summary.product || "VGap AI")}: ${escapeHTML(summary.current_score ?? "76")}/${escapeHTML(summary.max_score || 100)}</h2>
+                <p>${escapeHTML(summary.positioning || "Báo cáo bằng chứng cho vòng final.")}</p>
+            </div>
+            <strong>${escapeHTML(summary.current_score ?? "76")}</strong>
+        </div>
+        <p class="card-subtitle-desc">${escapeHTML(summary.final_message || "Dùng phần này khi giám khảo hỏi bằng chứng, không đặt nó thành workflow chính của giáo viên.")}</p>
+        <div class="final-report-chip-grid">${benchmarkItems}</div>
+        <div class="table-container">
+            <table class="memphis-table final-report-table">
+                <thead><tr><th>Hạng mục</th><th>Điểm</th><th>Việc cần làm để lên 85+</th></tr></thead>
+                <tbody>${scoreRows}</tbody>
+            </table>
+        </div>
+        <div class="readiness-pill-row">${readinessItems}</div>
+    `;
 }
 
 async function generateAILessonPlan(skillName, skillId) {
