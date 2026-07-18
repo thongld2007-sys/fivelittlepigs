@@ -22,7 +22,12 @@ class Config:
     DB_PATH = os.getenv("TUTOR_DB_PATH", os.path.join(DATA_DIR, "tutor.db"))
     PORT = 8000
     HOST = "127.0.0.1"
-    DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH.replace(os.sep, '/')}")
+    _db_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or f"sqlite:///{DB_PATH.replace(os.sep, '/')}"
+    if _db_url.startswith("postgres://"):
+        _db_url = _db_url.replace("postgres://", "postgresql+psycopg://", 1)
+    elif _db_url.startswith("postgresql://"):
+        _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    DATABASE_URL = _db_url
     DB_ECHO = os.getenv("DB_ECHO", "false").lower() in {"1", "true", "yes"}
     DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
     DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
