@@ -7,12 +7,10 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Debug Token Owner
-        run: |
-          curl -H "Authorization: token ${{ secrets.VERCEL_SYNC_TOKEN }}" https://api.github.com/user/repos | jq '[.[] | .full_name]'
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Push to Vercel-connected repo
         run: |
-          git push --force https://nguyenducthanh265:${{ secrets.VERCEL_SYNC_TOKEN }}@github.com/nguyenducthanh265/fivelittlepigsss.git main
+          CLEAN_TOKEN=$(echo "${{ secrets.VERCEL_SYNC_TOKEN }}" | tr -d '\r\n[:space:]')
+          git push --force "https://nguyenducthanh265:${CLEAN_TOKEN}@github.com/nguyenducthanh265/fivelittlepigsss.git" main
