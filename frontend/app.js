@@ -1122,6 +1122,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     initTeacherClassSwitcher();
     initMascotReadAloud();
     initMultimodalLearning();
+    initPersonalReviewActions();
+    initRewardShop();
     
     // Load Knowledge Graph DAG
     await loadKnowledgeGraph();
@@ -4524,17 +4526,11 @@ function initToolboxTabs() {
             
             panels.forEach(panel => {
                 panel.classList.remove("active");
-                panel.style.display = "none";
             });
             
             const activePanel = document.getElementById(`toolbox-panel-${targetTab}`);
             if (activePanel) {
                 activePanel.classList.add("active");
-                if (targetTab === "mascot") {
-                    activePanel.style.display = "flex";
-                } else {
-                    activePanel.style.display = "block";
-                }
             }
         });
     });
