@@ -80,6 +80,21 @@ def _migrate_legacy_sqlite():
                 if name not in columns:
                     connection.execute(f"ALTER TABLE responses ADD COLUMN {name} {definition}")
             connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_responses_event_id ON responses(event_id)")
+        if "users" in tables:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(users)")}
+            additions = {
+                "username": "TEXT", "failed_login_count": "INTEGER DEFAULT 0",
+                "locked_until": "DATETIME", "last_login_at": "DATETIME", "updated_at": "DATETIME",
+            }
+            for name, definition in additions.items():
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE users ADD COLUMN {name} {definition}")
+            connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_username ON users(username)")
+        if "students" in tables:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(students)")}
+            if "user_id" not in columns:
+                connection.execute("ALTER TABLE students ADD COLUMN user_id TEXT")
+            connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_students_user_id ON students(user_id)")
         connection.commit()
     finally:
         connection.close()

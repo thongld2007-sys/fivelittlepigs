@@ -45,3 +45,4 @@ APP_AUTH_REQUIRED = os.getenv("APP_AUTH_REQUIRED", "false").lower() in {"1", "tr
 APP_API_KEYS = {item.strip() for item in os.getenv("APP_API_KEYS", "").split(",") if item.strip()}
 APP_JWT_SECRET = os.getenv("APP_JWT_SECRET", "").strip()
 APP_JWT_TTL_SECONDS = int(os.getenv("APP_JWT_TTL_SECONDS", "3600"))
+AUTH_COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE", "false").lower() in {"1", "true", "yes"}

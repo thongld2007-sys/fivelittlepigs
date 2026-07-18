@@ -1,14 +1,14 @@
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Response as FastAPIResponse, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 import time
 import os
 import json
 import re
 import math
 
-from backend.config import APP_AUTH_REQUIRED, Config, FPT_AI_MAX_IMAGE_BYTES
+from backend.config import APP_AUTH_REQUIRED, AUTH_COOKIE_SECURE, Config, FPT_AI_MAX_IMAGE_BYTES
 from backend.database import (
     init_db, get_student, get_student_mastery, record_response,
     get_consecutive_failed_count, get_stuck_time_minutes, get_answered_question_ids,
@@ -19,7 +19,12 @@ from backend.database import (
 from backend.diagnostic_engine import update_student_skill, get_next_recommended_skill, get_next_question_difficulty_and_skill
 from backend.fpt_ai import FPTAIError, fpt_ai_client
 from backend.fpt_speech import fpt_speech_client
-from backend.auth import exchange_api_key, require_auth
+from backend.auth import exchange_api_key, require_auth, require_staff_auth, require_student_session
+from backend.student_auth import (
+    StudentAuthError, activate_student, authenticate_student, create_activation_code,
+    create_session as create_student_auth_session, get_student_for_user,
+    refresh_session, register_student, revoke_session,
+)
 from backend.pedagogical_agents import lesson_planner_agent, socratic_agent
 from backend.knowledge_graph import KNOWLEDGE_GRAPH
 from backend.storage import object_storage
@@ -190,6 +195,50 @@ class TTSRequest(BaseModel):
     voice: str = "banmai"
     speed: int = 0
 
+class StudentRegisterRequest(BaseModel):
+    username: str = Field(min_length=4, max_length=30)
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=2, max_length=100)
+    grade: int = Field(ge=1, le=12)
+    email: EmailStr | None = None
+    remember_me: bool = False
+
+class StudentLoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=30)
+    password: str = Field(min_length=1, max_length=128)
+    remember_me: bool = False
+
+class StudentActivationRequest(BaseModel):
+    student_id: str = Field(min_length=1, max_length=64)
+    activation_code: str = Field(min_length=5, max_length=20)
+    username: str = Field(min_length=4, max_length=30)
+    password: str = Field(min_length=8, max_length=128)
+    email: EmailStr | None = None
+    remember_me: bool = False
+
+class ActivationCodeRequest(BaseModel):
+    student_id: str = Field(min_length=1, max_length=64)
+
+
+def _student_auth_error(exc: StudentAuthError):
+    raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+def _set_refresh_cookie(response: FastAPIResponse, refresh_token: str, remember_me: bool = False):
+    response.set_cookie(
+        key="vgap_refresh",
+        value=refresh_token,
+        max_age=(30 if remember_me else 7) * 24 * 60 * 60,
+        httponly=True,
+        secure=AUTH_COOKIE_SECURE,
+        samesite="lax",
+        path="/api/auth",
+    )
+
+
+def _public_auth_payload(session: dict) -> dict:
+    return {key: value for key, value in session.items() if key != "refresh_token"}
+
 # Endpoints
 @app.get("/api/students", dependencies=[Depends(require_auth)])
 def get_students():
@@ -210,6 +259,77 @@ def ai_status():
 @app.post("/api/auth/token")
 def auth_token(x_api_key: str | None = Header(default=None)):
     return {"access_token": exchange_api_key(x_api_key), "token_type": "bearer"}
+
+
+@app.post("/api/auth/student/register", status_code=201)
+def student_register(payload: StudentRegisterRequest, response: FastAPIResponse):
+    try:
+        student = register_student(username=payload.username, password=payload.password,
+                                   name=payload.name, grade=payload.grade, email=payload.email)
+        auth = authenticate_student(payload.username, payload.password)
+        session = create_student_auth_session(auth["user_id"], student, payload.remember_me)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], payload.remember_me)
+    return _public_auth_payload(session)
+
+
+@app.post("/api/auth/student/login")
+def student_login(payload: StudentLoginRequest, response: FastAPIResponse):
+    try:
+        auth = authenticate_student(payload.username, payload.password)
+        session = create_student_auth_session(auth["user_id"], auth["student"], payload.remember_me)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], payload.remember_me)
+    return _public_auth_payload(session)
+
+
+@app.post("/api/auth/student/activate", status_code=201)
+def student_activate(payload: StudentActivationRequest, response: FastAPIResponse):
+    try:
+        student = activate_student(student_id=payload.student_id, activation_code=payload.activation_code,
+                                   username=payload.username, password=payload.password, email=payload.email)
+        auth = authenticate_student(payload.username, payload.password)
+        session = create_student_auth_session(auth["user_id"], student, payload.remember_me)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], payload.remember_me)
+    return _public_auth_payload(session)
+
+
+@app.post("/api/auth/student/activation-code", dependencies=[Depends(require_staff_auth)])
+def student_activation_code(payload: ActivationCodeRequest):
+    try:
+        return create_activation_code(payload.student_id)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+
+
+@app.post("/api/auth/refresh")
+def student_refresh(response: FastAPIResponse, vgap_refresh: str | None = Cookie(default=None)):
+    if not vgap_refresh:
+        raise HTTPException(status_code=401, detail="Không có phiên đăng nhập.")
+    try:
+        session = refresh_session(vgap_refresh)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], session.get("remember_me", False))
+    return _public_auth_payload(session)
+
+
+@app.post("/api/auth/logout", status_code=204)
+def student_logout(response: FastAPIResponse, vgap_refresh: str | None = Cookie(default=None)):
+    revoke_session(vgap_refresh)
+    response.delete_cookie("vgap_refresh", path="/api/auth")
+
+
+@app.get("/api/auth/me")
+def student_me(claims: dict = Depends(require_student_session)):
+    student = get_student_for_user(claims["sub"])
+    if not student:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ học sinh.")
+    return {"role": "student", "student": student}
 
 @app.post("/api/ai/student/{student_id}/tutor", dependencies=[Depends(require_auth)])
 def ai_tutor(student_id: str, payload: AITutorRequest):

@@ -196,3 +196,27 @@ python tools/migrate_sqlite_to_postgres.py --sqlite data/tutor.db --database-url
 The copy refuses a non-empty target, verifies row counts before commit, and never modifies the
 SQLite source. Student-work images are private under `UPLOAD_DIR`; production deployments should
 mount this path on encrypted persistent storage or replace the adapter with S3-compatible storage.
+
+## Student accounts
+
+Student authentication is server-backed; the browser no longer treats a localStorage flag or an
+arbitrary password as proof of identity. New students can register, while an existing learning
+profile can be linked with a one-time activation code without resetting responses or BKT mastery.
+
+- `POST /api/auth/student/register`: create a user, student profile and initial mastery rows.
+- `POST /api/auth/student/login`: verify an Argon2 password and apply temporary lockout after repeated failures.
+- `POST /api/auth/student/activation-code`: staff-only generation of a 24-hour, one-time code.
+- `POST /api/auth/student/activate`: attach credentials to an existing `student_id`.
+- `POST /api/auth/refresh`: rotate the hashed refresh token and issue a unique access JWT.
+- `GET /api/auth/me`: restore the signed-in student profile.
+- `POST /api/auth/logout`: revoke the refresh session and clear its HttpOnly cookie.
+
+Set `AUTH_COOKIE_SECURE=true` whenever the production site uses HTTPS. Access tokens stay in browser
+memory; refresh tokens use an `HttpOnly`, `SameSite=Lax` cookie and are stored only as SHA-256 hashes
+in the database. Staff can create an activation code with the configured API key, for example:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/auth/student/activation-code `
+  -Headers @{ "X-API-Key" = $env:VGAP_STAFF_API_KEY } `
+  -ContentType "application/json" -Body '{"student_id":"an_01"}'
+```

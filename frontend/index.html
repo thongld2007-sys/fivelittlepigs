@@ -780,6 +780,37 @@
             
             <div class="login-body">
                 <div id="login-form-student" class="login-form-panel active">
+                    <div class="student-auth-switch" role="tablist" aria-label="Chế độ tài khoản học sinh">
+                        <button type="button" class="student-auth-mode active" data-student-auth-mode="login">Đăng nhập</button>
+                        <button type="button" class="student-auth-mode" data-student-auth-mode="register">Đăng ký mới</button>
+                        <button type="button" class="student-auth-mode" data-student-auth-mode="activate">Hồ sơ cũ</button>
+                    </div>
+                    <div class="student-auth-panel active" data-student-auth-panel="login">
+                        <div class="form-group"><label for="student-username">Tên đăng nhập</label><input id="student-username" class="form-control" autocomplete="username" maxlength="30" placeholder="Ví dụ: nguyenvanan"></div>
+                        <div class="form-group"><label for="student-password">Mật khẩu</label><input type="password" id="student-password" class="form-control" autocomplete="current-password" maxlength="128"></div>
+                        <label class="auth-checkbox"><input type="checkbox" id="student-remember"> Ghi nhớ đăng nhập</label>
+                    </div>
+                    <div class="student-auth-panel" data-student-auth-panel="register">
+                        <div class="auth-form-grid">
+                            <div class="form-group auth-span-2"><label for="register-name">Họ và tên</label><input id="register-name" class="form-control" autocomplete="name" maxlength="100"></div>
+                            <div class="form-group"><label for="register-username">Tên đăng nhập</label><input id="register-username" class="form-control" autocomplete="username" maxlength="30"></div>
+                            <div class="form-group"><label for="register-grade">Khối lớp</label><select id="register-grade" class="form-control"><option value="">Chọn lớp</option><option value="1">Lớp 1</option><option value="2">Lớp 2</option><option value="3">Lớp 3</option><option value="4">Lớp 4</option><option value="5">Lớp 5</option><option value="6">Lớp 6</option><option value="7">Lớp 7</option><option value="8">Lớp 8</option><option value="9">Lớp 9</option><option value="10">Lớp 10</option><option value="11">Lớp 11</option><option value="12">Lớp 12</option></select></div>
+                            <div class="form-group"><label for="register-password">Mật khẩu</label><input type="password" id="register-password" class="form-control" autocomplete="new-password" maxlength="128"></div>
+                            <div class="form-group"><label for="register-confirm">Nhập lại mật khẩu</label><input type="password" id="register-confirm" class="form-control" autocomplete="new-password" maxlength="128"></div>
+                            <div class="form-group auth-span-2"><label for="register-email">Email phụ huynh <span class="auth-optional">(không bắt buộc)</span></label><input type="email" id="register-email" class="form-control" autocomplete="email" maxlength="320"></div>
+                        </div>
+                        <p class="auth-help">Mật khẩu cần ít nhất 8 ký tự, gồm chữ cái và chữ số.</p>
+                    </div>
+                    <div class="student-auth-panel" data-student-auth-panel="activate">
+                        <p class="auth-help">Nhập mã do giáo viên cấp để liên kết tài khoản với tiến trình BKT hiện có.</p>
+                        <div class="auth-form-grid">
+                            <div class="form-group"><label for="activate-student-id">Mã học sinh</label><input id="activate-student-id" class="form-control" maxlength="64" placeholder="Ví dụ: an_01"></div>
+                            <div class="form-group"><label for="activate-code">Mã kích hoạt</label><input id="activate-code" class="form-control" maxlength="20" placeholder="XXXX-XXXX"></div>
+                            <div class="form-group auth-span-2"><label for="activate-username">Tên đăng nhập mới</label><input id="activate-username" class="form-control" autocomplete="username" maxlength="30"></div>
+                            <div class="form-group"><label for="activate-password">Mật khẩu mới</label><input type="password" id="activate-password" class="form-control" autocomplete="new-password" maxlength="128"></div>
+                            <div class="form-group"><label for="activate-confirm">Nhập lại mật khẩu</label><input type="password" id="activate-confirm" class="form-control" autocomplete="new-password" maxlength="128"></div>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label for="student-select-login"><i class="fa-solid fa-user"></i> Chọn tài khoản học sinh:</label>
                         <select id="student-select-login" class="form-control">

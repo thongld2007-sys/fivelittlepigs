@@ -3387,6 +3387,74 @@ body {
     display: block;
 }
 
+#login-form-student > .form-group {
+    display: none;
+}
+
+.student-auth-switch {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+}
+
+.student-auth-mode {
+    border: 2px solid #000;
+    border-radius: 9px;
+    background: #f1f5f9;
+    padding: 0.55rem 0.35rem;
+    font: 700 0.76rem 'Poppins', sans-serif;
+    cursor: pointer;
+}
+
+.student-auth-mode.active {
+    background: var(--accent);
+    box-shadow: 2px 2px 0 #000;
+}
+
+.student-auth-panel {
+    display: none;
+}
+
+.student-auth-panel.active {
+    display: block;
+}
+
+.auth-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 0.75rem;
+}
+
+.auth-span-2 {
+    grid-column: span 2;
+}
+
+.auth-checkbox {
+    display: flex !important;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.auth-help {
+    margin: 0.25rem 0;
+    color: #475569;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.auth-optional {
+    color: #64748b;
+    font-weight: 500;
+}
+
+@media (max-width: 520px) {
+    .auth-form-grid { grid-template-columns: 1fr; }
+    .auth-span-2 { grid-column: span 1; }
+    .login-card { padding: 1.4rem; max-height: calc(100vh - 1rem); overflow-y: auto; }
+}
+
 .login-body .form-group {
     margin-bottom: 1.2rem;
 }

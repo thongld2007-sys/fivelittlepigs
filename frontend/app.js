@@ -8,6 +8,7 @@ const state = {
     studentId: 'emma_std_01',
     isLoggedIn: false,
     loggedInRole: null,
+    authStudent: null,
     selectedStudentForTree: null,
     currentQuestion: null,
     selectedOption: null,
@@ -132,7 +133,7 @@ const REASONING_TREES = {
 
 // Initialize Application
 document.addEventListener("DOMContentLoaded", async () => {
-    initAuthFlow();
+    initStudentAccountAuth();
     initPortalNavigation();
     initTeacherTabs();
     initAITutorChat();
@@ -158,7 +159,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Load Knowledge Graph from backend
 async function loadKnowledgeGraph() {
     try {
-        const res = await fetch("/api/knowledge-graph");
+        const res = await apiFetch("/api/knowledge-graph");
         if (res.ok) {
             state.knowledgeGraph = await res.json();
             console.log("[+] Knowledge Graph loaded successfully:", state.knowledgeGraph);
@@ -274,7 +275,7 @@ function setSurveyResultVisibility(isVisible) {
 
 async function createCleanSurveySession(grade) {
     try {
-        const res = await fetch("/api/student/session", {
+        const res = await apiFetch("/api/student/session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -340,7 +341,7 @@ async function loadStudentQuestion(skillId) {
             current_skill: skillId,
             answer_format: state.testSession.stage === "short_answer" ? "short" : "choice"
         });
-        const res = await fetch(`/api/student/${state.studentId}/next-question?${params.toString()}`);
+        const res = await apiFetch(`/api/student/${state.studentId}/next-question?${params.toString()}`);
         if (res.ok) {
             const data = await res.json();
             const question = data.question;
@@ -1035,14 +1036,14 @@ async function submitSelectedAnswerToApi(submittedOption) {
         selected_option: submittedOption
     };
 
-    const checkAnswerRes = await fetch("/api/check-answer", {
+    const checkAnswerRes = await apiFetch("/api/check-answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     });
     if (checkAnswerRes.ok) return checkAnswerRes.json();
 
-    const legacyRes = await fetch(`/api/student/${state.studentId}/submit`, {
+    const legacyRes = await apiFetch(`/api/student/${state.studentId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1608,7 +1609,7 @@ function renderPriorityList(students) {
  * @returns {Promise<object>} Dashboard payload.
  */
 async function fetchTeacherDashboardData() {
-    const res = await fetch("/api/teacher/dashboard");
+    const res = await apiFetch("/api/teacher/dashboard");
     if (!res.ok) throw new Error(`Teacher dashboard fetch failed: ${res.status}`);
     return res.json();
 }
@@ -2141,7 +2142,7 @@ function initStudentMascotChat() {
 
         if (state.currentQuestion && state.isLoggedIn) {
             try {
-                const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
+                const response = await apiFetch(`/api/ai/student/${state.studentId}/tutor`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -2173,7 +2174,7 @@ async function requestSocraticTutor(message) {
     if (!state.currentQuestion || !state.isLoggedIn) {
         throw new Error("Hãy đăng nhập và mở một câu hỏi trước khi hỏi trợ giảng.");
     }
-    const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
+    const response = await apiFetch(`/api/ai/student/${state.studentId}/tutor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question_id: state.currentQuestion.id, message })
@@ -2181,6 +2182,32 @@ async function requestSocraticTutor(message) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "FPT AI hiện không khả dụng.");
     return payload;
+}
+
+let authAccessToken = null;
+
+async function refreshStudentAccessToken() {
+    const response = await window.fetch("/api/auth/refresh", { method: "POST", credentials: "include" });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    authAccessToken = payload.access_token;
+    return payload;
+}
+
+async function apiFetch(input, init = {}) {
+    const options = { ...init, credentials: "include" };
+    const headers = new Headers(init.headers || {});
+    if (authAccessToken) headers.set("Authorization", `Bearer ${authAccessToken}`);
+    options.headers = headers;
+    let response = await window.fetch(input, options);
+    if (response.status === 401 && authAccessToken && !String(input).startsWith("/api/auth/")) {
+        const refreshed = await refreshStudentAccessToken();
+        if (refreshed) {
+            headers.set("Authorization", `Bearer ${authAccessToken}`);
+            response = await window.fetch(input, options);
+        }
+    }
+    return response;
 }
 
 function initAITutorChat() {
@@ -2254,7 +2281,7 @@ function initMascotReadAloud() {
         const text = document.getElementById("mascot-comment")?.textContent?.trim();
         if (!text) return;
         try {
-            const response = await fetch("/api/ai/speech/tts", {
+            const response = await apiFetch("/api/ai/speech/tts", {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ text, voice: "banmai", speed: -1 })
             });
@@ -2282,7 +2309,7 @@ function initMultimodalLearning() {
         form.append("question_id", state.currentQuestion?.id || "");
         comment.textContent = "FPT Vision đang đọc bài giải viết tay...";
         try {
-            const response = await fetch(`/api/ai/student/${state.studentId}/analyze-work`, { method: "POST", body: form });
+            const response = await apiFetch(`/api/ai/student/${state.studentId}/analyze-work`, { method: "POST", body: form });
             const payload = await response.json();
             if (!response.ok) throw new Error(payload.detail);
             comment.textContent = payload.content;
@@ -2301,7 +2328,7 @@ function initMultimodalLearning() {
                     const blob = new Blob(chunks, { type: recorder.mimeType });
                     const form = new FormData();
                     form.append("audio", blob, "answer.webm");
-                    const response = await fetch("/api/ai/speech/stt", { method: "POST", body: form });
+                    const response = await apiFetch("/api/ai/speech/stt", { method: "POST", body: form });
                     const payload = await response.json();
                     if (response.ok && chatInput) chatInput.value = payload.text;
                     else showToast(payload.detail || "Không nhận dạng được giọng nói.");
@@ -2318,6 +2345,17 @@ function initMultimodalLearning() {
 }
 
 function getStudentLoginProfile(studentId) {
+    if (state.authStudent && state.authStudent.id === studentId) {
+        return {
+            name: state.authStudent.name,
+            avatar: state.authStudent.username || state.authStudent.id,
+            grade: state.authStudent.grade,
+            skill: `MATH_G${Math.min(7, Math.max(4, state.authStudent.grade))}`,
+            xp: state.xp || 0,
+            coins: state.coins || 0,
+            streak: state.streak || 0
+        };
+    }
     const profiles = {
         emma_std_01: { name: "Emma (Lớp 7A)", avatar: "Emma", grade: 7, skill: "MATH_G7", xp: 1200, coins: 350, streak: 5 },
         an_01: { name: "Nguyễn Văn An", avatar: "An", grade: 6, skill: "MATH_G6", xp: 850, coins: 150, streak: 2 },
@@ -2329,7 +2367,7 @@ function getStudentLoginProfile(studentId) {
 
 async function ensureStudentProfileForLogin(studentId, profile) {
     try {
-        await fetch("/api/students", {
+        await apiFetch("/api/students", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2507,6 +2545,165 @@ function initAuthFlow() {
     } else if (loginOverlay) {
         loginOverlay.classList.remove("hidden");
     }
+}
+
+function initStudentAccountAuth() {
+    const overlay = document.getElementById("login-overlay");
+    const roleTabs = document.querySelectorAll(".login-tab-btn");
+    const rolePanels = document.querySelectorAll(".login-form-panel");
+    const modeButtons = document.querySelectorAll(".student-auth-mode");
+    const modePanels = document.querySelectorAll(".student-auth-panel");
+    const submitButton = document.getElementById("btn-login-submit");
+    const errorBox = document.getElementById("login-error-msg");
+    const logoutButton = document.getElementById("btn-logout");
+    let role = "student";
+    let studentMode = "login";
+
+    const showError = message => {
+        if (!errorBox) return;
+        errorBox.textContent = message;
+        errorBox.style.display = "flex";
+    };
+    const clearError = () => { if (errorBox) errorBox.style.display = "none"; };
+    const setSubmitLabel = () => {
+        const labels = { login: "Đăng nhập", register: "Tạo tài khoản", activate: "Kích hoạt hồ sơ" };
+        const span = submitButton?.querySelector("span");
+        if (span) span.textContent = role === "teacher" ? "Đăng nhập" : labels[studentMode];
+    };
+    const applyStudent = payload => {
+        authAccessToken = payload.access_token;
+        state.authStudent = payload.student;
+        state.isLoggedIn = true;
+        state.loggedInRole = "student";
+        state.baseStudentId = payload.student.id;
+        state.studentId = payload.student.id;
+        state.studentProgress.activeSkill = `MATH_G${Math.min(7, Math.max(4, payload.student.grade))}`;
+        state.xp = 0;
+        state.coins = 0;
+        state.streak = 0;
+        localStorage.removeItem("isLoggedIn");
+        localStorage.removeItem("studentId");
+        if (overlay) overlay.classList.add("hidden");
+        switchPortalUI("student");
+        updateStudentRewardsUI();
+        const gradeSelect = document.getElementById("grade-select");
+        if (gradeSelect) gradeSelect.value = String(payload.student.grade);
+        prepareTestSetup();
+    };
+    const requestAuth = async (url, body) => {
+        const response = await window.fetch(url, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+        let payload = {};
+        try { payload = await response.json(); } catch (_) { /* empty response */ }
+        if (!response.ok) throw new Error(payload.detail || "Không thể xử lý yêu cầu. Vui lòng thử lại.");
+        return payload;
+    };
+
+    roleTabs.forEach(button => button.addEventListener("click", () => {
+        roleTabs.forEach(item => item.classList.remove("active"));
+        button.classList.add("active");
+        role = button.getAttribute("data-login-role") || "student";
+        rolePanels.forEach(panel => panel.classList.remove("active"));
+        document.getElementById(`login-form-${role}`)?.classList.add("active");
+        clearError();
+        setSubmitLabel();
+    }));
+
+    modeButtons.forEach(button => button.addEventListener("click", () => {
+        studentMode = button.getAttribute("data-student-auth-mode") || "login";
+        modeButtons.forEach(item => item.classList.toggle("active", item === button));
+        modePanels.forEach(panel => panel.classList.toggle(
+            "active", panel.getAttribute("data-student-auth-panel") === studentMode
+        ));
+        clearError();
+        setSubmitLabel();
+    }));
+
+    submitButton?.addEventListener("click", async () => {
+        clearError();
+        submitButton.disabled = true;
+        try {
+            if (role === "teacher") {
+                const password = document.getElementById("teacher-pass")?.value || "";
+                if (password !== "123456") throw new Error("Tài khoản hoặc mật khẩu giáo viên chưa đúng.");
+                state.isLoggedIn = true;
+                state.loggedInRole = "teacher";
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "teacher");
+                overlay?.classList.add("hidden");
+                switchPortalUI("teacher");
+                return;
+            }
+            let payload;
+            if (studentMode === "login") {
+                payload = await requestAuth("/api/auth/student/login", {
+                    username: document.getElementById("student-username")?.value || "",
+                    password: document.getElementById("student-password")?.value || "",
+                    remember_me: Boolean(document.getElementById("student-remember")?.checked)
+                });
+            } else if (studentMode === "register") {
+                const password = document.getElementById("register-password")?.value || "";
+                if (password !== (document.getElementById("register-confirm")?.value || "")) {
+                    throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
+                }
+                payload = await requestAuth("/api/auth/student/register", {
+                    username: document.getElementById("register-username")?.value || "",
+                    password,
+                    name: document.getElementById("register-name")?.value || "",
+                    grade: Number(document.getElementById("register-grade")?.value || 0),
+                    email: document.getElementById("register-email")?.value || null
+                });
+            } else {
+                const password = document.getElementById("activate-password")?.value || "";
+                if (password !== (document.getElementById("activate-confirm")?.value || "")) {
+                    throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
+                }
+                payload = await requestAuth("/api/auth/student/activate", {
+                    student_id: document.getElementById("activate-student-id")?.value || "",
+                    activation_code: document.getElementById("activate-code")?.value || "",
+                    username: document.getElementById("activate-username")?.value || "",
+                    password
+                });
+            }
+            applyStudent(payload);
+            showToast(studentMode === "login" ? "Đăng nhập thành công." : "Tài khoản học sinh đã sẵn sàng.");
+        } catch (error) {
+            showError(error.message || "Không thể đăng nhập.");
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    logoutButton?.addEventListener("click", async () => {
+        if (state.loggedInRole === "student") {
+            await window.fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+        }
+        authAccessToken = null;
+        state.authStudent = null;
+        state.isLoggedIn = false;
+        state.loggedInRole = null;
+        localStorage.removeItem("isLoggedIn");
+        localStorage.removeItem("loggedInRole");
+        localStorage.removeItem("studentId");
+        overlay?.classList.remove("hidden");
+    });
+
+    if (localStorage.getItem("isLoggedIn") === "true" && localStorage.getItem("loggedInRole") === "teacher") {
+        state.isLoggedIn = true;
+        state.loggedInRole = "teacher";
+        overlay?.classList.add("hidden");
+        switchPortalUI("teacher");
+    } else {
+        refreshStudentAccessToken().then(payload => {
+            if (payload) applyStudent(payload);
+            else overlay?.classList.remove("hidden");
+        }).catch(() => overlay?.classList.remove("hidden"));
+    }
+    setSubmitLabel();
 }
 
 function initPortalNavigation() {
@@ -2878,7 +3075,7 @@ async function generateAILessonPlan(skillName, skillId) {
     if (skillId) {
         container.textContent = "FPT AI đang xây dựng giáo án theo dữ liệu chẩn đoán...";
         try {
-            const response = await fetch("/api/ai/teacher/lesson-plan", {
+            const response = await apiFetch("/api/ai/teacher/lesson-plan", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
