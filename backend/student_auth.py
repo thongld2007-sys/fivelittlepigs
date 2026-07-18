@@ -1,5 +1,7 @@
 """Student account registration, activation and session management."""
 
+from __future__ import annotations
+
 import hashlib
 import re
 import secrets

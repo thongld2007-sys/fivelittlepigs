@@ -1,5 +1,7 @@
 """Auditable local retrieval over curated, GDPT-aligned pedagogical notes."""
 
+from __future__ import annotations
+
 import json
 import re
 from pathlib import Path

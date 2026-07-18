@@ -1,6 +1,9 @@
 """Portable SQLAlchemy schema for SQLite pilots and PostgreSQL production."""
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
+from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
@@ -29,15 +32,15 @@ class Organization(Base):
 class User(Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
-    organization_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"))
-    username: Mapped[str | None] = mapped_column(String(30), unique=True, index=True)
+    organization_id: Mapped[Optional[str]] = mapped_column(ForeignKey("organizations.id"))
+    username: Mapped[Optional[str]] = mapped_column(String(30), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(30), nullable=False, default="student")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0)
-    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -45,7 +48,7 @@ class User(Base):
 class Student(Base):
     __tablename__ = "students"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     grade: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -54,7 +57,7 @@ class Classroom(Base):
     __tablename__ = "classrooms"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
-    teacher_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    teacher_user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     grade: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -93,7 +96,7 @@ class DiagnosticSession(Base):
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
     status: Mapped[str] = mapped_column(String(30), default="active")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class StudentMastery(Base):
@@ -109,7 +112,7 @@ class MasteryHistory(Base):
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
     skill_id: Mapped[str] = mapped_column(ForeignKey("skills.id"), index=True)
     probability: Mapped[float] = mapped_column(Float, nullable=False)
-    response_id: Mapped[int | None] = mapped_column(Integer)
+    response_id: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -122,8 +125,8 @@ class Response(Base):
     difficulty_level: Mapped[int] = mapped_column(Integer, default=2)
     is_correct: Mapped[int] = mapped_column(Integer, nullable=False)
     timestamp: Mapped[int] = mapped_column(Integer, nullable=False)
-    selected_option: Mapped[str | None] = mapped_column(String(30))
-    event_id: Mapped[str | None] = mapped_column(String(36), unique=True)
+    selected_option: Mapped[Optional[str]] = mapped_column(String(30))
+    event_id: Mapped[Optional[str]] = mapped_column(String(36), unique=True)
     time_spent_ms: Mapped[int] = mapped_column(Integer, default=0)
     __table_args__ = (Index("idx_responses_student_skill_time", "student_id", "skill_id", "timestamp"),)
 
@@ -132,20 +135,20 @@ class UploadedWork(Base):
     __tablename__ = "uploaded_works"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
-    question_id: Mapped[str | None] = mapped_column(String(64))
+    question_id: Mapped[Optional[str]] = mapped_column(String(64))
     object_key: Mapped[str] = mapped_column(String(500), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(80), nullable=False)
-    vision_result: Mapped[dict | None] = mapped_column(JSON)
+    vision_result: Mapped[Optional[dict]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class AgentRun(Base):
     __tablename__ = "agent_runs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
-    student_id: Mapped[str | None] = mapped_column(ForeignKey("students.id"), index=True)
+    student_id: Mapped[Optional[str]] = mapped_column(ForeignKey("students.id"), index=True)
     operation: Mapped[str] = mapped_column(String(60), nullable=False)
-    model: Mapped[str | None] = mapped_column(String(120))
+    model: Mapped[Optional[str]] = mapped_column(String(120))
     trace: Mapped[list] = mapped_column(JSON, default=list)
     sources: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -155,7 +158,7 @@ class AIUsage(Base):
     __tablename__ = "ai_usage"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     operation: Mapped[str] = mapped_column(String(60), nullable=False)
-    model: Mapped[str | None] = mapped_column(String(120))
+    model: Mapped[Optional[str]] = mapped_column(String(120))
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
@@ -166,10 +169,10 @@ class AIUsage(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    actor_user_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    actor_user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True)
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(80), nullable=False)
-    entity_id: Mapped[str | None] = mapped_column(String(80))
+    entity_id: Mapped[Optional[str]] = mapped_column(String(80))
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -180,7 +183,7 @@ class RefreshToken(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -190,5 +193,5 @@ class AccountActivationToken(Base):
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
