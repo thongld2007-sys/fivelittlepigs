@@ -1,4 +1,4 @@
-// PorcusAI - Frontend Interactive Engine (Memphis Style)
+﻿// PorcusAI - Frontend Interactive Engine (Memphis Style)
 // Supporting both Offline Fallback Mode and Online API integration.
 
 // Global State
@@ -3781,7 +3781,7 @@ function initStudentMascotChat() {
         return message;
     }
 
-    function buildOfflineMascotReply(text) {
+    async function buildOfflineMascotReply(text) {
         let reply = "Tôi sẽ không đưa đáp án ngay. Em hãy nói rõ mình kẹt ở bước nào: hiểu đề, chọn công thức, hay tính toán?";
         const activeSkill = resolveActiveLearningSkillId();
         const textL = text.toLowerCase();
