@@ -19,8 +19,8 @@ Diem manh hien tai:
 Rui ro bi tru diem:
 
 - Chua co benchmark tren nguoi dung that.
-- FPT AI Inference da implemented; Knowledge/RAG va Speech da co endpoint adapter demo
-  offline-ready, OCR/MCP van la roadmap.
+- FPT AI Inference, local Knowledge/RAG, Agents, Speech adapters and OCR/VLM workflow are implemented;
+  MCP remains a roadmap integration.
 - Evaluation da co smoke benchmark 30 case, nhung chua co pilot truong/lop that.
 - Dang co login demo frontend, chua phai auth production.
 - Ngan hang cau hoi con nho neu trien khai toan truong.
@@ -140,7 +140,7 @@ Ban demo local se sap o cac diem: SQLite khi ghi dong thoi qua nhieu, login demo
 - [x] Them bang cost/latency/evidence endpoints vao README.
 - [x] Them FPT AI Inference adapter interface, ke ca fallback offline neu chua co key.
 - [x] Them safety section: hallucination, anti-cheating, key isolation, prompt injection gap.
-- [x] Demo dashboard giao vien truoc chatbot.
-- [x] Them final evidence tab de gom scorecard, benchmark, FPT AI story va readiness.
-- [x] Chuan bi 3 so lieu gia dinh co can cu: thoi gian tiet kiem, p95 latency, cost per student.
+- [ ] Demo dashboard giao vien truoc chatbot.
+- [x] Them simulation 1.000 hoc sinh, latency co seed va bieu do so sanh adaptive/linear.
+- [ ] Chuan bi pilot lop hoc that; khong trinh bay simulation nhu du lieu nguoi dung that.
 - [ ] Co video offline phong khi Wi-Fi su kien yeu.

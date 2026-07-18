@@ -8,6 +8,7 @@ const state = {
     studentId: 'emma_std_01',
     isLoggedIn: false,
     loggedInRole: null,
+    authStudent: null,
     selectedStudentForTree: null,
     currentQuestion: null,
     selectedOption: null,
@@ -497,7 +498,7 @@ const REASONING_TREES = {
 
 // Initialize Application
 document.addEventListener("DOMContentLoaded", async () => {
-    initAuthFlow();
+    initStudentAccountAuth();
     initPortalNavigation();
     initTeacherTabs();
     initAITutorChat();
@@ -509,11 +510,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initFinalReportModal();
     initTeacherClassSwitcher();
     initMascotReadAloud();
-    initRewardShop();
-    initQuestNotification();
-    initPersonalReviewActions();
-    initStudentProfileModal();
-    initActionableDemoControls();
+    initMultimodalLearning();
     
     // Load Knowledge Graph DAG
     await loadKnowledgeGraph();
@@ -529,7 +526,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Load Knowledge Graph from backend
 async function loadKnowledgeGraph() {
     try {
-        const res = await fetch("/api/knowledge-graph");
+        const res = await apiFetch("/api/knowledge-graph");
         if (res.ok) {
             state.knowledgeGraph = await res.json();
             console.log("[+] Knowledge Graph loaded successfully:", state.knowledgeGraph);
@@ -1161,7 +1158,7 @@ function setSurveyResultVisibility(isVisible) {
 
 async function createCleanSurveySession(grade) {
     try {
-        const res = await fetch("/api/student/session", {
+        const res = await apiFetch("/api/student/session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1265,7 +1262,7 @@ async function loadStudentQuestion(skillId) {
             current_skill: skillId,
             answer_format: state.testSession.stage === "short_answer" ? "short" : "choice"
         });
-        const res = await fetch(`/api/student/${state.studentId}/next-question?${params.toString()}`);
+        const res = await apiFetch(`/api/student/${state.studentId}/next-question?${params.toString()}`);
         if (res.ok) {
             const data = await res.json();
             const question = data.question;
@@ -2044,14 +2041,14 @@ async function submitSelectedAnswerToApi(submittedOption) {
         selected_option: submittedOption
     };
 
-    const checkAnswerRes = await fetch("/api/check-answer", {
+    const checkAnswerRes = await apiFetch("/api/check-answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     });
     if (checkAnswerRes.ok) return checkAnswerRes.json();
 
-    const legacyRes = await fetch(`/api/student/${state.studentId}/submit`, {
+    const legacyRes = await apiFetch(`/api/student/${state.studentId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3167,7 +3164,7 @@ function renderPriorityList(students) {
  * @returns {Promise<object>} Dashboard payload.
  */
 async function fetchTeacherDashboardData() {
-    const res = await fetch("/api/teacher/dashboard");
+    const res = await apiFetch("/api/teacher/dashboard");
     if (!res.ok) throw new Error(`Teacher dashboard fetch failed: ${res.status}`);
     return res.json();
 }
@@ -3678,237 +3675,16 @@ function initAITutorChat() {
         }
         chatHistory.appendChild(bubble);
         chatHistory.scrollTop = chatHistory.scrollHeight;
-        return paragraph;
-    }
-
-    function resolveTutorQuestionId() {
-        if (state.currentQuestion?.id) return state.currentQuestion.id;
-        const activeSkill = state.studentProgress.activeSkill || "MATH_G7";
-        return OFFLINE_MOCK_QUESTIONS[activeSkill]?.id || OFFLINE_MOCK_QUESTIONS.MATH_G7.id;
-    }
-
-    function resolveActiveTutorSkill() {
-        return state.currentQuestion?.skill_id || state.testSession.currentSkill || state.studentProgress.activeSkill || "MATH_G7";
-    }
-
-    function resolveActiveTutorDifficulty() {
-        return state.currentQuestion?.difficulty_level || 2;
-    }
-
-    async function fetchAITutorReply(msg) {
-        const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                question_id: resolveTutorQuestionId(),
-                message: msg,
-                history: state.tutorChatHistory.length > 0 ? state.tutorChatHistory : undefined
-            })
-        });
-        if (!response.ok) {
-            const errorPayload = await response.json().catch(() => ({}));
-            throw new Error(errorPayload.detail || `AI HTTP ${response.status}`);
-        }
-        return response.json();
-    }
-
-    async function fetchAIWorkAnalysis(rawText) {
-        const attachedFile = imageInput?.files?.[0];
-        const response = await fetch(`/api/ai/student/${state.studentId}/analyze-work`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                mode: selectedAIMode,
-                subject: state.testSession.subject || "Toán",
-                grade: state.testSession.grade || 7,
-                skill_id: resolveActiveTutorSkill(),
-                work_text: String(rawText || "").trim(),
-                attachment_name: attachedFile?.name || null
-            })
-        });
-        if (!response.ok) {
-            const payload = await response.json().catch(() => ({}));
-            throw new Error(payload.detail || `AI HTTP ${response.status}`);
-        }
-        return response.json();
-    }
-
-    function buildTutorTaskMessage(rawText) {
-        const mode = aiModeConfig[selectedAIMode] || aiModeConfig.explain;
-        const attachedFile = imageInput?.files?.[0];
-        const attachmentText = attachedFile
-            ? `\nẢnh đính kèm: ${attachedFile.name}. Hệ thống hiện chưa bật OCR ảnh trực tiếp, hãy xử lý theo mô tả học sinh đã nhập và nhắc học sinh mô tả phần trong ảnh nếu thiếu dữ liệu.`
-            : "";
-        return [
-            "Đây là một yêu cầu học tập trong PorcusAI. Hãy xử lý đúng chế độ và trả lời trực tiếp nhiệm vụ.",
-            `Chế độ AI: ${mode.label}.`,
-            `Yêu cầu: ${mode.prompt}`,
-            `Môn/lớp hiện tại: ${state.testSession.subject || "Toán"} lớp ${state.testSession.grade || 7}.`,
-            `Kỹ năng hiện tại: ${getSkillDisplayName(resolveActiveTutorSkill())}.`,
-            `Nội dung học sinh gửi: ${rawText.trim() || "(chưa nhập nội dung)"}`,
-            attachmentText
-        ].filter(Boolean).join("\n");
-    }
-
-    function validateAITaskInput(rawText) {
-        const text = String(rawText || "").trim();
-        const attachedFile = imageInput?.files?.[0];
-        const mode = aiModeConfig[selectedAIMode] || aiModeConfig.explain;
-        if (!text && !attachedFile) {
-            return `Em cần nhập câu hỏi, dán bài làm hoặc gửi ảnh trước khi dùng chế độ "${mode.label}".`;
-        }
-        if (!text && attachedFile) {
-            return "Ảnh đã được nhận. Hệ thống hiện chưa bật OCR thật, em hãy mô tả nội dung trong ảnh hoặc nhập vài bước làm để AI phân tích đúng.";
-        }
-        if (text.length > 0 && text.length < 8 && !attachedFile) {
-            if (selectedAIMode === "similar_question") {
-                return "Để tạo câu tương tự, em hãy dán nguyên câu mẫu hoặc mô tả dạng bài rõ hơn.";
-            }
-            if (selectedAIMode === "find_error") {
-                return "Để tìm lỗi sai, em hãy dán bài làm hoặc bước giải em đang nghi ngờ.";
-            }
-            return "Em viết rõ hơn một chút nhé, ví dụ: phần nào chưa hiểu hoặc câu em đang làm.";
-        }
-        return "";
-    }
-
-    async function sendUserMessage(msg, { useMode = false } = {}) {
-        if (!String(msg || "").trim() && !imageInput?.files?.[0]) return;
-
-        const mode = aiModeConfig[selectedAIMode] || aiModeConfig.explain;
-        const validationMessage = useMode ? validateAITaskInput(msg) : "";
-        if (validationMessage) {
-            appendTutorBubble("user", `[${mode.label}] ${String(msg || "").trim() || "Đã chọn ảnh"}`);
-            appendTutorBubble("bot", validationMessage);
-            return;
-        }
-
-        const attachedFile = imageInput?.files?.[0];
-        const displayText = String(msg || "").trim() || `Ảnh bài làm: ${attachedFile?.name || "đã chọn"}`;
-        const displayMessage = useMode ? `[${mode.label}] ${displayText}` : displayText;
-        const aiMessage = useMode ? buildTutorTaskMessage(msg) : msg;
-
-        appendTutorBubble("user", displayMessage);
-        if (workInput) workInput.value = "";
-
-        const replyParagraph = appendTutorBubble("bot", "AI đang phân tích bài làm và nối với lộ trình học...");
-        try {
-            const data = await fetchAITutorReply(msg);
-            replyParagraph.textContent = data.content;
-            state.tutorChatHistory.push({ role: "user", content: msg });
-            state.tutorChatHistory.push({ role: "assistant", content: data.content });
-            await updateAIStatusBadge();
-        } catch (error) {
-            console.warn("[AI Tutor] Fallback offline.", error);
-            replyParagraph.textContent = useMode
-                ? `Tôi đã nhận chế độ "${mode.label}". ${buildOfflineTutorReply(msg)}`
-                : buildOfflineTutorReply(msg);
-            if (aiStatusPill) {
-                aiStatusPill.className = "realtime-status polling";
-                aiStatusPill.textContent = "AI fallback offline";
-            }
-        }
-    }
-
-    function renderAIAnalysisReply(paragraph, analysis) {
-        const misconception = analysis.misconception || {};
-        const measurement = analysis.measurement || {};
-        const pack = Array.isArray(analysis.remediation_pack) ? analysis.remediation_pack : [];
-        paragraph.style.whiteSpace = "pre-wrap";
-        paragraph.textContent = [
-            `AI phát hiện lỗi: ${misconception.detected_error || "Cần thêm dữ liệu bài làm"}`,
-            `Bước sai: ${misconception.wrong_step || "Chưa xác định"}`,
-            `Kiến thức nền thiếu: ${misconception.missing_prerequisite || analysis.skill_name || "Chưa xác định"}`,
-            `Độ tin cậy: ${Math.round(Number(misconception.confidence || 0) * 100)}%`,
-            "",
-            "Gói ôn cá nhân hóa:",
-            ...pack.slice(0, 4).map((step, index) => `${index + 1}. ${step.title || step.type}: ${step.content || ""}`),
-            "",
-            `Đo lại: ${measurement.target || "Làm đúng các câu kiểm tra lại."}`,
-            `Vì sao cần AI: ${analysis.why_ai_is_needed || "AI đọc bài làm tự do và biến lỗi sai thành can thiệp."}`
-        ].join("\n");
-    }
-
-    function applyAIAnalysisToReview(analysis) {
-        const pack = Array.isArray(analysis.remediation_pack) ? analysis.remediation_pack : [];
-        if (!pack.length) return;
-        const misconception = analysis.misconception || {};
-        addAIDecisionLog({
-            source: "Trợ lý học tập",
-            signal: misconception.detected_error || "Bài làm/câu hỏi tự do của học sinh",
-            decision: `Cập nhật bài ôn theo lỗi: ${misconception.missing_prerequisite || analysis.skill_name || "kỹ năng hiện tại"}.`,
-            measurement: analysis.measurement?.target || "Làm đúng gói ôn để đo lại mastery.",
-            confidence: misconception.confidence ?? 0.75
-        });
-        renderPersonalReviewSteps(pack.map(step => ({
-            skill_name: step.title || step.type,
-            action: step.content,
-            success_signal: analysis.measurement?.target || "Làm đúng gói ôn để đo lại mastery."
-        })), analysis.summary || "AI đã tạo gói ôn từ lỗi sai trong bài làm.");
-        state.dailyQuest.aiReviewsUnlocked += 1;
-        saveRewardState();
-        updateStudentRewardsUI();
-    }
-
-    async function generateAIQuestion() {
-        appendTutorBubble("user", "Sinh cho em một câu hỏi theo mức hiện tại.");
-        const replyParagraph = appendTutorBubble("bot", "AI đang sinh câu hỏi theo skill và độ khó hiện tại...");
-        try {
-            const response = await fetch(`/api/ai/student/${state.studentId}/generate-question`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    subject: state.testSession.subject || "Toán",
-                    grade: state.testSession.grade || 7,
-                    skill_id: resolveActiveTutorSkill(),
-                    difficulty_level: resolveActiveTutorDifficulty(),
-                    count: 1,
-                    question_type: "multiple_choice"
-                })
-            });
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({}));
-                throw new Error(payload.detail || `AI HTTP ${response.status}`);
-            }
-            const data = await response.json();
-            const question = data.questions?.[0];
-            if (!question) throw new Error("AI không trả về câu hỏi.");
-            const options = (question.options || [])
-                .map(opt => `${opt.key}. ${opt.text}`)
-                .join("\n");
-            replyParagraph.textContent = [
-                `${question.difficulty || "Thông hiểu"} · ${question.text}`,
-                options,
-                `Gợi ý: ${question.hint || "Hãy phân tích kiến thức nền trước."}`
-            ].join("\n");
-            replyParagraph.style.whiteSpace = "pre-wrap";
-        } catch (error) {
-            console.warn("[AI Question] Không thể sinh câu hỏi.", error);
-            replyParagraph.textContent = "Hiện chưa sinh được câu hỏi AI. Em tiếp tục làm bài thích ứng, hệ thống vẫn chọn câu theo luật độ khó 3 mức.";
-        }
-    }
-
-    async function generateAILearningPath() {
-        appendTutorBubble("user", "Tạo lộ trình học cá nhân cho em.");
-        const replyParagraph = appendTutorBubble("bot", "AI đang đọc mastery và prerequisite graph để tạo lộ trình...");
-        try {
-            const params = new URLSearchParams({ target_skill: resolveActiveTutorSkill() });
-            const response = await fetch(`/api/ai/student/${state.studentId}/learning-path?${params.toString()}`);
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({}));
-                throw new Error(payload.detail || `AI HTTP ${response.status}`);
-            }
-            const data = await response.json();
-            const path = data.learning_path || {};
-            const steps = (path.steps || []).map((step, index) => {
-                return `${index + 1}. ${step.skill_name || step.skill_id} - ${step.recommended_difficulty || "Thông hiểu"}\n   ${step.action || "Luyện tập theo gợi ý hệ thống."}\n   Đạt khi: ${step.success_signal || "đúng liên tiếp các câu cùng kỹ năng."}`;
-            }).join("\n");
-            replyParagraph.textContent = `${path.summary || "Lộ trình học cá nhân"}\n${steps}`;
-            replyParagraph.style.whiteSpace = "pre-wrap";
-        } catch (error) {
-            console.warn("[AI Path] Không thể sinh lộ trình.", error);
-            replyParagraph.textContent = "Hiện chưa sinh được lộ trình AI. Em vẫn có thể tiếp tục bài test để hệ thống cập nhật lộ trình bằng BKT.";
-        }
+        
+        if (chatInput) chatInput.value = "";
+        
+        requestSocraticTutor(msg).then(result => {
+            const robotBubble = document.createElement("div");
+            robotBubble.className = "chat-bubble robot-bubble";
+            robotBubble.textContent = result.content;
+            chatHistory.appendChild(robotBubble);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }).catch(error => showToast(error.message));
     }
     
     document.querySelectorAll("[data-ai-mode]").forEach(btn => {
@@ -4025,7 +3801,7 @@ function initStudentMascotChat() {
 
         if (state.currentQuestion && state.isLoggedIn) {
             try {
-                const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
+                const response = await apiFetch(`/api/ai/student/${state.studentId}/tutor`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -4046,20 +3822,7 @@ function initStudentMascotChat() {
             }
         }
 
-        if (activeSkill === 'MATH_G7') {
-            if (textL.includes("quy đồng") || textL.includes("mẫu số") || textL.includes("làm sao") || textL.includes("mẫu chung")) {
-                reply = "Bước 1: tìm mẫu chung nhỏ nhất. Với 1/2 và -2/3, mẫu chung là 6. Bước 2: đổi 1/2 thành 3/6 và -2/3 thành -4/6. Bây giờ em thử cộng tử số.";
-            } else if (textL.includes("dấu") || textL.includes("âm") || textL.includes("sai")) {
-                reply = "Hãy kiểm tra dấu ở tử số sau khi quy đồng. 3/6 + (-4/6) nghĩa là 3 + (-4), kết quả là số âm vì 4 lớn hơn 3.";
-            } else {
-                reply = "Gợi ý từng bước: xác định mẫu chung, quy đồng từng phân số, giữ nguyên mẫu, rồi cộng tử số. Em thử viết bước quy đồng trước nhé.";
-            }
-        } else if (activeSkill === 'MATH_G6') {
-            reply = "Đây là dạng cộng trừ số nguyên. Em hãy so sánh trị tuyệt đối hai số trước, rồi lấy dấu của số có trị tuyệt đối lớn hơn.";
-        } else if (activeSkill === 'MATH_G5' || activeSkill === 'MATH_G5_LCM') {
-            reply = "Hãy liệt kê bội của từng mẫu số, tìm bội chung nhỏ nhất, rồi dùng nó làm mẫu chung. Đừng nhân tử mà quên nhân mẫu nhé.";
-        }
-        return reply;
+        appendTutorReply("FPT AI hiện không khả dụng; hệ thống không tạo câu trả lời mô phỏng.");
     }
 
     async function fetchMascotAIReply(text) {
@@ -4126,7 +3889,193 @@ function initStudentMascotChat() {
     });
 }
 
+// Production AI chat overrides the legacy demo handlers above. It never fabricates an AI answer.
+async function requestSocraticTutor(message) {
+    if (!state.currentQuestion || !state.isLoggedIn) {
+        throw new Error("Hãy đăng nhập và mở một câu hỏi trước khi hỏi trợ giảng.");
+    }
+    const response = await apiFetch(`/api/ai/student/${state.studentId}/tutor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question_id: state.currentQuestion.id, message })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || "FPT AI hiện không khả dụng.");
+    return payload;
+}
+
+let authAccessToken = null;
+
+async function refreshStudentAccessToken() {
+    const response = await window.fetch("/api/auth/refresh", { method: "POST", credentials: "include" });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    authAccessToken = payload.access_token;
+    return payload;
+}
+
+async function apiFetch(input, init = {}) {
+    const options = { ...init, credentials: "include" };
+    const headers = new Headers(init.headers || {});
+    if (authAccessToken) headers.set("Authorization", `Bearer ${authAccessToken}`);
+    options.headers = headers;
+    let response = await window.fetch(input, options);
+    if (response.status === 401 && authAccessToken && !String(input).startsWith("/api/auth/")) {
+        const refreshed = await refreshStudentAccessToken();
+        if (refreshed) {
+            headers.set("Authorization", `Bearer ${authAccessToken}`);
+            response = await window.fetch(input, options);
+        }
+    }
+    return response;
+}
+
+function initAITutorChat() {
+    const input = document.getElementById("tutor-chat-input");
+    const button = document.getElementById("btn-send-tutor");
+    const history = document.getElementById("chat-history-box");
+    if (!input || !button || !history) return;
+    const send = async () => {
+        const message = input.value.trim();
+        if (!message) return;
+        input.value = "";
+        const user = document.createElement("div");
+        user.className = "chat-bubble user-bubble";
+        user.textContent = message;
+        history.appendChild(user);
+        try {
+            const result = await requestSocraticTutor(message);
+            const bot = document.createElement("div");
+            bot.className = "chat-bubble robot-bubble";
+            bot.textContent = result.content;
+            history.appendChild(bot);
+        } catch (error) {
+            const notice = document.createElement("div");
+            notice.className = "chat-bubble robot-bubble";
+            notice.textContent = error.message;
+            history.appendChild(notice);
+        }
+        history.scrollTop = history.scrollHeight;
+    };
+    button.addEventListener("click", send);
+    input.addEventListener("keypress", event => { if (event.key === "Enter") send(); });
+}
+
+function initStudentMascotChat() {
+    const input = document.getElementById("mascot-chat-input");
+    const button = document.getElementById("btn-send-mascot-chat");
+    const history = document.getElementById("mascot-chat-history");
+    const comment = document.getElementById("mascot-comment");
+    if (!input || !button || !history || !comment) return;
+    const append = (text, role) => {
+        const item = document.createElement("div");
+        item.className = `mascot-msg ${role}`;
+        item.textContent = text;
+        history.appendChild(item);
+        history.style.display = "flex";
+        history.scrollTop = history.scrollHeight;
+    };
+    const send = async () => {
+        const message = input.value.trim();
+        if (!message) return;
+        input.value = "";
+        append(message, "user");
+        comment.textContent = "FPT AI đang truy xuất kiến thức và phân tích...";
+        try {
+            const result = await requestSocraticTutor(message);
+            append(result.content, "bot");
+            comment.textContent = result.content;
+        } catch (error) {
+            append(error.message, "bot");
+            comment.textContent = "Không tạo câu trả lời giả khi AI không khả dụng.";
+        }
+    };
+    button.addEventListener("click", send);
+    input.addEventListener("keypress", event => { if (event.key === "Enter") send(); });
+}
+
+function initMascotReadAloud() {
+    const button = document.getElementById("btn-read-aloud");
+    if (!button) return;
+    button.addEventListener("click", async () => {
+        const text = document.getElementById("mascot-comment")?.textContent?.trim();
+        if (!text) return;
+        try {
+            const response = await apiFetch("/api/ai/speech/tts", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text, voice: "banmai", speed: -1 })
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.detail || "FPT TTS unavailable");
+            const audio = new Audio(payload.audio_url);
+            await audio.play();
+        } catch (error) {
+            showToast("FPT Speech chưa được cấu hình; không phát giọng giả lập.");
+        }
+    });
+}
+
+function initMultimodalLearning() {
+    const imageInput = document.getElementById("student-work-image");
+    const imageButton = document.getElementById("btn-analyze-student-work");
+    const voiceButton = document.getElementById("btn-record-answer");
+    const chatInput = document.getElementById("mascot-chat-input");
+    const comment = document.getElementById("mascot-comment");
+    if (imageButton && imageInput) imageButton.addEventListener("click", async () => {
+        const file = imageInput.files?.[0];
+        if (!file || !state.isLoggedIn) return showToast("Hãy đăng nhập và chọn ảnh bài làm.");
+        const form = new FormData();
+        form.append("image", file);
+        form.append("question_id", state.currentQuestion?.id || "");
+        comment.textContent = "FPT Vision đang đọc bài giải viết tay...";
+        try {
+            const response = await apiFetch(`/api/ai/student/${state.studentId}/analyze-work`, { method: "POST", body: form });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.detail);
+            comment.textContent = payload.content;
+        } catch (error) { comment.textContent = error.message || "Không phân tích được ảnh."; }
+    });
+    if (voiceButton && navigator.mediaDevices) {
+        let recorder;
+        let chunks = [];
+        voiceButton.addEventListener("click", async () => {
+            if (!recorder || recorder.state === "inactive") {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                recorder = new MediaRecorder(stream);
+                chunks = [];
+                recorder.ondataavailable = event => chunks.push(event.data);
+                recorder.onstop = async () => {
+                    const blob = new Blob(chunks, { type: recorder.mimeType });
+                    const form = new FormData();
+                    form.append("audio", blob, "answer.webm");
+                    const response = await apiFetch("/api/ai/speech/stt", { method: "POST", body: form });
+                    const payload = await response.json();
+                    if (response.ok && chatInput) chatInput.value = payload.text;
+                    else showToast(payload.detail || "Không nhận dạng được giọng nói.");
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                recorder.start();
+                voiceButton.textContent = "Dừng ghi";
+            } else {
+                recorder.stop();
+                voiceButton.textContent = "Trả lời bằng giọng nói";
+            }
+        });
+    }
+}
+
 function getStudentLoginProfile(studentId) {
+    if (state.authStudent && state.authStudent.id === studentId) {
+        return {
+            name: state.authStudent.name,
+            avatar: state.authStudent.username || state.authStudent.id,
+            grade: state.authStudent.grade,
+            skill: `MATH_G${Math.min(7, Math.max(4, state.authStudent.grade))}`,
+            xp: state.xp || 0,
+            coins: state.coins || 0,
+            streak: state.streak || 0
+        };
+    }
     const profiles = {
         emma_std_01: { name: "Emma (Lớp 7A)", avatar: "Emma", grade: 7, skill: "MATH_G7", xp: 1200, coins: 350, streak: 5 },
         an_01: { name: "Nguyễn Văn An", avatar: "An", grade: 6, skill: "MATH_G6", xp: 850, coins: 150, streak: 2 },
@@ -4138,7 +4087,7 @@ function getStudentLoginProfile(studentId) {
 
 async function ensureStudentProfileForLogin(studentId, profile) {
     try {
-        await fetch("/api/students", {
+        await apiFetch("/api/students", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -4421,6 +4370,165 @@ function initAuthFlow() {
         }
     }
     checkSession();
+}
+
+function initStudentAccountAuth() {
+    const overlay = document.getElementById("login-overlay");
+    const roleTabs = document.querySelectorAll(".login-tab-btn");
+    const rolePanels = document.querySelectorAll(".login-form-panel");
+    const modeButtons = document.querySelectorAll(".student-auth-mode");
+    const modePanels = document.querySelectorAll(".student-auth-panel");
+    const submitButton = document.getElementById("btn-login-submit");
+    const errorBox = document.getElementById("login-error-msg");
+    const logoutButton = document.getElementById("btn-logout");
+    let role = "student";
+    let studentMode = "login";
+
+    const showError = message => {
+        if (!errorBox) return;
+        errorBox.textContent = message;
+        errorBox.style.display = "flex";
+    };
+    const clearError = () => { if (errorBox) errorBox.style.display = "none"; };
+    const setSubmitLabel = () => {
+        const labels = { login: "Đăng nhập", register: "Tạo tài khoản", activate: "Kích hoạt hồ sơ" };
+        const span = submitButton?.querySelector("span");
+        if (span) span.textContent = role === "teacher" ? "Đăng nhập" : labels[studentMode];
+    };
+    const applyStudent = payload => {
+        authAccessToken = payload.access_token;
+        state.authStudent = payload.student;
+        state.isLoggedIn = true;
+        state.loggedInRole = "student";
+        state.baseStudentId = payload.student.id;
+        state.studentId = payload.student.id;
+        state.studentProgress.activeSkill = `MATH_G${Math.min(7, Math.max(4, payload.student.grade))}`;
+        state.xp = 0;
+        state.coins = 0;
+        state.streak = 0;
+        localStorage.removeItem("isLoggedIn");
+        localStorage.removeItem("studentId");
+        if (overlay) overlay.classList.add("hidden");
+        switchPortalUI("student");
+        updateStudentRewardsUI();
+        const gradeSelect = document.getElementById("grade-select");
+        if (gradeSelect) gradeSelect.value = String(payload.student.grade);
+        prepareTestSetup();
+    };
+    const requestAuth = async (url, body) => {
+        const response = await window.fetch(url, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+        let payload = {};
+        try { payload = await response.json(); } catch (_) { /* empty response */ }
+        if (!response.ok) throw new Error(payload.detail || "Không thể xử lý yêu cầu. Vui lòng thử lại.");
+        return payload;
+    };
+
+    roleTabs.forEach(button => button.addEventListener("click", () => {
+        roleTabs.forEach(item => item.classList.remove("active"));
+        button.classList.add("active");
+        role = button.getAttribute("data-login-role") || "student";
+        rolePanels.forEach(panel => panel.classList.remove("active"));
+        document.getElementById(`login-form-${role}`)?.classList.add("active");
+        clearError();
+        setSubmitLabel();
+    }));
+
+    modeButtons.forEach(button => button.addEventListener("click", () => {
+        studentMode = button.getAttribute("data-student-auth-mode") || "login";
+        modeButtons.forEach(item => item.classList.toggle("active", item === button));
+        modePanels.forEach(panel => panel.classList.toggle(
+            "active", panel.getAttribute("data-student-auth-panel") === studentMode
+        ));
+        clearError();
+        setSubmitLabel();
+    }));
+
+    submitButton?.addEventListener("click", async () => {
+        clearError();
+        submitButton.disabled = true;
+        try {
+            if (role === "teacher") {
+                const password = document.getElementById("teacher-pass")?.value || "";
+                if (password !== "123456") throw new Error("Tài khoản hoặc mật khẩu giáo viên chưa đúng.");
+                state.isLoggedIn = true;
+                state.loggedInRole = "teacher";
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "teacher");
+                overlay?.classList.add("hidden");
+                switchPortalUI("teacher");
+                return;
+            }
+            let payload;
+            if (studentMode === "login") {
+                payload = await requestAuth("/api/auth/student/login", {
+                    username: document.getElementById("student-username")?.value || "",
+                    password: document.getElementById("student-password")?.value || "",
+                    remember_me: Boolean(document.getElementById("student-remember")?.checked)
+                });
+            } else if (studentMode === "register") {
+                const password = document.getElementById("register-password")?.value || "";
+                if (password !== (document.getElementById("register-confirm")?.value || "")) {
+                    throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
+                }
+                payload = await requestAuth("/api/auth/student/register", {
+                    username: document.getElementById("register-username")?.value || "",
+                    password,
+                    name: document.getElementById("register-name")?.value || "",
+                    grade: Number(document.getElementById("register-grade")?.value || 0),
+                    email: document.getElementById("register-email")?.value || null
+                });
+            } else {
+                const password = document.getElementById("activate-password")?.value || "";
+                if (password !== (document.getElementById("activate-confirm")?.value || "")) {
+                    throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
+                }
+                payload = await requestAuth("/api/auth/student/activate", {
+                    student_id: document.getElementById("activate-student-id")?.value || "",
+                    activation_code: document.getElementById("activate-code")?.value || "",
+                    username: document.getElementById("activate-username")?.value || "",
+                    password
+                });
+            }
+            applyStudent(payload);
+            showToast(studentMode === "login" ? "Đăng nhập thành công." : "Tài khoản học sinh đã sẵn sàng.");
+        } catch (error) {
+            showError(error.message || "Không thể đăng nhập.");
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
+    logoutButton?.addEventListener("click", async () => {
+        if (state.loggedInRole === "student") {
+            await window.fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+        }
+        authAccessToken = null;
+        state.authStudent = null;
+        state.isLoggedIn = false;
+        state.loggedInRole = null;
+        localStorage.removeItem("isLoggedIn");
+        localStorage.removeItem("loggedInRole");
+        localStorage.removeItem("studentId");
+        overlay?.classList.remove("hidden");
+    });
+
+    if (localStorage.getItem("isLoggedIn") === "true" && localStorage.getItem("loggedInRole") === "teacher") {
+        state.isLoggedIn = true;
+        state.loggedInRole = "teacher";
+        overlay?.classList.add("hidden");
+        switchPortalUI("teacher");
+    } else {
+        refreshStudentAccessToken().then(payload => {
+            if (payload) applyStudent(payload);
+            else overlay?.classList.remove("hidden");
+        }).catch(() => overlay?.classList.remove("hidden"));
+    }
+    setSubmitLabel();
 }
 
 function initPortalNavigation() {
@@ -4795,7 +4903,7 @@ async function generateAILessonPlan(skillName, skillId, groupContext) {
     if (skillId) {
         container.innerHTML = "<em>FPT AI đang xây dựng giáo án bám sát SGK theo dữ liệu chẩn đoán...</em>";
         try {
-            const response = await fetch("/api/ai/teacher/lesson-plan-grounded", {
+            const response = await apiFetch("/api/ai/teacher/lesson-plan", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

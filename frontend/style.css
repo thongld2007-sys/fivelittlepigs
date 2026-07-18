@@ -1,5 +1,5 @@
 /* 
- * PorcusAI Memphis Flat Design System Tokens
+ * VGap AI Memphis Flat Design System Tokens
  * Aligned to: Primary #557AFA, Secondary #FCD075, Accent #F9A46B
  */
 :root {
@@ -75,13 +75,12 @@ body {
     border-bottom: var(--border-width) dashed var(--border-color);
 }
 
-.brand-logo-img {
-    width: 54px;
-    height: 54px;
-    object-fit: cover;
-    object-position: center;
-    background: #ffffff;
-    border-radius: 14px;
+.brand-icon {
+    font-size: 2rem;
+    color: var(--primary);
+    background: var(--secondary);
+    padding: 0.5rem;
+    border-radius: 12px;
     border: var(--border-width) solid var(--border-color);
     box-shadow: var(--shadow-flat-sm);
 }
@@ -3323,7 +3322,7 @@ body {
 .login-logo-icon {
     width: 64px;
     height: 64px;
-    background: #ffffff;
+    background: var(--primary-light);
     border: 3px solid #000000;
     border-radius: 16px;
     display: flex;
@@ -3332,14 +3331,6 @@ body {
     font-size: 2rem;
     margin: 0 auto 0.8rem;
     box-shadow: 4px 4px 0 #000;
-}
-
-.login-logo-icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center;
-    border-radius: 12px;
 }
 
 .login-title {
@@ -3394,6 +3385,74 @@ body {
 
 .login-form-panel.active {
     display: block;
+}
+
+#login-form-student > .form-group {
+    display: none;
+}
+
+.student-auth-switch {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+}
+
+.student-auth-mode {
+    border: 2px solid #000;
+    border-radius: 9px;
+    background: #f1f5f9;
+    padding: 0.55rem 0.35rem;
+    font: 700 0.76rem 'Poppins', sans-serif;
+    cursor: pointer;
+}
+
+.student-auth-mode.active {
+    background: var(--accent);
+    box-shadow: 2px 2px 0 #000;
+}
+
+.student-auth-panel {
+    display: none;
+}
+
+.student-auth-panel.active {
+    display: block;
+}
+
+.auth-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 0.75rem;
+}
+
+.auth-span-2 {
+    grid-column: span 2;
+}
+
+.auth-checkbox {
+    display: flex !important;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.auth-help {
+    margin: 0.25rem 0;
+    color: #475569;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.auth-optional {
+    color: #64748b;
+    font-weight: 500;
+}
+
+@media (max-width: 520px) {
+    .auth-form-grid { grid-template-columns: 1fr; }
+    .auth-span-2 { grid-column: span 1; }
+    .login-card { padding: 1.4rem; max-height: calc(100vh - 1rem); overflow-y: auto; }
 }
 
 .login-body .form-group {
@@ -3469,10 +3528,3 @@ body {
     font-weight: 600;
     color: #94a3b8;
 }
-. a s s e s s m e n t - m o d e   . s i d e b a r   {   d i s p l a y :   n o n e   ! i m p o r t a n t ;   }   
-   . a s s e s s m e n t - m o d e   . m a i n - h e a d e r   {   d i s p l a y :   n o n e   ! i m p o r t a n t ;   }   
-   . a s s e s s m e n t - m o d e   . d a s h b o a r d - s e c t i o n   {   d i s p l a y :   n o n e   ! i m p o r t a n t ;   }   
-   . a s s e s s m e n t - m o d e   . p r a c t i c e - s e c t i o n   {   w i d t h :   1 0 0 % ;   m a x - w i d t h :   8 0 0 p x ;   m a r g i n :   0   a u t o ;   }   
-   . a s s e s s m e n t - o v e r l a y   {   p o s i t i o n :   f i x e d ;   t o p :   0 ;   l e f t :   0 ;   w i d t h :   1 0 0 % ;   h e i g h t :   1 0 0 % ;   b a c k g r o u n d :   r g b a ( 0 ,   0 ,   0 ,   0 . 8 5 ) ;   z - i n d e x :   1 0 0 0 ;   d i s p l a y :   f l e x ;   a l i g n - i t e m s :   c e n t e r ;   j u s t i f y - c o n t e n t :   c e n t e r ;   b a c k d r o p - f i l t e r :   b l u r ( 8 p x ) ;   }   
-   . a s s e s s m e n t - o v e r l a y . h i d d e n   {   d i s p l a y :   n o n e ;   }  
- 

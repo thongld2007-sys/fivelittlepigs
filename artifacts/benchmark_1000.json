@@ -1,0 +1,31 @@
+{
+  "methodology": {
+    "type": "engineering simulation, not a real-school pilot",
+    "students": 1000,
+    "seed": 20260717,
+    "skills": [
+      "MATH_G5_LCM",
+      "MATH_G5",
+      "MATH_G7"
+    ],
+    "slip_mean": 0.1,
+    "guess_mean": 0.2
+  },
+  "adaptive_bkt_kg": {
+    "root_gap_accuracy": 0.895,
+    "questions_avg": 6.33,
+    "questions_p95": 10.0
+  },
+  "linear_test": {
+    "root_gap_accuracy": 0.82,
+    "questions_avg": 15,
+    "questions_p95": 15.0
+  },
+  "comparison": {
+    "question_reduction_percent": 57.77,
+    "simulation_latency_ms_total": 11.15,
+    "simulation_latency_ms_per_student": 0.0111,
+    "estimated_ai_tokens_per_socratic_turn": 900,
+    "token_note": "Estimate only; provider usage is recorded on live agent responses."
+  }
+}

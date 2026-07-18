@@ -1,28 +1,33 @@
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Header
+from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Response as FastAPIResponse, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-import asyncio
-import hashlib
+from pydantic import BaseModel, EmailStr, Field
 import time
 import os
 import json
-import sqlite3
 import re
-import uuid
-from typing import Optional
+import math
 
-from backend.config import Config
+from backend.config import APP_AUTH_REQUIRED, AUTH_COOKIE_SECURE, Config, FPT_AI_MAX_IMAGE_BYTES
 from backend.database import (
     init_db, get_student, get_student_mastery, record_response,
-    get_consecutive_failed_count, get_stuck_time_minutes, get_db_connection,
-    add_student, list_students, get_response_by_event_id, upsert_sync_event,
-    list_unsynced_events, mark_events_synced, add_pedagogical_explanation,
-    list_pedagogical_explanations, create_student_account
+    get_consecutive_failed_count, get_stuck_time_minutes, get_answered_question_ids,
+    add_student, get_ai_usage_summary, list_students, reset_student_session,
+    get_dashboard_snapshot, record_ai_usage, record_uploaded_work,
+    get_response_event, get_db_connection,
 )
 from backend.diagnostic_engine import update_student_skill, get_next_recommended_skill, get_next_question_difficulty_and_skill
 from backend.fpt_ai import FPTAIError, fpt_ai_client
+from backend.fpt_speech import fpt_speech_client
+from backend.auth import exchange_api_key, require_auth, require_staff_auth, require_student_session
+from backend.student_auth import (
+    StudentAuthError, activate_student, authenticate_student, create_activation_code,
+    create_session as create_student_auth_session, get_student_for_user,
+    refresh_session, register_student, revoke_session,
+)
+from backend.pedagogical_agents import lesson_planner_agent, socratic_agent
 from backend.knowledge_graph import KNOWLEDGE_GRAPH
+from backend.storage import object_storage
 
 app = FastAPI(title="VGap AI - Adaptive Tutoring Backend")
 
@@ -38,25 +43,25 @@ FPT_AI_CAPABILITY_MATRIX = [
     },
     {
         "capability": "FPT AI Knowledge",
-        "status": "planned_adapter",
+        "status": "implemented",
         "evidence": ["Knowledge Graph nội bộ", "question bank 189 câu", "docs/fpt_ai_hackathon_judge_pack.md"],
         "value": "Đưa chương trình GDPT, rubric kỹ năng và câu hỏi đã kiểm định vào RAG/Knowledge base."
     },
     {
         "capability": "FPT AI Agents",
-        "status": "planned_adapter",
+        "status": "implemented",
         "evidence": ["/api/teacher/dashboard", "/api/ai/teacher/lesson-plan"],
         "value": "Agent giáo viên biến gap groups thành kế hoạch can thiệp và giáo án 15 phút."
     },
     {
         "capability": "FPT AI Speech",
-        "status": "planned_adapter",
+        "status": "implemented",
         "evidence": ["frontend read-aloud control", "server-side API key isolation"],
         "value": "Đọc câu hỏi/gợi ý cho học sinh nhỏ tuổi hoặc học sinh đọc chậm."
     },
     {
         "capability": "FPT AI OCR/Vision",
-        "status": "planned_adapter",
+        "status": "implemented",
         "evidence": ["offline-first response schema", "teacher workflow roadmap"],
         "value": "Cho phép giáo viên chụp bài làm giấy để trích lỗi sai và đưa vào diagnostic events."
     },
@@ -586,9 +591,8 @@ class StudentRegisterRequest(BaseModel):
 class AnswerSubmission(BaseModel):
     question_id: str
     selected_option: str
-    event_id: Optional[str] = None
-    response_time_ms: Optional[int] = None
-    client_timestamp: Optional[int] = None
+    event_id: str | None = Field(default=None, max_length=36)
+    time_spent_ms: int = Field(default=0, ge=0, le=86_400_000)
 
 class CheckAnswerRequest(BaseModel):
     question_id: str
@@ -630,30 +634,57 @@ class AILessonPlanRequest(BaseModel):
     skill_id: str
     group_context: str = ""
 
-class SyncAckRequest(BaseModel):
-    event_ids: list[str]
-
-class SpeechCacheRequest(BaseModel):
+class TTSRequest(BaseModel):
     text: str
-    voice: str = "vi_female"
-    question_id: Optional[str] = None
+    voice: str = "banmai"
+    speed: int = 0
 
-class GroundedLessonPlanRequest(BaseModel):
-    skill_id: str
-    group_context: str = ""
-    textbook_series: Optional[str] = None
+class StudentRegisterRequest(BaseModel):
+    username: str = Field(min_length=4, max_length=30)
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=2, max_length=100)
+    grade: int = Field(ge=1, le=12)
+    email: EmailStr | None = None
+    remember_me: bool = False
+
+class StudentLoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=30)
+    password: str = Field(min_length=1, max_length=128)
+    remember_me: bool = False
+
+class StudentActivationRequest(BaseModel):
+    student_id: str = Field(min_length=1, max_length=64)
+    activation_code: str = Field(min_length=5, max_length=20)
+    username: str = Field(min_length=4, max_length=30)
+    password: str = Field(min_length=8, max_length=128)
+    email: EmailStr | None = None
+    remember_me: bool = False
+
+class ActivationCodeRequest(BaseModel):
+    student_id: str = Field(min_length=1, max_length=64)
+
+
+def _student_auth_error(exc: StudentAuthError):
+    raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+def _set_refresh_cookie(response: FastAPIResponse, refresh_token: str, remember_me: bool = False):
+    response.set_cookie(
+        key="vgap_refresh",
+        value=refresh_token,
+        max_age=(30 if remember_me else 7) * 24 * 60 * 60,
+        httponly=True,
+        secure=AUTH_COOKIE_SECURE,
+        samesite="lax",
+        path="/api/auth",
+    )
+
+
+def _public_auth_payload(session: dict) -> dict:
+    return {key: value for key, value in session.items() if key != "refresh_token"}
 
 # Endpoints
-@app.get("/api/health")
-def get_health():
-    return {
-        "status": "ok",
-        "service": "VGap AI Backend",
-        "mode": "offline_first_lan_ready",
-        "database": "sqlite",
-    }
-
-@app.get("/api/students")
+@app.get("/api/students", dependencies=[Depends(require_auth)])
 def get_students():
     return list_students()
 
@@ -663,10 +694,88 @@ def ai_status():
         "provider": "FPT AI Factory",
         "configured": fpt_ai_client.configured,
         "model": fpt_ai_client.model or None,
-        "fallback": "offline"
+        "vision_configured": fpt_ai_client.vision_configured,
+        "speech_configured": fpt_speech_client.configured,
+        "auth_required": APP_AUTH_REQUIRED,
+        "fallback": "offline-core-only"
     }
 
-@app.post("/api/ai/student/{student_id}/tutor")
+@app.post("/api/auth/token")
+def auth_token(x_api_key: str | None = Header(default=None)):
+    return {"access_token": exchange_api_key(x_api_key), "token_type": "bearer"}
+
+
+@app.post("/api/auth/student/register", status_code=201)
+def student_register(payload: StudentRegisterRequest, response: FastAPIResponse):
+    try:
+        student = register_student(username=payload.username, password=payload.password,
+                                   name=payload.name, grade=payload.grade, email=payload.email)
+        auth = authenticate_student(payload.username, payload.password)
+        session = create_student_auth_session(auth["user_id"], student, payload.remember_me)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], payload.remember_me)
+    return _public_auth_payload(session)
+
+
+@app.post("/api/auth/student/login")
+def student_login(payload: StudentLoginRequest, response: FastAPIResponse):
+    try:
+        auth = authenticate_student(payload.username, payload.password)
+        session = create_student_auth_session(auth["user_id"], auth["student"], payload.remember_me)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], payload.remember_me)
+    return _public_auth_payload(session)
+
+
+@app.post("/api/auth/student/activate", status_code=201)
+def student_activate(payload: StudentActivationRequest, response: FastAPIResponse):
+    try:
+        student = activate_student(student_id=payload.student_id, activation_code=payload.activation_code,
+                                   username=payload.username, password=payload.password, email=payload.email)
+        auth = authenticate_student(payload.username, payload.password)
+        session = create_student_auth_session(auth["user_id"], student, payload.remember_me)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], payload.remember_me)
+    return _public_auth_payload(session)
+
+
+@app.post("/api/auth/student/activation-code", dependencies=[Depends(require_staff_auth)])
+def student_activation_code(payload: ActivationCodeRequest):
+    try:
+        return create_activation_code(payload.student_id)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+
+
+@app.post("/api/auth/refresh")
+def student_refresh(response: FastAPIResponse, vgap_refresh: str | None = Cookie(default=None)):
+    if not vgap_refresh:
+        raise HTTPException(status_code=401, detail="Không có phiên đăng nhập.")
+    try:
+        session = refresh_session(vgap_refresh)
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+    _set_refresh_cookie(response, session["refresh_token"], session.get("remember_me", False))
+    return _public_auth_payload(session)
+
+
+@app.post("/api/auth/logout", status_code=204)
+def student_logout(response: FastAPIResponse, vgap_refresh: str | None = Cookie(default=None)):
+    revoke_session(vgap_refresh)
+    response.delete_cookie("vgap_refresh", path="/api/auth")
+
+
+@app.get("/api/auth/me")
+def student_me(claims: dict = Depends(require_student_session)):
+    student = get_student_for_user(claims["sub"])
+    if not student:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hồ sơ học sinh.")
+    return {"role": "student", "student": student}
+
+@app.post("/api/ai/student/{student_id}/tutor", dependencies=[Depends(require_auth)])
 def ai_tutor(student_id: str, payload: AITutorRequest):
     student = get_student(student_id)
     if not student:
@@ -678,408 +787,113 @@ def ai_tutor(student_id: str, payload: AITutorRequest):
         questions = json.load(file)
     question = next((item for item in questions if item["id"] == payload.question_id), None)
 
-    context_str = ""
-    if question:
-        skill = KNOWLEDGE_GRAPH.get(question["skill_id"], {})
-        mastery = get_student_mastery(student_id, question["skill_id"])
-        correct_key = question.get("correct_answer")
-        correct_option = next(
-            (option.get("text", "") for option in question.get("options", []) if option.get("key") == correct_key),
-            correct_key or ""
-        )
-        context_str = (
-            f"\n--- Ngữ cảnh bài tập hiện tại ---\n"
-            f"Kỹ năng: {skill.get('name', question['skill_id'])}. "
-            f"Mức thành thạo của học sinh: {mastery:.2f}. "
-            f"Độ khó: {normalize_difficulty_label(question.get('difficulty_level', 2))}. "
-            f"Câu hỏi: {question.get('text', '')}. Lựa chọn: {question.get('options', [])}. "
-            f"Đáp án nội bộ: {correct_option}."
-        )
-
-    system_prompt = (
-        f"Bạn là PorcusAI, một trợ lý AI thông minh và thân thiện. "
-        f"Bạn đang giao tiếp với một học sinh lớp {student.get('grade', 'không rõ')}, tên là {student.get('name', 'bạn')}. "
-        f"Hãy trả lời TẤT CẢ các câu hỏi của người dùng một cách bình thường như một AI thực thụ. "
-        f"Tuyệt đối phải điều chỉnh ngôn từ, cách nói chuyện, và độ phức tạp của câu trả lời sao cho phù hợp nhất với mức độ hiểu biết của học sinh lớp {student.get('grade', 'không rõ')}. "
-        f"{context_str}"
-    )
     try:
-        result = fpt_ai_client.complete(
-            system_prompt=system_prompt,
-            user_prompt=payload.message.strip(),
-            history=payload.history
+        agent_result = socratic_agent.run(
+            student_id=student_id, question=question, message=payload.message.strip()
         )
     except FPTAIError as exc:
-        return {"provider": "Error", "model": None, "content": f"Lỗi từ AI: {str(exc)}", "usage": None}
-    return {"provider": "FPT AI Factory", "model": result.model, "content": result.content, "usage": result.usage}
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"provider": "FPT AI Factory", **agent_result}
 
-@app.post("/api/ai/student/{student_id}/generate-question")
-def ai_generate_question(student_id: str, payload: AIQuestionGenerationRequest):
-    if not get_student(student_id):
-        raise HTTPException(status_code=404, detail="Student not found")
-    if payload.skill_id not in KNOWLEDGE_GRAPH:
-        raise HTTPException(status_code=422, detail="Invalid skill ID")
-    if payload.difficulty_level not in DIFFICULTY_LABELS:
-        raise HTTPException(status_code=422, detail="difficulty_level must be 1, 2, or 3")
-    if not (1 <= payload.count <= 5):
-        raise HTTPException(status_code=422, detail="count must be between 1 and 5")
-
-    skill = KNOWLEDGE_GRAPH[payload.skill_id]
-    difficulty_label = normalize_difficulty_label(payload.difficulty_level)
-    system_prompt = (
-        "Bạn là AI sinh câu hỏi học tập cho PorcusAI. "
-        "Chỉ tạo câu hỏi phục vụ học tập phổ thông Việt Nam. "
-        "Trả về JSON hợp lệ duy nhất, không markdown, không giải thích ngoài JSON. "
-        "Mỗi câu hỏi phải có id, skill_id, difficulty_level, difficulty, text, options, correct_answer, hint, explanation. "
-        "options là mảng 4 lựa chọn A-D dạng {key,text}. correct_answer là một trong A,B,C,D."
-    )
-    user_prompt = (
-        f"Tạo {payload.count} câu hỏi {payload.question_type} cho môn {payload.subject}, lớp {payload.grade}. "
-        f"Kỹ năng: {skill['name']} ({payload.skill_id}). "
-        f"Độ khó: {payload.difficulty_level} - {difficulty_label}. "
-        "Quy ước độ khó: 1=Nhận biết, 2=Thông hiểu, 3=Vận dụng. "
-        "Câu hỏi phải đo đúng kỹ năng, không cần kiến thức ngoài chương trình, không tiết lộ đáp án trong text. "
-        'Schema: {"questions":[...]}'
-    )
-    try:
-        result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
-    except FPTAIError as exc:
-        return {
-            "provider": "offline_question_bank_after_fpt_ai_error",
-            "model": None,
-            "difficulty_policy": DIFFICULTY_LABELS,
-            "questions": build_offline_generated_questions(payload),
-            "usage": None,
-            "fallback_reason": str(exc),
-        }
-    try:
-        parsed = parse_ai_json_object(result.content)
-        questions = parsed.get("questions")
-    except HTTPException as exc:
-        if exc.status_code != 502:
-            raise
-        return {
-            "provider": "offline_question_bank_after_ai_parse_error",
-            "model": result.model,
-            "difficulty_policy": DIFFICULTY_LABELS,
-            "questions": build_offline_generated_questions(payload),
-            "usage": result.usage,
-            "fallback_reason": exc.detail,
-        }
-    if not isinstance(questions, list) or not questions:
-        raise HTTPException(status_code=502, detail="AI response missing questions array")
-    allowed_keys = {"A", "B", "C", "D"}
-    for index, question in enumerate(questions):
-        options = question.get("options")
-        if question.get("skill_id") != payload.skill_id:
-            raise HTTPException(status_code=502, detail=f"Generated question {index + 1} has wrong skill_id")
-        if question.get("difficulty_level") != payload.difficulty_level:
-            raise HTTPException(status_code=502, detail=f"Generated question {index + 1} has wrong difficulty_level")
-        if not isinstance(options, list) or len(options) != 4:
-            raise HTTPException(status_code=502, detail=f"Generated question {index + 1} must have 4 options")
-        if question.get("correct_answer") not in allowed_keys:
-            raise HTTPException(status_code=502, detail=f"Generated question {index + 1} has invalid correct_answer")
-    return {
-        "provider": "FPT AI Factory",
-        "model": result.model,
-        "difficulty_policy": DIFFICULTY_LABELS,
-        "questions": questions,
-        "usage": result.usage,
-    }
-
-@app.post("/api/ai/student/{student_id}/analyze-work")
-def ai_analyze_student_work(student_id: str, payload: AIWorkAnalysisRequest):
-    if not get_student(student_id):
-        raise HTTPException(status_code=404, detail="Student not found")
-    if payload.skill_id not in KNOWLEDGE_GRAPH:
-        raise HTTPException(status_code=422, detail="Invalid skill ID")
-    if payload.mode not in {"find_error", "similar_question", "step_hint", "explain", "summarize"}:
-        raise HTTPException(status_code=422, detail="Invalid analysis mode")
-    if len(payload.work_text.strip()) < 8 and not payload.attachment_name:
-        raise HTTPException(status_code=422, detail="work_text must be at least 8 characters unless an attachment is provided")
-    if len(payload.work_text) > 2500:
-        raise HTTPException(status_code=422, detail="work_text must be at most 2500 characters")
-
-    context = collect_student_learning_context(student_id, payload.skill_id)
-    skill = KNOWLEDGE_GRAPH[payload.skill_id]
-    system_prompt = (
-        "Bạn là AI Error Analyzer của PorcusAI. "
-        "Nhiệm vụ của bạn là biến bài làm tự do của học sinh thành can thiệp cá nhân hóa có thể đo lường. "
-        "Chỉ dùng dữ liệu bài làm, mastery và prerequisite graph được cung cấp. "
-        "Trả về JSON hợp lệ duy nhất, không markdown. "
-        "Schema bắt buộc: {summary, student_id, mode, skill_id, skill_name, mastery_before, misconception, remediation_pack, measurement, why_ai_is_needed}. "
-        "misconception gồm detected_error, wrong_step, missing_prerequisite, confidence, error_type. "
-        "remediation_pack là 3-5 bước, mỗi bước gồm type, title, content. "
-        "measurement gồm target, mastery_update_rule, teacher_signal."
-    )
-    user_prompt = json.dumps({
-        "student_id": student_id,
-        "mode": payload.mode,
-        "subject": payload.subject,
-        "grade": payload.grade,
-        "skill": {
-            "skill_id": payload.skill_id,
-            "skill_name": skill["name"],
-            "mastery": round(get_student_mastery(student_id, payload.skill_id), 2),
-        },
-        "attachment_name": payload.attachment_name,
-        "work_text": payload.work_text,
-        "learning_context": context,
-    }, ensure_ascii=False)
-
-    if fpt_ai_client.configured:
-        try:
-            result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
-            parsed = parse_ai_json_object(result.content)
-            return {
-                "provider": "FPT AI Factory",
-                "model": result.model,
-                "analysis": parsed,
-                "usage": result.usage,
-            }
-        except FPTAIError as exc:
-            return {
-                "provider": "offline_error_analyzer_after_fpt_ai_error",
-                "model": None,
-                "analysis": build_offline_work_analysis(student_id, payload),
-                "usage": None,
-                "fallback_reason": str(exc),
-            }
-        except HTTPException as exc:
-            if exc.status_code != 502:
-                raise
-            return {
-                "provider": "offline_error_analyzer_after_ai_parse_error",
-                "model": None,
-                "analysis": build_offline_work_analysis(student_id, payload),
-                "usage": None,
-                "fallback_reason": exc.detail,
-            }
-
-    return {
-        "provider": "offline_error_analyzer",
-        "model": None,
-        "analysis": build_offline_work_analysis(student_id, payload),
-        "usage": None,
-    }
-
-@app.get("/api/ai/student/{student_id}/learning-path")
-def ai_student_learning_path(student_id: str, target_skill: str = "MATH_G7"):
-    context = collect_student_learning_context(student_id, target_skill)
-    system_prompt = (
-        "Bạn là AI thiết kế lộ trình học cá nhân cho PorcusAI. "
-        "Chỉ dùng dữ liệu mastery và prerequisite graph được cung cấp. "
-        "Trả về JSON hợp lệ duy nhất với summary và steps. "
-        "Mỗi step gồm skill_id, skill_name, recommended_difficulty, action, success_signal. "
-        "Không bịa điểm số, không đưa hoạt động ngoài học tập."
-    )
-    user_prompt = json.dumps(context, ensure_ascii=False)
-    if fpt_ai_client.configured:
-        try:
-            result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
-            parsed = parse_ai_json_object(result.content)
-            return {
-                "provider": "FPT AI Factory",
-                "model": result.model,
-                "context": context,
-                "learning_path": parsed,
-                "usage": result.usage,
-            }
-        except FPTAIError as exc:
-            return {
-                "provider": "offline_bkt_dag_path_after_fpt_ai_error",
-                "model": None,
-                "context": context,
-                "learning_path": build_offline_learning_path(context),
-                "usage": None,
-                "fallback_reason": str(exc),
-            }
-        except HTTPException as exc:
-            if exc.status_code != 502:
-                raise
-            return {
-                "provider": "offline_bkt_dag_path_after_ai_parse_error",
-                "model": None,
-                "context": context,
-                "learning_path": build_offline_learning_path(context),
-                "usage": None,
-                "fallback_reason": exc.detail,
-            }
-    return {
-        "provider": "offline_bkt_dag_path",
-        "model": None,
-        "context": context,
-        "learning_path": build_offline_learning_path(context),
-        "usage": None,
-    }
-
-@app.get("/api/ai/teacher/student/{student_id}/learning-path")
-def ai_teacher_student_learning_path(student_id: str, target_skill: str = "MATH_G7"):
-    context = collect_student_learning_context(student_id, target_skill)
-    system_prompt = (
-        "Bạn là AI trợ lý giáo viên của PorcusAI. "
-        "Hãy đề xuất lộ trình can thiệp cho một học sinh dựa trên mastery BKT và prerequisite graph. "
-        "Trả về JSON hợp lệ duy nhất với summary, steps, teacher_notes. "
-        "Mỗi step gồm skill_id, skill_name, recommended_difficulty, action, success_signal. "
-        "Tập trung tiết kiệm thời gian giáo viên: dạy lại gì, giao bài gì, đo tiến bộ ra sao."
-    )
-    user_prompt = json.dumps(context, ensure_ascii=False)
-    if fpt_ai_client.configured:
-        try:
-            result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
-            parsed = parse_ai_json_object(result.content)
-            return {
-                "provider": "FPT AI Factory",
-                "model": result.model,
-                "context": context,
-                "learning_path": parsed,
-                "usage": result.usage,
-            }
-        except FPTAIError as exc:
-            pass # Fallback to offline below
-    return {
-        "provider": "offline_teacher_bkt_dag_path",
-        "model": None,
-        "context": context,
-        "learning_path": build_offline_learning_path(context, teacher_mode=True),
-        "usage": None,
-    }
-
-@app.post("/api/ai/teacher/lesson-plan")
+@app.post("/api/ai/teacher/lesson-plan", dependencies=[Depends(require_auth)])
 def ai_lesson_plan(payload: AILessonPlanRequest):
     skill = KNOWLEDGE_GRAPH.get(payload.skill_id)
     if not skill:
         raise HTTPException(status_code=422, detail="Invalid skill ID")
-    prerequisite_names = [
-        KNOWLEDGE_GRAPH[item]["name"]
-        for item in skill.get("prerequisites", [])
-        if item in KNOWLEDGE_GRAPH
-    ]
-    system_prompt = (
-        "Bạn là trợ lý thiết kế bài giảng theo GDPT 2018 cho giáo viên Việt Nam. "
-        "Trả về văn bản thuần ngắn gọn với đúng 4 mục: Mục tiêu, Khởi động, Hoạt động chính, Đánh giá nhanh. "
-        "Không dùng HTML và không bịa nguồn hay chuẩn chương trình."
-    )
-    user_prompt = (
-        f"Kỹ năng: {skill['name']}; lớp {skill['grade']}; môn {skill.get('subject', 'Toán')}; "
-        f"tiên quyết: {prerequisite_names or ['Không có']}. "
-        f"Bối cảnh nhóm: {payload.group_context.strip() or 'Học sinh đang dưới ngưỡng thành thạo 0.50.'}"
-    )
     try:
-        result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+        agent_result = lesson_planner_agent.run(
+            skill_id=payload.skill_id, group_context=payload.group_context.strip()
+        )
     except FPTAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return {"provider": "FPT AI Factory", "model": result.model, "content": result.content, "usage": result.usage}
+    return {"provider": "FPT AI Factory", **agent_result}
 
-@app.post("/api/ai/teacher/lesson-plan-grounded")
-def ai_grounded_lesson_plan(payload: GroundedLessonPlanRequest):
-    grounding = retrieve_grounding_context(payload.skill_id)
-    skill = grounding["skill"]
-    system_prompt = (
-        "Bạn là trợ lý thiết kế bài giảng theo GDPT 2018. "
-        "Chỉ dùng ngữ cảnh được cung cấp, luôn nêu nguồn theo source_id, không bịa trang sách. "
-        "Hãy định dạng kết quả bằng Markdown (in đậm, tiêu đề, danh sách) để dễ đọc."
+@app.post("/api/ai/student/{student_id}/analyze-work", dependencies=[Depends(require_auth)])
+async def analyze_student_work(
+    student_id: str,
+    image: UploadFile = File(...),
+    question_id: str = Form(default=""),
+):
+    if not get_student(student_id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    if image.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(status_code=415, detail="Only JPEG, PNG or WebP images are accepted")
+    content = await image.read(FPT_AI_MAX_IMAGE_BYTES + 1)
+    if len(content) > FPT_AI_MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image is too large")
+    prompt = "Đọc bài giải viết tay, số hóa từng bước và phân tích bước sai trong tư duy. Không đưa đáp án cuối."
+    if question_id:
+        prompt += f" Mã câu hỏi liên quan: {question_id}."
+    try:
+        result = fpt_ai_client.complete_vision(
+            image_bytes=content,
+            mime_type=image.content_type,
+            system_prompt=(
+                "Bạn là trợ giảng thị giác. Chỉ mô tả nội dung nhìn thấy, phân biệt điều chắc chắn "
+                "và điều không rõ; bảo vệ thông tin cá nhân trong ảnh."
+            ),
+            user_prompt=prompt,
+        )
+    except FPTAIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    stored = object_storage.save(content, image.content_type, original_name=image.filename)
+    record_ai_usage("vision_analysis", result.model, result.usage, result.latency_ms)
+    upload_id = record_uploaded_work(
+        student_id, question_id, stored["object_key"], image.content_type,
+        vision_result={"content": result.content, "model": result.model, "usage": result.usage},
     )
-    user_prompt = (
-        f"Kỹ năng: {skill['name']}; lớp {skill['grade']}; "
-        f"bộ sách ưu tiên: {payload.textbook_series or 'chưa chọn'}; "
-        f"bối cảnh nhóm: {payload.group_context.strip() or 'học sinh dưới ngưỡng thành thạo 0.50'}.\n"
-        f"Ngữ cảnh đã truy xuất:\n{grounding['context']}"
-    )
-    if fpt_ai_client.configured:
-        try:
-            result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
-            content = result.content
-            provider = "FPT AI Inference + Knowledge adapter context"
-            usage = result.usage
-            model = result.model
-        except FPTAIError as exc:
-            content = build_offline_grounded_lesson_plan(skill, grounding["citations"], payload.group_context.strip())
-            provider = "offline_grounded_draft_after_fpt_ai_error"
-            usage = None
-            model = None
-    else:
-        content = build_offline_grounded_lesson_plan(skill, grounding["citations"], payload.group_context.strip())
-        provider = "offline_grounded_draft"
-        usage = None
-        model = None
     return {
-        "provider": provider,
-        "model": model,
-        "content": content,
-        "citations": grounding["citations"],
-        "usage": usage,
+        "provider": "FPT AI Factory VLM", "content": result.content, "model": result.model,
+        "usage": result.usage, "latency_ms": result.latency_ms, "upload_id": upload_id,
     }
 
-@app.post("/api/speech/cache")
-def create_speech_cache(payload: SpeechCacheRequest):
-    text = payload.text.strip()
-    if not text or len(text) > 1200:
-        raise HTTPException(status_code=422, detail="Text must contain 1-1200 characters")
-    paths = get_speech_cache_paths(text, payload.voice, payload.question_id)
-    cache_hit = os.path.exists(paths["audio_path"])
-    manifest = {
-        "cache_key": paths["cache_key"],
-        "question_id": payload.question_id,
-        "voice": payload.voice,
-        "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-        "audio_ready": cache_hit,
-        "provider": "FPT AI Speech",
-        "status": "cache_hit" if cache_hit else "pending_provider_generation",
-    }
-    with open(paths["manifest_path"], "w", encoding="utf-8") as file:
-        json.dump(manifest, file, ensure_ascii=False, indent=2)
-    return {
-        **manifest,
-        "audio_url": f"/api/speech/cache/{paths['cache_key']}" if cache_hit else None,
-        "cache_policy": "generate_once_then_serve_from_school_lan",
-    }
 
-@app.get("/api/speech/cache/{cache_key}")
-def get_cached_speech(cache_key: str):
-    if not re.match(r"^[a-f0-9]{24}$", cache_key):
-        raise HTTPException(status_code=422, detail="Invalid cache key")
-    audio_path = os.path.join(Config.DATA_DIR, "speech_cache", f"{cache_key}.mp3")
-    if not os.path.exists(audio_path):
-        raise HTTPException(status_code=404, detail="Audio cache miss; provider generation required")
-    return FileResponse(audio_path, media_type="audio/mpeg", filename=f"{cache_key}.mp3")
+@app.post("/api/ai/speech/tts", dependencies=[Depends(require_auth)])
+def speech_tts(payload: TTSRequest):
+    if not 3 <= len(payload.text) <= 5000 or not -3 <= payload.speed <= 3:
+        raise HTTPException(status_code=422, detail="Invalid text length or speed")
+    try:
+        result = fpt_speech_client.text_to_speech(payload.text, voice=payload.voice, speed=payload.speed)
+        record_ai_usage("speech_tts", "FPT.AI TTS", {}, result.get("latency_ms", 0))
+        return {"provider": "FPT.AI Speech", **result}
+    except FPTAIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-@app.post("/api/students")
+
+@app.post("/api/ai/speech/stt", dependencies=[Depends(require_auth)])
+async def speech_stt(audio: UploadFile = File(...)):
+    content = await audio.read(10 * 1024 * 1024 + 1)
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio is too large")
+    try:
+        result = fpt_speech_client.speech_to_text(content, audio.content_type or "audio/wav")
+        record_ai_usage("speech_stt", "FPT.AI STT", {}, result.get("latency_ms", 0))
+        return {"provider": "FPT.AI Speech", **result}
+    except FPTAIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/students", dependencies=[Depends(require_auth)])
 def create_student(payload: StudentCreate):
     if not (1 <= payload.grade <= 12):
         raise HTTPException(status_code=422, detail="Grade must be between 1 and 12")
     return add_student(payload.student_id, payload.name.strip() or payload.student_id, payload.grade)
 
-@app.post("/api/student/session")
+@app.post("/api/student/session", dependencies=[Depends(require_auth)])
 def create_survey_session(payload: SurveySessionRequest):
     """Create a clean student profile for one adaptive survey attempt."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    now = int(time.time())
-    cursor.execute("""
-        INSERT INTO students (id, name, grade, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-            name = excluded.name, grade = excluded.grade, updated_at = excluded.updated_at
-    """, (payload.student_id, payload.name, payload.grade, now, now))
-
-    for skill_id in KNOWLEDGE_GRAPH.keys():
-        cursor.execute("""
-            INSERT OR REPLACE INTO student_mastery (student_id, skill_id, mastery_probability)
-            VALUES (?, ?, ?)
-        """, (payload.student_id, skill_id, 0.5))
-
-    cursor.execute("DELETE FROM responses WHERE student_id = ?", (payload.student_id,))
-    conn.commit()
-    conn.close()
+    session_id = reset_student_session(
+        payload.student_id, payload.name, payload.grade, KNOWLEDGE_GRAPH.keys()
+    )
 
     return {
         "student_id": payload.student_id,
         "grade": payload.grade,
-        "status": "ready"
+        "status": "ready",
+        "session_id": session_id,
     }
 
-@app.get("/api/student/{student_id}/next-question")
+@app.get("/api/student/{student_id}/next-question", dependencies=[Depends(require_auth)])
 def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_format: str = "choice"):
     student = get_student(student_id)
     if not student:
@@ -1127,15 +941,7 @@ def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_fo
 
     # Avoid serving a question the student has already answered for this skill
     # until all candidates at the chosen level have been exhausted.
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT question_id FROM responses
-        WHERE student_id = ? AND skill_id = ?
-        ORDER BY id DESC
-    """, (student_id, recommended_skill))
-    answered_ids = {row[0] for row in cursor.fetchall()}
-    conn.close()
+    answered_ids = get_answered_question_ids(student_id, recommended_skill)
 
     fresh_questions = [q for q in skill_questions if q["id"] not in answered_ids]
     if fresh_questions:
@@ -1163,7 +969,7 @@ def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_fo
         "target_difficulty": target_difficulty
     }
 
-@app.post("/api/student/{student_id}/submit")
+@app.post("/api/student/{student_id}/submit", dependencies=[Depends(require_auth)])
 def submit_answer(student_id: str, submission: AnswerSubmission):
     student = get_student(student_id)
     if not student:
@@ -1199,9 +1005,23 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
         
     is_correct = (submission.selected_option == question["correct_answer"])
     distractor_explanations = build_distractor_explanations(question)
-    response_event_id = submission.event_id or f"local-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
-    mastery_before = get_student_mastery(student_id, question["skill_id"])
-    anomaly = evaluate_response_anomaly(question, is_correct, submission.response_time_ms)
+
+    existing_event = get_response_event(submission.event_id)
+    if existing_event:
+        if existing_event["student_id"] != student_id or existing_event["question_id"] != question["id"]:
+            raise HTTPException(status_code=409, detail="event_id is already used by another answer")
+        mastery = get_student_mastery(student_id, question["skill_id"])
+        next_skill, next_diff = get_next_question_difficulty_and_skill(student_id, question["skill_id"])
+        return {
+            "is_correct": existing_event["is_correct"],
+            "correct_answer": question["correct_answer"],
+            "distractor_explanation": None if existing_event["is_correct"] else distractor_explanations.get(submission.selected_option),
+            "hint": question.get("hint", ""),
+            "new_mastery_probability": mastery,
+            "next_recommended_skill": next_skill,
+            "next_recommended_difficulty": next_diff,
+            "idempotent_replay": True,
+        }
     
     # Record response in DB (with difficulty_level)
     record_response(
@@ -1211,11 +1031,9 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
         question.get("difficulty_level", 2), 
         is_correct, 
         int(time.time()),
-        event_id=response_event_id,
-        response_time_ms=submission.response_time_ms,
-        client_timestamp=submission.client_timestamp,
-        bkt_weight=anomaly["bkt_weight"],
-        anomaly_flags=anomaly["flags"],
+        selected_option=submission.selected_option,
+        event_id=submission.event_id,
+        time_spent_ms=max(0, submission.time_spent_ms),
     )
     
     # Run BKT Bayesian Update
@@ -1284,7 +1102,7 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
         "assessment_just_completed": assessment_just_completed,
     }
 
-@app.post("/api/check-answer")
+@app.post("/api/check-answer", dependencies=[Depends(require_auth)])
 def check_answer(submission: CheckAnswerRequest):
     """Compatibility endpoint for frontend modules that submit answers globally."""
     if not get_student(submission.student_id):
@@ -1297,38 +1115,71 @@ def check_answer(submission: CheckAnswerRequest):
         )
     )
 
-@app.get("/api/sync/push")
-def get_sync_push_batch(limit: int = 100):
-    """Return local events ready for a cloud PostgreSQL sync worker."""
-    safe_limit = max(1, min(limit, 500))
-    events = list_unsynced_events(limit=safe_limit)
-    return {
-        "sync_mode": "hybrid_sqlite_to_cloud",
-        "conflict_strategy": "event_id_idempotency_and_vector_clock",
-        "event_count": len(events),
-        "events": events,
-    }
-
-@app.post("/api/sync/ack")
-def acknowledge_sync(payload: SyncAckRequest):
-    changed = mark_events_synced(payload.event_ids)
-    return {
-        "acknowledged": changed,
-        "event_ids": payload.event_ids,
-    }
-
-@app.get("/api/student/{student_id}/explanations")
-def get_student_explanations(student_id: str, limit: int = 10):
-    if not get_student(student_id):
-        raise HTTPException(status_code=404, detail="Student not found")
-    safe_limit = max(1, min(limit, 50))
-    return {
-        "student_id": student_id,
-        "explanations": list_pedagogical_explanations(student_id, limit=safe_limit),
-    }
-
-@app.get("/api/teacher/dashboard")
+@app.get("/api/teacher/dashboard", dependencies=[Depends(require_auth)])
 def get_teacher_dashboard():
+    snapshot = get_dashboard_snapshot(KNOWLEDGE_GRAPH.keys())
+    total_students = snapshot["total_students"]
+    groups = {}
+    for skill_id, members in snapshot["gaps"].items():
+        if members:
+            groups[skill_id] = {
+                "title": f"Nhóm hổng: {KNOWLEDGE_GRAPH[skill_id]['name']}",
+                "skill_id": skill_id,
+                "count": len(members),
+                "members": members[:5] + (
+                    [f"+{len(members) - 5} học sinh khác"] if len(members) > 5 else []
+                ),
+            }
+    class_progress = [
+        {
+            "skill_id": skill_id,
+            "label": KNOWLEDGE_GRAPH[skill_id]["name"],
+            "percent": max(0, min(100, int(round(ratio * 100)))),
+        }
+        for skill_id, ratio in snapshot["skill_averages"].items()
+        if ratio is not None
+    ]
+    class_progress = sorted(class_progress, key=lambda item: item["skill_id"])[:8]
+    reteach = next(
+        (
+            KNOWLEDGE_GRAPH[skill_id]["name"]
+            for skill_id, group in groups.items()
+            if total_students and group["count"] / total_students >= 0.20
+        ),
+        None,
+    )
+    priority_list = []
+    for student_id, name in snapshot["students"]:
+        active_skill = snapshot["last_skills"].get(student_id)
+        if active_skill not in KNOWLEDGE_GRAPH:
+            active_skill = "MATH_G7"
+        mastery = get_student_mastery(student_id, active_skill)
+        failed = get_consecutive_failed_count(student_id, active_skill)
+        stuck = get_stuck_time_minutes(student_id, active_skill)
+        score = (1.0 - mastery) * (1.0 + failed) * math.log(stuck + 2)
+        priority_list.append({
+            "id": student_id,
+            "name": name,
+            "current_skill": KNOWLEDGE_GRAPH[active_skill]["name"],
+            "n_failed": failed,
+            "t_stuck": stuck,
+            "mastery": round(mastery, 2),
+            "priority_score": round(score, 2),
+        })
+    priority_list.sort(key=lambda item: item["priority_score"], reverse=True)
+    return {
+        "metrics": {
+            "total_students": total_students,
+            "average_mastery": f"{int(snapshot['average_mastery'] * 100)}%",
+            "gap_groups_count": f"{len(groups)} nhóm",
+            "re_teach_alert": reteach,
+        },
+        "groups": list(groups.values()),
+        "priority_list": priority_list,
+        "class_progress": class_progress,
+    }
+
+    # Legacy implementation retained below temporarily for migration review; unreachable.
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -1518,6 +1369,12 @@ def get_cost_model(students: int = 1000):
             "1m_users": "Multi-tenant services, event streaming, async AI jobs, quota/cost controls theo trường."
         }
     }
+
+
+@app.get("/api/evidence/ai-metrics", dependencies=[Depends(require_auth)])
+def get_ai_metrics():
+    """Measured provider usage; zero values mean no successful live AI calls have been recorded yet."""
+    return {"measured": True, **get_ai_usage_summary()}
 
 @app.get("/api/evidence/safety")
 def get_safety_evidence():

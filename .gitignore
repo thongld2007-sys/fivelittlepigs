@@ -3,14 +3,19 @@ VAIC 2026 - HACKERS GUIDELINES.pdf
 
 # Exclude local database
 data/tutor.db
+data/*.db
+data/uploads/
 
 # Exclude python cache
 __pycache__/
-*.pyc
+*.py[cod]
 backend/__pycache__/
 tests/__pycache__/
 .pytest_cache/
 .venv/
+.python/
+.uv-cache/
+.test-tmp/
 .env
 .env.*
 !.env.example

@@ -52,6 +52,24 @@ class TestFPTAIClient(unittest.TestCase):
                 client.complete(system_prompt="system", user_prompt="user")
         urlopen.assert_not_called()
 
+    def test_vision_client_sends_base64_image_content(self):
+        client = FPTAIClient(api_key="secret-test-key", model="text-model", vision_model="vision-model")
+        captured = {}
+
+        def fake_urlopen(request, timeout):
+            captured["body"] = json.loads(request.data.decode("utf-8"))
+            return _FakeResponse({"model": "vision-model", "choices": [{"message": {"content": "Bước hai sai dấu"}}]})
+
+        with patch("backend.fpt_ai.urllib.request.urlopen", side_effect=fake_urlopen):
+            result = client.complete_vision(
+                image_bytes=b"fake-image", mime_type="image/png",
+                system_prompt="analyze", user_prompt="read work",
+            )
+
+        image_url = captured["body"]["messages"][1]["content"][0]["image_url"]["url"]
+        self.assertTrue(image_url.startswith("data:image/png;base64,"))
+        self.assertEqual(result.content, "Bước hai sai dấu")
+
 
 if __name__ == "__main__":
     unittest.main()
