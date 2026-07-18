@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Response as FastAPIResponse, UploadFile
+from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Response as FastAPIResponse, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, EmailStr, Field
