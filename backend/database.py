@@ -105,6 +105,15 @@ def _migrate_legacy_sqlite():
             if "user_id" not in columns:
                 connection.execute("ALTER TABLE students ADD COLUMN user_id TEXT")
             connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_students_user_id ON students(user_id)")
+        if "skills" in tables:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(skills)")}
+            additions = {
+                "subject": "TEXT",
+                "grade": "INTEGER",
+            }
+            for name, definition in additions.items():
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE skills ADD COLUMN {name} {definition}")
         connection.commit()
     finally:
         connection.close()
