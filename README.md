@@ -269,6 +269,6 @@ Chúng tôi đã xây dựng kịch bản mô phỏng chạy trên **1.000 hồ 
     *   **Gói trường học (B2B2C):** **15.000 VND / học sinh / tháng** (thu theo năm học 9 tháng, tương đương 135.000 VND/học sinh/năm). Cung cấp đầy đủ dashboard phân tích gap group hỗ trợ dạy học 15 phút cho Giáo viên.
     *   **Gói phụ huynh (B2C):** **45.000 VND / tháng** (mở khóa chatbot Zalo/SMS báo cáo tiến trình của con, Obsidian Graph View và không giới hạn tương tác Socratic AI Tutor).
 *   **Hiệu quả chi phí hạ tầng (Marginal Cost):** Nhờ cơ chế chẩn đoán thích ứng offline (BKT + DAG chạy tốn 0đ máy chủ), chi phí gọi API FPT AI trung bình thực tế chỉ tốn **~870 VND / học sinh / tháng** -> Đem lại biên lợi nhuận gộp đạt **> 94%** ở quy mô 1.000 người dùng.
-*   **Tài liệu chi tiết:** Xem chi tiết dự toán chi phí, bảng dòng tiền dự báo 3 năm và phân tích điểm hòa vốn tại ➡️ **[Tải bản PDF Kế hoạch Kinh doanh Chi tiết (PorcusAI Business Plan)](docs/porcus_ai_business_plan.pdf)** (bản Markdown có sẵn tại [docs/porcus_ai_business_plan.md](docs/porcus_ai_business_plan.md)).
+*   **Tài liệu chi tiết:** Xem chi tiết dự toán chi phí, bảng dòng tiền dự báo 3 năm và phân tích điểm hòa vốn tại ➡️ **[Xem bản PDF Kế hoạch Kinh doanh Chi tiết (Google Drive)](https://drive.google.com/file/d/1KLUFdUEfCPAn1vyVquD8cjcQYoAOiYWa/view?usp=sharing)** (bản thảo thiết kế có sẵn tại [docs/porcus_ai_business_plan.html](docs/porcus_ai_business_plan.html)).
 
 
