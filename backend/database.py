@@ -95,6 +95,7 @@ def _migrate_legacy_sqlite():
             additions = {
                 "username": "TEXT", "failed_login_count": "INTEGER DEFAULT 0",
                 "locked_until": "DATETIME", "last_login_at": "DATETIME", "updated_at": "DATETIME",
+                "organization_id": "TEXT",
             }
             for name, definition in additions.items():
                 if name not in columns:
