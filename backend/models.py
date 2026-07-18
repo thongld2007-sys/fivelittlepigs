@@ -75,16 +75,16 @@ class Organization(Base):
 class User(Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
-    organization_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"))
-    username: Mapped[str | None] = mapped_column(String(30), unique=True, index=True)
+    organization_id: Mapped[Optional[str]] = mapped_column(ForeignKey("organizations.id"))
+    username: Mapped[Optional[str]] = mapped_column(String(30), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(100), default="")
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(30), nullable=False, default="student")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0)
-    locked_until: Mapped[datetime | None] = mapped_column(MixedDateTime)
-    last_login_at: Mapped[datetime | None] = mapped_column(MixedDateTime)
+    locked_until: Mapped[Optional[datetime]] = mapped_column(MixedDateTime)
+    last_login_at: Mapped[Optional[datetime]] = mapped_column(MixedDateTime)
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow, onupdate=utcnow)
 
@@ -141,7 +141,7 @@ class DiagnosticSession(Base):
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
     status: Mapped[str] = mapped_column(String(30), default="active")
     started_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow)
-    completed_at: Mapped[datetime | None] = mapped_column(MixedDateTime)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(MixedDateTime)
 
 
 class StudentMastery(Base):
@@ -157,7 +157,7 @@ class MasteryHistory(Base):
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
     skill_id: Mapped[str] = mapped_column(ForeignKey("skills.id"), index=True)
     probability: Mapped[float] = mapped_column(Float, nullable=False)
-    response_id: Mapped[int | None] = mapped_column(Integer)
+    response_id: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow)
 
 
@@ -183,9 +183,9 @@ class UploadedWork(Base):
     question_id: Mapped[Optional[str]] = mapped_column(String(64))
     object_key: Mapped[str] = mapped_column(String(500), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(80), nullable=False)
-    vision_result: Mapped[dict | None] = mapped_column(JSON)
+    vision_result: Mapped[Optional[dict]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow)
-    expires_at: Mapped[datetime | None] = mapped_column(MixedDateTime)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(MixedDateTime)
 
 
 class AgentRun(Base):
@@ -228,7 +228,7 @@ class RefreshToken(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(MixedDateTime, nullable=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(MixedDateTime)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(MixedDateTime)
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow)
 
 
@@ -238,7 +238,7 @@ class AccountActivationToken(Base):
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(MixedDateTime, nullable=False)
-    used_at: Mapped[datetime | None] = mapped_column(MixedDateTime)
+    used_at: Mapped[Optional[datetime]] = mapped_column(MixedDateTime)
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow)
 
 
@@ -248,5 +248,5 @@ class ChatMessage(Base):
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # "user" or "robot"
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    mode: Mapped[str | None] = mapped_column(String(50))  # e.g., "explain", "find_error"
+    mode: Mapped[Optional[str]] = mapped_column(String(50))  # e.g., "explain", "find_error"
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow, index=True)

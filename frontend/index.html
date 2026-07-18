@@ -113,10 +113,37 @@
                         <div class="subject-overview-band">
                             <div class="subject-overview-header">
                                 <div>
-                                    <span class="badge badge-skill"><i class="fa-solid fa-layer-group"></i> Tổng quan môn học</span>
-                                    <h2>Hôm nay em muốn ôn môn nào?</h2>
+                                    <span class="badge badge-skill"><i class="fa-solid fa-house-chimney-user"></i> Góc học hôm nay</span>
+                                    <h2>Hôm nay em học gì?</h2>
                                 </div>
-                                <p>Mỗi môn có tiến độ, trạng thái và bài ôn riêng. Hệ thống ưu tiên môn đang cần can thiệp nhất theo kết quả khảo sát.</p>
+                                <p>Chỉ cần chọn môn, bấm bắt đầu, rồi làm từng câu. AI sẽ tự tìm phần em cần ôn lại.</p>
+                            </div>
+                            <div class="student-today-panel" aria-label="Việc học quan trọng hôm nay">
+                                <div class="today-focus-card primary">
+                                    <span>1</span>
+                                    <div>
+                                        <strong>Chọn môn</strong>
+                                        <p id="today-subject-label">Toán lớp 7</p>
+                                    </div>
+                                </div>
+                                <div class="today-focus-card action">
+                                    <span>2</span>
+                                    <div>
+                                        <strong>Làm khảo sát</strong>
+                                        <p>11 câu ngắn để tìm lỗ hổng kiến thức.</p>
+                                    </div>
+                                </div>
+                                <div class="today-focus-card support">
+                                    <span>3</span>
+                                    <div>
+                                        <strong>Ôn đúng chỗ</strong>
+                                        <p id="today-gap-label">AI sẽ chỉ ra phần cần luyện lại.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="subject-picker-title">
+                                <strong>Chọn môn học</strong>
+                                <span>Mỗi ô là một lộ trình riêng.</span>
                             </div>
                             <div id="subject-overview-grid" class="subject-overview-grid"></div>
                         </div>
@@ -134,15 +161,15 @@
                                         <strong>42%</strong>
                                         <span>tiến độ</span>
                                     </div>
-                                </div>
-                                <div class="path-focus-strip">
-                                    <div>
-                                        <span>Đang học</span>
-                                        <strong>Toán 7 · Cộng trừ số hữu tỉ</strong>
-                                    </div>
-                                    <div>
-                                        <span>AI kiểm tra</span>
-                                        <strong>Hổng phân số lớp 5-6?</strong>
+                                    <div class="path-focus-strip">
+                                        <div>
+                                            <span>Đang học</span>
+                                            <strong id="path-focus-subject">Toán 7 · Cộng trừ số hữu tỉ</strong>
+                                        </div>
+                                        <div>
+                                            <span>AI kiểm tra</span>
+                                            <strong id="path-focus-gap">Có hổng kiến thức nền không?</strong>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="personal-path-flow" id="personal-path-flow">
@@ -169,8 +196,19 @@
                             <div class="question-workspace">
                                 <!-- Selector for Subject and Grade -->
                                 <div id="test-setup-card" class="memphis-card selector-card test-setup-card">
-                                    <div style="flex: 1;">
-                                        <label for="subject-select" style="font-family: Poppins; font-weight: 800; font-size: 0.85rem; display: block; margin-bottom: 0.4rem; color: #000;"><i class="fa-solid fa-book"></i> MÔN HỌC</label>
+                                    <div class="survey-intro-copy">
+                                        <span class="badge badge-skill"><i class="fa-solid fa-clipboard-question"></i> Khảo sát đầu giờ</span>
+                                        <h3>Tìm đúng phần em cần ôn</h3>
+                                        <p>Em làm 11 câu. Nếu sai, hệ thống tự lùi về kiến thức nền để tìm nguyên nhân.</p>
+                                    </div>
+                                    <div class="survey-structure-list" aria-label="Cấu trúc bài khảo sát">
+                                        <span><i class="fa-solid fa-circle-dot"></i> 6 trắc nghiệm</span>
+                                        <span><i class="fa-solid fa-scale-balanced"></i> 2 đúng/sai</span>
+                                        <span><i class="fa-solid fa-keyboard"></i> 2 trả lời ngắn</span>
+                                        <span><i class="fa-solid fa-pen-nib"></i> 1 tự luận AI</span>
+                                    </div>
+                                    <div>
+                                        <label for="subject-select" class="kid-field-label"><i class="fa-solid fa-book"></i> Môn học</label>
                                         <select id="subject-select" class="memphis-input-sm" style="width: 100%; font-weight: 700; background: #FFF; border: 2.5px solid #000; border-radius: 8px; padding: 0.4rem;">
                                             <option value="Toán">Toán học</option>
                                             <option value="Ngữ văn">Ngữ văn</option>
@@ -180,8 +218,8 @@
                                             <option value="Tin học và Công nghệ">Tin học và Công nghệ</option>
                                         </select>
                                     </div>
-                                    <div style="flex: 1;">
-                                        <label for="grade-select" style="font-family: Poppins; font-weight: 800; font-size: 0.85rem; display: block; margin-bottom: 0.4rem; color: #000;"><i class="fa-solid fa-graduation-cap"></i> LỚP HỌC</label>
+                                    <div>
+                                        <label for="grade-select" class="kid-field-label"><i class="fa-solid fa-graduation-cap"></i> Lớp</label>
                                         <select id="grade-select" class="memphis-input-sm" style="width: 100%; font-weight: 700; background: #FFF; border: 2.5px solid #000; border-radius: 8px; padding: 0.4rem;">
                                             <option value="1">Lớp 1</option>
                                             <option value="2">Lớp 2</option>
@@ -194,11 +232,7 @@
                                             <option value="9">Lớp 9</option>
                                         </select>
                                     </div>
-                                    <div class="test-setup-copy">
-                                        <span class="badge badge-skill"><i class="fa-solid fa-list-check"></i> Bài test thích ứng</span>
-                                        <p>Chọn lớp và môn trước. Câu hỏi chỉ hiện sau khi bắt đầu: 6 trắc nghiệm, 2 đúng/sai, 2 trả lời ngắn và 1 tự luận AI.</p>
-                                    </div>
-                                    <button id="btn-start-test" class="btn btn-primary-memphis btn-start-test"><i class="fa-solid fa-play"></i> Bắt đầu</button>
+                                    <button id="btn-start-test" class="btn btn-primary-memphis btn-start-test"><i class="fa-solid fa-play"></i> Bắt đầu khảo sát</button>
                                 </div>
                                 <div id="test-progress-card" class="test-progress-card" style="display: none;">
                                     <div class="test-stage-pill active" data-stage="multiple_choice"><i class="fa-solid fa-circle-dot"></i> Trắc nghiệm</div>
@@ -208,6 +242,10 @@
                                 </div>
                                 <div id="survey-result-card" class="memphis-card survey-result-card" style="display: none;"></div>
                                 <div id="question-card" class="memphis-card question-card" style="padding: 1.5rem; display: none;">
+                                    <div class="survey-question-topline">
+                                        <strong id="survey-question-counter">Câu 1/11</strong>
+                                        <span id="survey-question-type">Trắc nghiệm</span>
+                                    </div>
                                     <div class="question-card-header" style="display: flex; justify-content: space-between; margin-bottom: 1.2rem;">
                                         <span class="badge badge-skill" id="current-skill-name">Đang tải kỹ năng...</span>
                                         <span class="badge badge-difficulty" id="current-question-difficulty">Mức độ: Vừa</span>
@@ -246,7 +284,7 @@
                                         <button id="btn-submit-answer" class="btn btn-primary-memphis" disabled style="flex: 1.5; padding: 0.6rem; font-weight: 700;"><i class="fa-solid fa-paper-plane"></i> Gửi đáp án</button>
                                     </div>
                                 </div>
-<div class="student-path-summary">
+                                <div class="student-path-summary">
                                     <div class="student-path-summary-item">
                                         <i class="fa-solid fa-location-dot"></i>
                                         <div>
@@ -287,7 +325,6 @@
                                             <span class="badge badge-skill"><i class="fa-solid fa-wand-magic-sparkles"></i> Ôn tập AI cá nhân hóa</span>
                                             <h3>Bài ôn tiếp theo</h3>
                                         </div>
-                                        <button id="btn-build-personal-review" class="btn btn-primary-memphis btn-sm"><i class="fa-solid fa-route"></i> Tạo bài ôn</button>
                                     </div>
                                     <div id="personal-review-list" class="personal-review-list">
                                         <div class="personal-review-step">
@@ -297,7 +334,19 @@
                                                 <p>AI cần vài đáp án đầu để biết em hổng ở lớp 7 hay kiến thức nền lớp 5-6.</p>
                                             </div>
                                         </div>
-
+                                        <div class="personal-review-step">
+                                            <span>2</span>
+                                            <div>
+                                                <strong>Ôn đúng điểm yếu</strong>
+                                                <p>Lộ trình sẽ ưu tiên skill nền trước, rồi mới quay lại bài đang học.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="personal-review-actions">
+                                        <button id="btn-build-personal-review" class="btn btn-primary-memphis btn-sm"><i class="fa-solid fa-route"></i> Tạo bài ôn</button>
+                                        <button id="btn-generate-review-question" class="btn btn-hint-outline btn-sm"><i class="fa-solid fa-square-plus"></i> Sinh 1 câu luyện</button>
+                                    </div>
+                                </div>
                             </div>
 
                             <!-- Column 3: AI Learning Assistant (Unified Toolbox) -->
@@ -377,19 +426,6 @@
                                     </div>
                                 </div>
                             </div>
-                                
-                                        <div class="personal-review-step">
-                                            <span>2</span>
-                                            <div>
-                                                <strong>Ôn đúng điểm yếu</strong>
-                                                <p>Lộ trình sẽ ưu tiên skill nền trước, rồi mới quay lại bài đang học.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="personal-review-actions">
-                                        <button id="btn-generate-review-question" class="btn btn-hint-outline btn-sm"><i class="fa-solid fa-square-plus"></i> Sinh 1 câu luyện</button>
-                                    </div>
-                                </div>
                         </div>
                     </div>
 
@@ -421,29 +457,29 @@
                                     <div class="course-milestone active"><i class="fa-solid fa-location-dot"></i><span>Cộng trừ số hữu tỉ</span></div>
                                     <div class="course-milestone locked"><i class="fa-solid fa-lock"></i><span>Biểu thức nhiều bước</span></div>
                                 </div>
-                                <button class="btn btn-primary-memphis demo-action-btn" data-message="Đã mở lộ trình Toán 7 đang học."><i class="fa-solid fa-circle-play"></i> Vào lộ trình</button>
+                                <button class="btn btn-primary-memphis actionable-btn" data-action="open-course-dashboard" data-subject="Toán" data-grade="7"><i class="fa-solid fa-circle-play"></i> Vào lộ trình</button>
                             </div>
 
                             <div class="course-side-stack">
                                 <div class="memphis-card course-snapshot-card course-catalog-card">
                                     <h3><i class="fa-solid fa-book-open-reader"></i> Các khóa học đang theo</h3>
                                     <div class="course-catalog-list">
-                                        <button class="course-catalog-item active demo-action-btn" data-message="Đang xem lộ trình Toán 7.">
+                                        <button class="course-catalog-item active" data-course-subject="Toán" data-course-grade="7">
                                             <span class="course-code">MATH-7A</span>
                                             <strong>Toán 7</strong>
                                             <small>42% · cần ôn phân số</small>
                                         </button>
-                                        <button class="course-catalog-item demo-action-btn" data-message="Đã mở khóa Ngữ văn 7.">
+                                        <button class="course-catalog-item" data-course-subject="Ngữ văn" data-course-grade="7">
                                             <span class="course-code">LIT-7A</span>
                                             <strong>Ngữ văn 7</strong>
                                             <small>68% · đọc hiểu ổn định</small>
                                         </button>
-                                        <button class="course-catalog-item demo-action-btn" data-message="Đã mở khóa Tiếng Anh 7.">
+                                        <button class="course-catalog-item" data-course-subject="Ngoại ngữ" data-course-grade="7">
                                             <span class="course-code">ENG-7A</span>
                                             <strong>Tiếng Anh 7</strong>
                                             <small>55% · cần luyện so sánh</small>
                                         </button>
-                                        <button class="course-catalog-item demo-action-btn" data-message="Đã mở khóa KHTN 7.">
+                                        <button class="course-catalog-item" data-course-subject="Khoa học tự nhiên" data-course-grade="7">
                                             <span class="course-code">SCI-7A</span>
                                             <strong>KHTN 7</strong>
                                             <small>73% · đang đúng tiến độ</small>
@@ -488,58 +524,8 @@
                             <h2><i class="fa-solid fa-file-signature"></i> Bài tập cần hoàn thành</h2>
                             <p class="card-subtitle-desc">Nơi xử lý các nhiệm vụ ngắn hạn: bài nào cần nộp hôm nay, bài nào trễ hạn, bài nào chỉ cần xem lại.</p>
                         </div>
-                        <div class="assignments-board">
-                            <div class="assignment-lane">
-                                <div class="assignment-lane-title"><i class="fa-solid fa-bolt"></i> Cần làm ngay</div>
-                                <article class="memphis-card assignment-task-card urgent">
-                                    <div class="assignment-task-top">
-                                        <span class="badge badge-danger">Trễ hạn</span>
-                                        <span class="assignment-due">14/07/2026</span>
-                                    </div>
-                                    <h3>Bổ trợ: GTTĐ & cộng số nguyên</h3>
-                                    <p>Hoàn thành 10 câu nền lớp 6 để hệ thống kiểm tra lại lỗi dấu âm.</p>
-                                    <div class="assignment-task-meta">
-                                        <span><i class="fa-solid fa-list-check"></i> 0/10 câu</span>
-                                        <span><i class="fa-solid fa-brain"></i> Cộng số nguyên</span>
-                                    </div>
-                                    <button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Đã chuyển sang bài bổ trợ lớp 6 để nộp bù."><i class="fa-solid fa-triangle-exclamation"></i> Nộp bù</button>
-                                </article>
-                            </div>
-
-                            <div class="assignment-lane">
-                                <div class="assignment-lane-title"><i class="fa-solid fa-clock"></i> Đang làm</div>
-                                <article class="memphis-card assignment-task-card active-task">
-                                    <div class="assignment-task-top">
-                                        <span class="badge badge-warning">Hôm nay</span>
-                                        <span class="assignment-due">17/07/2026</span>
-                                    </div>
-                                    <h3>Bài test thích ứng: Số hữu tỉ</h3>
-                                    <p>Làm tiếp phần trắc nghiệm để xác định em đang kẹt ở lớp 7 hay kiến thức nền lớp 5-6.</p>
-                                    <div class="assignment-task-meta">
-                                        <span><i class="fa-solid fa-list-check"></i> 3/5 câu</span>
-                                        <span><i class="fa-solid fa-route"></i> Chẩn đoán</span>
-                                    </div>
-                                    <button class="btn btn-primary-memphis btn-sm demo-action-btn" data-message="Mở Tổng quan, chọn Toán - Lớp 7 rồi bấm Bắt đầu để làm tiếp bài test thích ứng."><i class="fa-solid fa-play"></i> Làm tiếp</button>
-                                </article>
-                            </div>
-
-                            <div class="assignment-lane">
-                                <div class="assignment-lane-title"><i class="fa-solid fa-circle-check"></i> Đã xong</div>
-                                <article class="memphis-card assignment-task-card completed">
-                                    <div class="assignment-task-top">
-                                        <span class="badge badge-success">Đã hoàn thành</span>
-                                        <span class="assignment-due">15/07/2026</span>
-                                    </div>
-                                    <h3>Ôn tập: Quy đồng phân số cơ bản</h3>
-                                    <p>Điểm tốt, dùng làm nền để học tiếp phép cộng trừ số hữu tỉ.</p>
-                                    <div class="assignment-task-meta">
-                                        <span><i class="fa-solid fa-star"></i> 10/10</span>
-                                        <span><i class="fa-solid fa-layer-group"></i> Phân số lớp 5</span>
-                                    </div>
-                                    <button class="btn btn-secondary btn-sm demo-action-btn" data-message="Đã mở bản xem lại bài làm."><i class="fa-solid fa-rotate-left"></i> Xem lại</button>
-                                </article>
-                            </div>
-                        </div>
+                        <div id="assignment-subject-filters" class="assignment-subject-filters" aria-label="Lọc bài tập theo môn"></div>
+                        <div id="assignments-board" class="assignments-board"></div>
                     </div>
 
                     <!-- 4. REWARDS VIEW -->
@@ -603,14 +589,14 @@
                                         <div id="reward-history-list" class="reward-history-list"></div>
                                     </div>
                                 </div>
-                                <div class="memphis-card rewards-shop-card">
-                                    <div class="reward-shop-header">
-                                        <span><i class="fa-solid fa-store"></i> Shop đổi quà</span>
-                                        <small>Dùng xu đổi quyền lợi học tập</small>
-                                    </div>
-                                    <div id="reward-shop-list" class="reward-shop-list reward-shop-list-large"></div>
-                                </div>
                             </div>
+                        </div>
+                        <div class="memphis-card rewards-shop-card rewards-shop-wide">
+                            <div class="reward-shop-header">
+                                <span><i class="fa-solid fa-store"></i> Shop đổi quà</span>
+                                <small>Dùng xu đổi quyền lợi học tập</small>
+                            </div>
+                            <div id="reward-shop-list" class="reward-shop-list reward-shop-list-large"></div>
                         </div>
                     </div>
 

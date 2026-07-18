@@ -858,7 +858,7 @@ def parent_login(payload: StudentLoginRequest, response: FastAPIResponse):
     return _public_auth_payload(session)
 
 @app.post("/api/auth/logout", status_code=204)
-def logout(response: FastAPIResponse, authorization: Optional[str] = Header(default=None), vgap_refresh: str | None = Cookie(default=None)):
+def logout(response: FastAPIResponse, authorization: Optional[str] = Header(default=None), vgap_refresh: Optional[str] = Cookie(default=None)):
     revoke_session(vgap_refresh)
     response.delete_cookie("vgap_refresh", path="/api/auth")
     if authorization and authorization.lower().startswith("bearer "):
@@ -959,6 +959,14 @@ def ai_tutor(student_id: str, payload: AITutorRequest):
         )
     except FPTAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if len(agent_result.get("content", "").strip()) < 40:
+        fallback = build_offline_student_tutor_reply(
+            question or {"skill_id": "MATH_G7", "hint": "xác định bước đầu tiên"},
+            payload.message.strip(),
+            get_student_mastery(student_id, (question or {}).get("skill_id", "MATH_G7")),
+        )
+        agent_result["content"] = fallback
+        agent_result.setdefault("agent_trace", []).append({"step": "quality_fallback", "reason": "provider_response_too_short"})
     return {"provider": "FPT AI Factory", **agent_result}
 
 @app.get("/api/ai/student/{student_id}/chat/history", dependencies=[Depends(require_auth)])
@@ -998,6 +1006,39 @@ def ai_chat(student_id: str, payload: AIChatRequest):
     except FPTAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"provider": "FPT AI Factory", **agent_result}
+
+
+@app.get("/api/ai/student/{student_id}/learning-path", dependencies=[Depends(require_auth)])
+def ai_student_learning_path(student_id: str, target_skill: str = "MATH_G7"):
+    context = collect_student_learning_context(student_id, target_skill)
+    path = build_offline_learning_path(context)
+    return {
+        "provider": "PorcusAI Knowledge Graph",
+        "mode": "offline-personalized-path",
+        "student_id": student_id,
+        "target_skill": context["target_skill"],
+        "mastery_items": context["mastery_items"],
+        "learning_path": path,
+    }
+
+
+@app.post("/api/ai/student/{student_id}/generate-question", dependencies=[Depends(require_auth)])
+def ai_generate_student_question(student_id: str, payload: AIQuestionGenerationRequest):
+    if not get_student(student_id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    if payload.skill_id not in KNOWLEDGE_GRAPH:
+        raise HTTPException(status_code=422, detail="Invalid skill ID")
+    questions = build_offline_generated_questions(payload)
+    return {
+        "provider": "PorcusAI Question Generator",
+        "mode": "grounded-question-bank",
+        "student_id": student_id,
+        "questions": questions,
+        "measurement": {
+            "target": "Câu sinh ra bám skill_id, difficulty_level và dùng đáp án/giải thích đã kiểm định.",
+            "why_ai_is_needed": "Trong bản production, FPT AI sẽ biến skill gap thành biến thể câu hỏi mới có kiểm duyệt."
+        }
+    }
 
 @app.post("/api/ai/teacher/lesson-plan", dependencies=[Depends(require_auth)])
 def ai_lesson_plan(payload: AILessonPlanRequest):

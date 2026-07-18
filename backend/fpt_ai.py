@@ -111,7 +111,9 @@ class FPTAIClient:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise FPTAIError("Phản hồi FPT AI không đúng định dạng JSON.") from exc
         try:
-            content = body["choices"][0]["message"]["content"].strip()
+            message = body["choices"][0]["message"]
+            raw_content = message.get("content") or message.get("reasoning_content") or ""
+            content = raw_content.strip()
         except (KeyError, IndexError, TypeError, AttributeError) as exc:
             raise FPTAIError(f"Phản hồi FPT AI không chứa nội dung trả lời. Dữ liệu gốc: {body}") from exc
         if not content:

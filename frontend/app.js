@@ -18,6 +18,7 @@ const state = {
     surveyCompleted: false,
     baseStudentId: 'emma_std_01',
     tutorChatHistory: [],
+    assignmentSubjectFilter: "Tất cả",
     testSession: {
         subject: "Toán",
         grade: 7,
@@ -53,6 +54,7 @@ const state = {
     rewardHistory: [],
     earnedBadges: [],
     teacherBonusTickets: [],
+    assignedPracticeSets: [],
     aiDecisionLog: [],
     xpHistory: [],
     attendance: {
@@ -149,7 +151,7 @@ const REWARD_WHEEL_ITEMS = [
         icon: "fa-solid fa-coins",
         label: "+20 xu",
         description: "Cộng xu vào ví học tập",
-        color: "#FCD075",
+        color: "#FFD166",
         apply: () => {
             state.coins += 20;
             return "+20 xu";
@@ -160,7 +162,7 @@ const REWARD_WHEEL_ITEMS = [
         icon: "fa-solid fa-gem",
         label: "+80 XP",
         description: "Tăng điểm kinh nghiệm",
-        color: "#BFE3FF",
+        color: "#7BDFF2",
         apply: () => {
             addXP(80, "Vòng quay quà", { logActivity: false });
             return "+80 XP";
@@ -171,7 +173,7 @@ const REWARD_WHEEL_ITEMS = [
         icon: "fa-solid fa-lightbulb",
         label: "Gợi ý thêm",
         description: "Mở gợi ý câu hiện tại",
-        color: "#D5F7D3",
+        color: "#B2F7B8",
         apply: () => "1 gợi ý thêm"
     },
     {
@@ -179,7 +181,7 @@ const REWARD_WHEEL_ITEMS = [
         icon: "fa-solid fa-route",
         label: "Bài ôn AI",
         description: "Mở lộ trình ôn cá nhân",
-        color: "#E8ECFF",
+        color: "#F7A8B8",
         apply: () => {
             state.dailyQuest.aiReviewsUnlocked += 1;
             return "1 bài ôn AI";
@@ -190,7 +192,7 @@ const REWARD_WHEEL_ITEMS = [
         icon: "fa-solid fa-sack-dollar",
         label: "+50 xu",
         description: "Phần thưởng hiếm",
-        color: "#FFD2D2",
+        color: "#CDB4FF",
         apply: () => {
             state.coins += 50;
             return "+50 xu";
@@ -201,7 +203,7 @@ const REWARD_WHEEL_ITEMS = [
         icon: "fa-solid fa-medal",
         label: "Huy hiệu",
         description: "Huy hiệu chăm học",
-        color: "#FDE68A",
+        color: "#FFB86B",
         apply: () => "huy hiệu Chăm học"
     }
 ];
@@ -266,6 +268,99 @@ const SUBJECT_OVERVIEW = [
         activeSkill: "Biểu diễn dữ liệu",
         backlog: 4,
         evidence: "Roadmap mở rộng"
+    }
+];
+
+const ASSIGNMENT_ITEMS = [
+    {
+        id: "math_makeup_integer",
+        subject: "Toán",
+        grade: 6,
+        lane: "urgent",
+        badge: "Trễ hạn",
+        due: "14/07/2026",
+        title: "Bổ trợ: GTTĐ & cộng số nguyên",
+        description: "Hoàn thành 10 câu nền lớp 6 để hệ thống kiểm tra lại lỗi dấu âm.",
+        progress: "0/10 câu",
+        skill: "Cộng số nguyên",
+        action: "make-up-assignment",
+        actionLabel: "Nộp bù",
+        icon: "fa-solid fa-triangle-exclamation"
+    },
+    {
+        id: "math_adaptive_rational",
+        subject: "Toán",
+        grade: 7,
+        lane: "active",
+        badge: "Hôm nay",
+        due: "17/07/2026",
+        title: "Bài test thích ứng: Số hữu tỉ",
+        description: "Làm tiếp phần trắc nghiệm để xác định em đang kẹt ở lớp 7 hay kiến thức nền lớp 5-6.",
+        progress: "3/5 câu",
+        skill: "Chẩn đoán",
+        action: "continue-survey",
+        actionLabel: "Làm tiếp",
+        icon: "fa-solid fa-play"
+    },
+    {
+        id: "math_review_fraction",
+        subject: "Toán",
+        grade: 7,
+        lane: "completed",
+        badge: "Đã hoàn thành",
+        due: "15/07/2026",
+        title: "Ôn tập: Quy đồng phân số cơ bản",
+        description: "Điểm tốt, dùng làm nền để học tiếp phép cộng trừ số hữu tỉ.",
+        progress: "10/10",
+        skill: "Phân số lớp 5",
+        action: "review-assignment",
+        actionLabel: "Xem lại",
+        icon: "fa-solid fa-rotate-left"
+    },
+    {
+        id: "lit_main_idea",
+        subject: "Ngữ văn",
+        grade: 7,
+        lane: "active",
+        badge: "Hôm nay",
+        due: "18/07/2026",
+        title: "Đọc hiểu: tìm ý chính",
+        description: "Đọc đoạn văn ngắn, chọn luận điểm chính và giải thích bằng 2 câu.",
+        progress: "2/6 câu",
+        skill: "Tìm ý chính",
+        action: "open-course-dashboard",
+        actionLabel: "Vào học",
+        icon: "fa-solid fa-book-open-reader"
+    },
+    {
+        id: "eng_comparative",
+        subject: "Ngoại ngữ",
+        grade: 7,
+        lane: "urgent",
+        badge: "Cần ôn",
+        due: "19/07/2026",
+        title: "Comparatives: short adjectives",
+        description: "Luyện 8 câu so sánh hơn, AI nhắc lại lỗi chia tính từ ngắn.",
+        progress: "1/8 câu",
+        skill: "Comparatives",
+        action: "open-course-dashboard",
+        actionLabel: "Luyện ngay",
+        icon: "fa-solid fa-language"
+    },
+    {
+        id: "science_cell",
+        subject: "Khoa học tự nhiên",
+        grade: 7,
+        lane: "completed",
+        badge: "Đã hoàn thành",
+        due: "16/07/2026",
+        title: "Tế bào và cơ thể",
+        description: "Hoàn thành quiz nhận biết tế bào, mô, cơ quan và hệ cơ quan.",
+        progress: "9/10",
+        skill: "Tế bào",
+        action: "review-assignment",
+        actionLabel: "Xem lại",
+        icon: "fa-solid fa-flask"
     }
 ];
 
@@ -518,6 +613,8 @@ function renderTeacherContributionDashboard() {
     if (!container) return;
 
     const data = TEACHER_CONTRIBUTION_DATA;
+    const assignedSets = Array.isArray(state.assignedPracticeSets) ? state.assignedPracticeSets : [];
+    const reviewSetsCreated = data.today.reviewSetsCreated + assignedSets.length;
     const maxXp = Math.max(...data.classGrowth.map(item => item.xp), 100);
     const chartHtml = data.classGrowth.map(item => {
         const date = getLocalDateFromKey(getDateKey(item.date));
@@ -541,6 +638,16 @@ function renderTeacherContributionDashboard() {
                 <strong>${escapeHTML(group.name)}</strong>
                 <span>${group.students} học sinh · ${escapeHTML(group.action)}</span>
                 <small>${escapeHTML(group.outcome)}</small>
+            </div>
+        </div>
+    `).join("");
+    const assignedHtml = assignedSets.slice(0, 4).map(set => `
+        <div class="contribution-action-card">
+            <i class="fa-solid fa-file-circle-plus"></i>
+            <div>
+                <strong>${escapeHTML(set.title)}</strong>
+                <span>${escapeHTML(set.students)} · ${escapeHTML(set.skillName)}</span>
+                <small>${escapeHTML(set.createdAt)} · ${escapeHTML(set.status)}</small>
             </div>
         </div>
     `).join("");
@@ -569,8 +676,8 @@ function renderTeacherContributionDashboard() {
         <div class="contribution-stat-grid">
             <div class="contribution-stat-card">
                 <span>Bài ôn đã tạo</span>
-                <strong>${data.today.reviewSetsCreated}</strong>
-                <small>Từ nhóm hổng và bài sai mới nhất</small>
+                <strong>${reviewSetsCreated}</strong>
+                <small>${assignedSets.length ? `${assignedSets.length} bài vừa giao từ dashboard` : "Từ nhóm hổng và bài sai mới nhất"}</small>
             </div>
             <div class="contribution-stat-card">
                 <span>Nhóm đã can thiệp</span>
@@ -596,7 +703,7 @@ function renderTeacherContributionDashboard() {
             </section>
             <section class="memphis-card">
                 <h3 class="card-header-title"><i class="fa-solid fa-hand-holding-heart"></i> Can thiệp đã thực hiện</h3>
-                <div class="contribution-action-list">${groupHtml}</div>
+                <div class="contribution-action-list">${groupHtml}${assignedHtml}</div>
             </section>
             <section class="memphis-card">
                 <h3 class="card-header-title"><i class="fa-solid fa-arrow-trend-up"></i> Học sinh tăng mastery</h3>
@@ -945,6 +1052,7 @@ function loadRewardState(profile) {
         rewardHistory: [],
         earnedBadges: [],
         teacherBonusTickets: [],
+        assignedPracticeSets: [],
         aiDecisionLog: [],
         xpHistory: buildDefaultXPHistory(profile?.xp ?? state.xp),
         subjectProgress: SUBJECT_PROGRESS_STATE,
@@ -973,6 +1081,7 @@ function loadRewardState(profile) {
             rewardHistory: Array.isArray(saved.rewardHistory) ? saved.rewardHistory : [],
             earnedBadges: Array.isArray(saved.earnedBadges) ? saved.earnedBadges : [],
             teacherBonusTickets: Array.isArray(saved.teacherBonusTickets) ? saved.teacherBonusTickets : [],
+            assignedPracticeSets: Array.isArray(saved.assignedPracticeSets) ? saved.assignedPracticeSets : [],
             aiDecisionLog: Array.isArray(saved.aiDecisionLog) ? saved.aiDecisionLog : [],
             xpHistory: normalizeXPHistory(saved.xpHistory, saved.xp ?? defaults.xp)
         };
@@ -994,6 +1103,7 @@ function applyRewardState(rewardState) {
     state.rewardHistory = Array.isArray(rewardState.rewardHistory) ? rewardState.rewardHistory : [];
     state.earnedBadges = Array.isArray(rewardState.earnedBadges) ? rewardState.earnedBadges : [];
     state.teacherBonusTickets = Array.isArray(rewardState.teacherBonusTickets) ? rewardState.teacherBonusTickets : [];
+    state.assignedPracticeSets = Array.isArray(rewardState.assignedPracticeSets) ? rewardState.assignedPracticeSets : [];
     state.aiDecisionLog = Array.isArray(rewardState.aiDecisionLog) ? rewardState.aiDecisionLog : [];
     state.xpHistory = normalizeXPHistory(rewardState.xpHistory, state.xp);
     if (rewardState.subjectProgress && typeof rewardState.subjectProgress === "object") {
@@ -1031,6 +1141,7 @@ function saveRewardState() {
         rewardHistory: state.rewardHistory,
         earnedBadges: state.earnedBadges,
         teacherBonusTickets: state.teacherBonusTickets,
+        assignedPracticeSets: state.assignedPracticeSets,
         aiDecisionLog: state.aiDecisionLog,
         xpHistory: state.xpHistory,
         subjectProgress: SUBJECT_PROGRESS_STATE,
@@ -1124,6 +1235,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     initMultimodalLearning();
     initPersonalReviewActions();
     initRewardShop();
+    initAssignmentsView();
+    initActionableDemoControls();
     
     // Load Knowledge Graph DAG
     await loadKnowledgeGraph();
@@ -1215,19 +1328,32 @@ function renderSubjectOverview() {
 
 function updateLearningProgressUI() {
     const subject = state.testSession.subject || "Toán";
+    const grade = state.testSession.grade || 7;
     const progressState = getSubjectProgress(subject);
     const fill = document.getElementById("student-progress-fill");
     const activeSkill = document.getElementById("summary-active-skill");
     const aiCheck = document.getElementById("summary-ai-check");
     const nextStep = document.getElementById("summary-next-step");
+    const todaySubject = document.getElementById("today-subject-label");
+    const todayGap = document.getElementById("today-gap-label");
+    const pathFocusSubject = document.getElementById("path-focus-subject");
+    const pathFocusGap = document.getElementById("path-focus-gap");
     if (fill) fill.style.width = `${progressState.progress}%`;
     document.querySelectorAll(".path-score-badge strong").forEach(node => {
         node.textContent = `${progressState.progress}%`;
     });
-    if (activeSkill) activeSkill.textContent = `${subject} ${state.testSession.grade || 7} · ${progressState.activeSkill}`;
+    if (activeSkill) activeSkill.textContent = `${subject} ${grade} · ${progressState.activeSkill}`;
+    if (todaySubject) todaySubject.textContent = `${subject} lớp ${grade}`;
+    if (pathFocusSubject) pathFocusSubject.textContent = `${subject} ${grade} · ${progressState.activeSkill}`;
     if (aiCheck) aiCheck.textContent = progressState.progress < 60
         ? "Ưu tiên tìm lỗi gốc trước khi tăng độ khó"
         : "Theo dõi khả năng vận dụng và lỗi lặp lại";
+    if (todayGap) todayGap.textContent = progressState.progress < 60
+        ? "Cần tìm lỗ hổng nền trước."
+        : "Đang ổn, có thể luyện nâng cao.";
+    if (pathFocusGap) pathFocusGap.textContent = progressState.progress < 60
+        ? "AI kiểm tra kiến thức nền"
+        : "AI theo dõi lỗi vận dụng";
     if (nextStep) nextStep.textContent = progressState.progress >= 80
         ? "Mở câu vận dụng nâng cao nếu Level đủ"
         : "Làm khảo sát hoặc tự luận để AI cập nhật lộ trình";
@@ -1325,7 +1451,7 @@ async function buildPersonalAIReview({ silent = false } = {}) {
 
     try {
         const params = new URLSearchParams({ target_skill: skillId });
-        const response = await fetch(`/api/ai/student/${state.studentId}/learning-path?${params.toString()}`);
+        const response = await fetch(`/api/ai/student/${getAIStudentId()}/learning-path?${params.toString()}`);
         if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
             throw new Error(payload.detail || `AI HTTP ${response.status}`);
@@ -1368,7 +1494,7 @@ async function generatePersonalReviewQuestion() {
     }
 
     try {
-        const response = await fetch(`/api/ai/student/${state.studentId}/generate-question`, {
+        const response = await fetch(`/api/ai/student/${getAIStudentId()}/generate-question`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1448,7 +1574,9 @@ function selectSubjectFromOverview(subject, grade) {
     state.studentProgress.activeSkill = skillId;
     state.testSession.subject = subject;
     state.testSession.grade = grade;
+    state.assignmentSubjectFilter = subject;
     renderSubjectOverview();
+    renderAssignmentsView();
     prepareTestSetup();
     showToast(`Đã chọn ${subject} - Lớp ${grade}. Bấm Bắt đầu để luyện môn này.`);
 }
@@ -1474,6 +1602,7 @@ function switchStudentTab(tabName) {
     if (activePanel) activePanel.style.display = "block";
     if (state.currentPortal === "teacher") switchPortalUI("student");
     if (tabName === "profile") renderStudentProfile();
+    if (tabName === "assignments") renderAssignmentsView();
 }
 
 function openDashboardForSubject(subject, grade = 7, { startTest = false } = {}) {
@@ -1487,6 +1616,7 @@ function openDashboardForSubject(subject, grade = 7, { startTest = false } = {})
 function renderCoursesView() {
     const focusTitle = document.querySelector(".course-focus-header h3");
     const focusDesc = document.querySelector(".course-focus-header p");
+    const focusButton = document.querySelector(".course-focus-card [data-action='open-course-dashboard']");
     const progressMeta = document.querySelector(".course-progress-meta strong");
     const progressFill = document.querySelector(".course-progress-large .progress-fill");
     const statGrid = document.querySelector(".course-stat-grid");
@@ -1499,6 +1629,10 @@ function renderCoursesView() {
 
     if (focusTitle) focusTitle.textContent = `${subject} ${grade}: ${progressState.activeSkill}`;
     if (focusDesc) focusDesc.textContent = `${progressState.status}. Tiến trình và bài ôn thay đổi theo kết quả khảo sát của riêng môn này.`;
+    if (focusButton) {
+        focusButton.setAttribute("data-subject", subject);
+        focusButton.setAttribute("data-grade", String(grade));
+    }
     if (progressMeta) progressMeta.textContent = `${progressState.progress}%`;
     if (progressFill) progressFill.style.width = `${progressState.progress}%`;
     if (roadmapTitle) roadmapTitle.innerHTML = `<i class="fa-solid fa-layer-group"></i> Lộ trình cá nhân môn ${escapeHTML(subject)}`;
@@ -1530,15 +1664,99 @@ function renderCoursesView() {
         catalogList.innerHTML = SUBJECT_OVERVIEW.slice(0, 4).map(item => {
             const itemState = getSubjectProgress(item.subject);
             const isActive = item.subject === subject;
+            const courseCode = `${getSubjectShortCode(item.subject)}-${item.grade}`;
             return `
                 <button class="course-catalog-item ${isActive ? "active" : ""}" data-course-subject="${escapeHTML(item.subject)}" data-course-grade="${item.grade}">
-                    <span class="course-code">${escapeHTML(item.subject.slice(0, 3).toUpperCase())}-${item.grade}</span>
+                    <span class="course-code">${escapeHTML(courseCode)}</span>
                     <strong>${escapeHTML(item.subject)} ${item.grade}</strong>
                     <small>${itemState.progress}% · ${escapeHTML(itemState.status)}</small>
                 </button>
             `;
         }).join("");
     }
+}
+
+function getAssignmentSubjects() {
+    const subjects = ASSIGNMENT_ITEMS.map(item => item.subject);
+    return ["Tất cả", ...Array.from(new Set(subjects))];
+}
+
+function getSubjectShortCode(subject) {
+    const codes = {
+        "Toán": "TOAN",
+        "Ngữ văn": "VAN",
+        "Ngoại ngữ": "ANH",
+        "Khoa học tự nhiên": "KHTN",
+        "Lịch sử và Địa lý": "LS-DL",
+        "Tin học và Công nghệ": "TIN"
+    };
+    return codes[subject] || String(subject || "MON").slice(0, 4).toUpperCase();
+}
+
+function renderAssignmentsView() {
+    const filterContainer = document.getElementById("assignment-subject-filters");
+    const board = document.getElementById("assignments-board");
+    if (!filterContainer || !board) return;
+    const activeSubject = state.assignmentSubjectFilter || state.testSession.subject || "Tất cả";
+    const subjects = getAssignmentSubjects();
+    filterContainer.innerHTML = subjects.map(subject => `
+        <button class="assignment-filter-chip ${subject === activeSubject ? "active" : ""}" type="button" data-assignment-subject="${escapeHTML(subject)}">
+            ${subject === "Tất cả" ? '<i class="fa-solid fa-layer-group"></i>' : '<i class="fa-solid fa-book"></i>'}
+            <span>${escapeHTML(subject)}</span>
+        </button>
+    `).join("");
+
+    const visibleItems = ASSIGNMENT_ITEMS.filter(item => activeSubject === "Tất cả" || item.subject === activeSubject);
+    const lanes = [
+        { key: "urgent", title: "Cần làm ngay", icon: "fa-solid fa-bolt" },
+        { key: "active", title: "Đang làm", icon: "fa-solid fa-clock" },
+        { key: "completed", title: "Đã xong", icon: "fa-solid fa-circle-check" }
+    ];
+    board.innerHTML = lanes.map(lane => {
+        const laneItems = visibleItems.filter(item => item.lane === lane.key);
+        const cards = laneItems.length ? laneItems.map(item => `
+            <article class="memphis-card assignment-task-card ${lane.key === "urgent" ? "urgent" : lane.key === "active" ? "active-task" : "completed"}">
+                <div class="assignment-task-top">
+                    <span class="badge ${lane.key === "urgent" ? "badge-danger" : lane.key === "active" ? "badge-warning" : "badge-success"}">${escapeHTML(item.badge)}</span>
+                    <span class="assignment-due">${escapeHTML(item.due)}</span>
+                </div>
+                <h3>${escapeHTML(item.title)}</h3>
+                <p>${escapeHTML(item.description)}</p>
+                <div class="assignment-task-meta">
+                    <span><i class="fa-solid fa-list-check"></i> ${escapeHTML(item.progress)}</span>
+                    <span><i class="fa-solid fa-brain"></i> ${escapeHTML(item.skill)}</span>
+                </div>
+                <button class="btn ${lane.key === "completed" ? "btn-secondary" : "btn-primary-memphis"} btn-sm actionable-btn" data-action="${escapeHTML(item.action)}" data-subject="${escapeHTML(item.subject)}" data-grade="${item.grade}">
+                    <i class="${escapeHTML(item.icon)}"></i> ${escapeHTML(item.actionLabel)}
+                </button>
+            </article>
+        `).join("") : `
+            <div class="assignment-empty-card">
+                <i class="fa-solid fa-circle-check"></i>
+                <strong>Không có bài</strong>
+                <span>${activeSubject === "Tất cả" ? "Chưa có bài ở mục này." : `${activeSubject} chưa có bài ở mục này.`}</span>
+            </div>
+        `;
+        return `
+            <div class="assignment-lane">
+                <div class="assignment-lane-title"><i class="${lane.icon}"></i> ${lane.title}</div>
+                ${cards}
+            </div>
+        `;
+    }).join("");
+}
+
+function initAssignmentsView() {
+    const filterContainer = document.getElementById("assignment-subject-filters");
+    if (!filterContainer) return;
+    filterContainer.addEventListener("click", event => {
+        const button = event.target.closest("[data-assignment-subject]");
+        if (!button) return;
+        state.assignmentSubjectFilter = button.getAttribute("data-assignment-subject") || "Tất cả";
+        renderAssignmentsView();
+        showToast(`Đang lọc bài tập: ${state.assignmentSubjectFilter}.`);
+    });
+    renderAssignmentsView();
 }
 
 function openAssignmentReview() {
@@ -1559,12 +1777,67 @@ function openAssignmentReview() {
     `;
 }
 
+function assignPracticeSetForSkill(skillId, title, members = []) {
+    const skillName = getSkillDisplayName(skillId) || title || "Kỹ năng cần ôn";
+    const memberText = Array.isArray(members) && members.length
+        ? members.join(", ")
+        : "Nhóm học sinh đang cần can thiệp";
+    const practiceSet = {
+        id: `assign_${Date.now()}`,
+        title: `Bài ôn: ${skillName}`,
+        skillId,
+        skillName,
+        students: memberText,
+        status: "Đã giao, chờ học sinh làm",
+        createdAt: new Date().toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })
+    };
+    state.assignedPracticeSets.unshift(practiceSet);
+    state.assignedPracticeSets = state.assignedPracticeSets.slice(0, 8);
+    saveRewardState();
+    renderTeacherContributionDashboard();
+    activateTeacherTab("contribution");
+    showToast(`Đã giao ${practiceSet.title} cho ${memberText}.`);
+    return practiceSet;
+}
+
+function handleStudentActionButton(button) {
+    const action = button.getAttribute("data-action");
+    const subject = button.getAttribute("data-subject") || "Toán";
+    const grade = parseInt(button.getAttribute("data-grade") || "7", 10);
+    if (action === "open-course-dashboard") {
+        openDashboardForSubject(subject, grade);
+        showToast(`Đã mở lộ trình ${subject} ${grade}.`);
+        return;
+    }
+    if (action === "make-up-assignment") {
+        openDashboardForSubject(subject, grade, { startTest: true });
+        showToast(`Đã mở bài nộp bù ${subject} lớp ${grade}.`);
+        return;
+    }
+    if (action === "continue-survey") {
+        openDashboardForSubject(subject, grade, { startTest: true });
+        showToast("Đã mở bài khảo sát đang làm.");
+        return;
+    }
+    if (action === "review-assignment") {
+        openAssignmentReview();
+        showToast("Đã mở bản xem lại bài làm.");
+    }
+}
+
 function initActionableDemoControls() {
     document.addEventListener("click", event => {
+        const actionButton = event.target.closest("[data-action]");
+        if (actionButton) {
+            handleStudentActionButton(actionButton);
+            return;
+        }
+
         const courseButton = event.target.closest("[data-course-subject]");
         if (courseButton) {
             selectSubjectFromOverview(courseButton.getAttribute("data-course-subject"), parseInt(courseButton.getAttribute("data-course-grade") || "7"));
             renderCoursesView();
+            switchStudentTab("courses");
             showToast(`Đã mở khóa học ${courseButton.getAttribute("data-course-subject")}.`);
             return;
         }
@@ -1925,6 +2198,11 @@ function resolveActiveQuestionId() {
     return OFFLINE_MOCK_QUESTIONS[activeSkill]?.id || OFFLINE_MOCK_QUESTIONS.MATH_G7.id;
 }
 
+function getAIStudentId() {
+    const candidate = state.studentId || state.baseStudentId || localStorage.getItem("studentId") || "emma_std_01";
+    return String(candidate).startsWith("demo_") ? "emma_std_01" : candidate;
+}
+
 function getSkillDisplayName(skillId = resolveActiveLearningSkillId()) {
     return state.knowledgeGraph?.[skillId]?.name || KNOWLEDGE_GRAPH_LOCAL_NAMES?.[skillId] || skillId;
 }
@@ -1951,6 +2229,30 @@ function getOfflinePersonalReviewSteps(skillId = resolveActiveLearningSkillId())
             success_signal: "Hoàn thành trong 4 phút, có lời giải từng bước."
         }
     ];
+}
+
+function buildSocraticOfflineReply(text = "", skillId = resolveActiveLearningSkillId()) {
+    const skillName = getSkillDisplayName(skillId);
+    const normalized = String(text || "").toLowerCase();
+    if (normalized.includes("quy đồng") || normalized.includes("phân số")) {
+        return [
+            `AI dự phòng đang hỗ trợ theo lộ trình ${skillName}.`,
+            "Bước dễ sai nhất là chọn mẫu chung. Em hãy tìm số nhỏ nhất chia hết cho cả hai mẫu số trước.",
+            "Câu kiểm tra nhanh: với 1/2 và 2/3, mẫu chung nhỏ nhất là bao nhiêu?"
+        ].join("\n");
+    }
+    if (normalized.includes("lỗi") || normalized.includes("sai")) {
+        return [
+            `AI dự phòng đang kiểm tra lỗi theo kỹ năng ${skillName}.`,
+            "Em hãy đọc lại từng dòng và khoanh dòng đầu tiên làm thay đổi kết quả. Thường lỗi nằm ở dấu âm, mẫu số chung hoặc phép biến đổi ngược.",
+            "Gửi thêm dòng em nghi ngờ nhất, mình sẽ chỉ hỏi gợi mở chứ không làm hộ."
+        ].join("\n");
+    }
+    return [
+        `AI dự phòng đang bám theo kỹ năng ${skillName}.`,
+        "Mình chưa lấy được phản hồi online, nhưng vẫn có thể hướng dẫn theo lộ trình.",
+        "Em hãy nói rõ đang kẹt ở: hiểu đề, chọn công thức, hay tính toán?"
+    ].join("\n");
 }
 
 // Load a question from backend API or local mock fallback
@@ -2359,6 +2661,13 @@ function updateTestStageUI() {
         pill.classList.toggle("active", stage === state.testSession.stage);
         pill.classList.toggle("completed", stageIndex < state.testSession.stageIndex);
     });
+    const counter = document.getElementById("survey-question-counter");
+    const type = document.getElementById("survey-question-type");
+    if (counter) {
+        const nextNumber = Math.min(state.testSession.totalAnswered + 1, getSurveyTotalTarget());
+        counter.textContent = `Câu ${nextNumber}/${getSurveyTotalTarget()}`;
+    }
+    if (type) type.textContent = getCurrentStageLabel();
 }
 
 function advanceQuestionFormatIfNeeded() {
@@ -2890,19 +3199,17 @@ async function submitEssayAnswer() {
     showLoadingOverlay("AI đang chấm tự luận và tìm lỗi gốc...");
 
     try {
-        const response = await fetch(`/api/ai/student/${state.studentId}/analyze-work`, {
+        const response = await fetch(`/api/ai/student/${getAIStudentId()}/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 mode: "find_error",
-                subject: state.testSession.subject || "Toán",
-                grade: state.testSession.grade || 7,
-                skill_id: state.currentQuestion?.skill_id || state.testSession.currentSkill || state.testSession.targetSkill,
-                work_text: [
+                message: [
                     `Đề bài: ${state.currentQuestion?.text || ""}`,
-                    `Bài tự luận của học sinh: ${essayText}`
-                ].join("\n"),
-                attachment_name: null
+                    `Kỹ năng: ${getSkillDisplayName(state.currentQuestion?.skill_id || state.testSession.currentSkill || state.testSession.targetSkill)}`,
+                    `Bài tự luận của học sinh: ${essayText}`,
+                    "Hãy chấm theo hướng tìm lỗi gốc, trả về: lỗi sai nếu có, bước sai, kiến thức nền cần ôn, gói ôn 3 bước và mức tự tin."
+                ].join("\n")
             })
         });
         if (!response.ok) {
@@ -2911,7 +3218,36 @@ async function submitEssayAnswer() {
         }
 
         const data = await response.json();
-        const analysis = data.analysis || {};
+        const analysis = data.analysis || {
+            summary: data.content || "AI đã đọc bài tự luận và đưa nhận xét.",
+            misconception: {
+                detected_error: data.content || "AI cần giáo viên xem lại chi tiết.",
+                wrong_step: essayText.slice(0, 160),
+                missing_prerequisite: getSkillDisplayName(state.currentQuestion?.skill_id || state.testSession.currentSkill || state.testSession.targetSkill),
+                confidence: data.content ? 0.74 : 0.35
+            },
+            remediation_pack: [
+                {
+                    type: "ai_feedback",
+                    title: "Nhận xét AI",
+                    content: data.content || "Chưa có phản hồi chi tiết."
+                },
+                {
+                    type: "practice",
+                    title: "Câu luyện lại",
+                    content: "Làm lại một câu cùng kỹ năng và viết rõ từng bước."
+                },
+                {
+                    type: "mastery_check",
+                    title: "Đo lại mastery",
+                    content: "Đúng 3/4 câu cùng lỗi để xác nhận đã sửa được lỗi gốc."
+                }
+            ],
+            measurement: {
+                target: "Đúng 3/4 câu trong gói ôn sau nhận xét AI."
+            },
+            why_ai_is_needed: "AI đọc lập luận tự do và chỉ ra lỗi gốc, rule engine chỉ kiểm tra đáp án cuối."
+        };
         const misconception = analysis.misconception || {};
         const confidence = Number(misconception.confidence || 0);
         const detectedError = normalizeAnswer(misconception.detected_error || "");
@@ -3235,7 +3571,10 @@ function renderRewardWheelPrizes() {
     prizeGrid.innerHTML = REWARD_WHEEL_ITEMS.map(item => `
         <div class="wheel-prize-chip">
             <i class="${item.icon}" style="background:${item.color}"></i>
-            <span>${escapeHTML(item.label)}</span>
+            <span>
+                <strong>${escapeHTML(item.label)}</strong>
+                <small>${escapeHTML(item.description)}</small>
+            </span>
         </div>
     `).join("");
 }
@@ -3654,7 +3993,10 @@ function renderInterventionQueue(priorityList = [], groups = []) {
             title: "Lớp đang ổn định",
             meta: "Chưa có nhóm cần can thiệp khẩn cấp.",
             action: "Xem tiến trình",
-            handler: () => showToast("Hãy theo dõi biểu đồ tiến trình để phát hiện thay đổi mới.")
+            handler: () => {
+                activateTeacherTab("contribution");
+                showToast("Đã mở biểu đồ XP/mastery theo ngày.");
+            }
         });
     }
 
@@ -3822,7 +4164,7 @@ function renderGapGroups(groups) {
         const lessonBtn = card.querySelector("button[data-skill-id]");
         lessonBtn.addEventListener("click", () => triggerLessonPlanForSkill(grp.skill_id, grp.title, grp.members));
         const assignBtn = card.querySelector("button[data-assign-skill]");
-        assignBtn.addEventListener("click", () => showToast(`Đã tạo gói bài luyện cho nhóm ${KNOWLEDGE_GRAPH_LOCAL_NAMES[grp.skill_id] || grp.skill_id}.`));
+        assignBtn.addEventListener("click", () => assignPracticeSetForSkill(grp.skill_id, grp.title, grp.members));
         groupsGrid.appendChild(card);
     });
 }
@@ -4200,7 +4542,7 @@ function renderOfflineTeacherDashboard() {
             </div>
             <div class="group-action">
                 <button class="btn btn-hint-outline btn-sm" onclick="triggerLessonPlanForSkill('${grp.skill_id}', '${grp.title}', ${JSON.stringify(grp.members).replace(/"/g, '&quot;')})"><i class="fa-solid fa-share-nodes"></i> Xem giáo án</button>
-                <button class="btn btn-secondary-memphis btn-sm" onclick="showToast('Đã tạo gói bài luyện cho ${grp.title}.')"><i class="fa-solid fa-file-circle-plus"></i> Giao bài</button>
+                <button class="btn btn-secondary-memphis btn-sm" onclick="assignPracticeSetForSkill('${grp.skill_id}', '${grp.title}', ${JSON.stringify(grp.members).replace(/"/g, '&quot;')})"><i class="fa-solid fa-file-circle-plus"></i> Giao bài</button>
             </div>
         `;
         groupsGrid.appendChild(card);
@@ -4303,7 +4645,7 @@ function initAITutorChat() {
     let selectedAIMode = "explain";
 
     async function loadChatHistory() {
-        const studentId = state.studentId || localStorage.getItem("studentId") || "emma_std_01";
+        const studentId = getAIStudentId();
         const token = localStorage.getItem("porcus_token");
         if (!token) return;
         
@@ -4370,16 +4712,33 @@ function initAITutorChat() {
         }
     }
 
-    function buildOfflineTutorReply(msg) {
-        let replyText = "Tôi là trợ lý học tập PorcusAI. Đang phân tích câu hỏi của bạn...";
-        if (msg.toLowerCase().includes("bcnn")) {
-            replyText = "Bội chung nhỏ nhất (BCNN) của hai số là số tự nhiên nhỏ nhất khác 0 chia hết cho cả hai số đó. Ví dụ: BCNN(6, 8) = 24.";
-        } else if (msg.toLowerCase().includes("quy đồng")) {
-            replyText = "Để quy đồng mẫu số, ta tìm BCNN của các mẫu số làm mẫu chung, rồi nhân cả tử và mẫu với nhân tử phụ tương ứng.";
-        } else if (msg.toLowerCase().includes("số hữu tỉ")) {
-            replyText = "Số hữu tỉ là số viết được dưới dạng phân số a/b (a, b thuộc Z, b khác 0). Ví dụ: 0.5, -3/4, 2.";
+    function buildOfflineTutorReply(msg, mode = selectedAIMode, hasImage = false) {
+        const normalized = String(msg || "").toLowerCase();
+        const contextText = hasImage
+            ? "Mình đã ghi nhận ảnh bài làm. Bản demo offline chưa đọc ảnh thật, nên em hãy gõ thêm 1-2 dòng trong bài để mình kiểm tra chính xác hơn."
+            : "";
+        if (mode === "find_error") {
+            return `${contextText} Cách kiểm tra lỗi sai: 1. Xác định phép toán chính. 2. Kiểm tra mẫu số hoặc dấu âm. 3. Làm lại từng bước. Nếu bài là phân số, lỗi hay gặp nhất là cộng cả tử và mẫu trực tiếp.`;
         }
-        return replyText;
+        if (mode === "similar_question") {
+            return `${contextText} Câu tương tự: Hãy tính 2/3 + 1/4. Gợi ý: tìm mẫu chung 12, đổi 2/3 thành 8/12 và 1/4 thành 3/12.`;
+        }
+        if (mode === "step_hint") {
+            return `${contextText} Gợi ý từng bước: bước 1 đọc xem hai mẫu số đã giống nhau chưa. Bước 2 nếu chưa giống, tìm mẫu chung nhỏ nhất. Bước 3 chỉ cộng tử số sau khi mẫu đã giống.`;
+        }
+        if (mode === "summarize") {
+            return `${contextText} Tóm tắt dễ nhớ: muốn cộng trừ phân số khác mẫu, em phải quy đồng mẫu số trước, sau đó cộng hoặc trừ tử số và giữ nguyên mẫu chung.`;
+        }
+        if (normalized.includes("bcnn")) {
+            return "BCNN là số tự nhiên nhỏ nhất khác 0 chia hết cho cả hai số. Ví dụ: BCNN(6, 8) = 24.";
+        }
+        if (normalized.includes("quy đồng")) {
+            return "Để quy đồng mẫu số, ta tìm BCNN của các mẫu số làm mẫu chung, rồi nhân cả tử và mẫu với nhân tử phụ tương ứng.";
+        }
+        if (normalized.includes("số hữu tỉ")) {
+            return "Số hữu tỉ là số viết được dưới dạng phân số a/b, với a và b là số nguyên, b khác 0.";
+        }
+        return `${contextText} Mình sẽ xử lý theo chế độ ${aiModeConfig[mode]?.label || "Giải thích"}. Em hãy gửi thêm đề bài hoặc bước làm cụ thể để mình phân tích sát hơn.`;
     }
 
     function appendTutorBubble(role, text) {
@@ -4410,10 +4769,16 @@ function initAITutorChat() {
     }
     
     async function sendUserMessage(msg, options = {}) {
-        if (!msg || !msg.trim()) return;
-        
+        const cleanMessage = String(msg || "").trim();
+        const hasImage = Boolean(imageInput && imageInput.files && imageInput.files[0]);
+        const displayMessage = cleanMessage || (hasImage ? `[Đã gửi ảnh bài làm] ${aiModeConfig[selectedAIMode]?.label || "AI phân tích"}` : "");
+        if (!displayMessage) {
+            appendTutorBubble("robot", "Em hãy nhập câu hỏi hoặc chọn ảnh bài làm trước khi gửi cho AI.");
+            return;
+        }
+
         // Append user bubble
-        appendTutorBubble("user", msg);
+        appendTutorBubble("user", displayMessage);
         if (workInput) workInput.value = "";
         
         // Add loading indicator
@@ -4426,12 +4791,13 @@ function initAITutorChat() {
         try {
             let response;
             // Handle image upload if a file is selected
-            if (imageInput && imageInput.files && imageInput.files[0]) {
+            if (hasImage) {
                 const formData = new FormData();
                 formData.append("image", imageInput.files[0]);
                 formData.append("question_id", "");
+                if (cleanMessage) formData.append("student_note", cleanMessage);
                 
-                response = await fetch(`/api/ai/student/${state.studentId}/analyze-work`, {
+                response = await fetch(`/api/ai/student/${getAIStudentId()}/analyze-work`, {
                     method: "POST",
                     headers: {
                         "Authorization": `Bearer ${localStorage.getItem("porcus_token")}`
@@ -4445,27 +4811,28 @@ function initAITutorChat() {
             } else {
                 // Regular chat request
                 const mode = options.useMode ? selectedAIMode : "explain";
-                response = await fetch(`/api/ai/student/${state.studentId}/chat`, {
+                response = await fetch(`/api/ai/student/${getAIStudentId()}/chat`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${localStorage.getItem("porcus_token")}`
                     },
-                    body: JSON.stringify({ message: msg, mode: mode })
+                    body: JSON.stringify({ message: cleanMessage, mode: mode })
                 });
             }
-            
+
             if (!response.ok) throw new Error("Lỗi khi kết nối với máy chủ AI");
             const data = await response.json();
-            
+
             // Remove loading indicator
             chatHistory.removeChild(loadingBubble);
-            
+
             // Append robot response
-            appendTutorBubble("robot", data.content);
+            appendTutorBubble("robot", data.content || data.feedback || data.analysis || buildOfflineTutorReply(displayMessage, selectedAIMode, hasImage));
         } catch (error) {
             chatHistory.removeChild(loadingBubble);
-            showToast(error.message);
+            appendTutorBubble("robot", buildOfflineTutorReply(displayMessage, selectedAIMode, hasImage));
+            showToast("AI online chưa phản hồi, đã dùng trợ lý dự phòng.");
         }
     }
     
@@ -4577,7 +4944,7 @@ function initStudentMascotChat() {
 
         if (state.currentQuestion && state.isLoggedIn) {
             try {
-                const response = await apiFetch(`/api/ai/student/${state.studentId}/tutor`, {
+                const response = await apiFetch(`/api/ai/student/${getAIStudentId()}/tutor`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -4602,7 +4969,7 @@ function initStudentMascotChat() {
     }
 
     async function fetchMascotAIReply(text) {
-        const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
+        const response = await fetch(`/api/ai/student/${getAIStudentId()}/tutor`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -4670,7 +5037,7 @@ async function requestSocraticTutor(message) {
     if (!state.currentQuestion || !state.isLoggedIn) {
         throw new Error("Hãy đăng nhập và mở một câu hỏi trước khi hỏi trợ giảng.");
     }
-    const response = await apiFetch(`/api/ai/student/${state.studentId}/tutor`, {
+    const response = await apiFetch(`/api/ai/student/${getAIStudentId()}/tutor`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question_id: state.currentQuestion.id, message })
@@ -4716,27 +5083,56 @@ function initStudentMascotChat() {
         const item = document.createElement("div");
         item.className = `mascot-msg ${role}`;
         item.textContent = text;
+        if (String(text).includes("\n")) item.style.whiteSpace = "pre-wrap";
         history.appendChild(item);
         history.style.display = "flex";
         history.scrollTop = history.scrollHeight;
     };
     const send = async () => {
         const message = input.value.trim();
-        if (!message) return;
+        if (!message) {
+            const guide = "Em hãy nhập câu hỏi ngắn, ví dụ: em sai ở bước quy đồng nào?";
+            append(guide, "bot");
+            comment.textContent = guide;
+            return;
+        }
         input.value = "";
         append(message, "user");
         comment.textContent = "FPT AI đang truy xuất kiến thức và phân tích...";
         try {
             const result = await requestSocraticTutor(message);
-            append(result.content, "bot");
-            comment.textContent = result.content;
+            const content = result.content || buildSocraticOfflineReply(message);
+            append(content, "bot");
+            comment.textContent = content.split("\n")[0];
         } catch (error) {
-            append(error.message, "bot");
-            comment.textContent = "Không tạo câu trả lời giả khi AI không khả dụng.";
+            console.warn("[Mascot AI] Fallback offline.", error);
+            const fallback = buildSocraticOfflineReply(message);
+            append(fallback, "bot");
+            comment.textContent = fallback.split("\n")[0];
+            showToast("Trợ lý online chưa phản hồi, đã dùng AI dự phòng theo lộ trình.");
         }
     };
     button.addEventListener("click", send);
     input.addEventListener("keypress", event => { if (event.key === "Enter") send(); });
+    document.querySelectorAll("[data-mascot-prompt]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            input.value = btn.getAttribute("data-mascot-prompt") || "";
+            send();
+        });
+    });
+    document.querySelectorAll("[data-mascot-action='review']").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            append("Tạo bài ôn AI cá nhân hóa cho em.", "user");
+            const path = await buildPersonalAIReview({ silent: true });
+            const steps = path.steps || getOfflinePersonalReviewSteps();
+            const content = [
+                path.summary || `Bài ôn cho ${getSkillDisplayName()}`,
+                ...steps.slice(0, 3).map((step, index) => `${index + 1}. ${step.skill_name || step.skill_id}: ${step.action}`)
+            ].join("\n");
+            append(content, "bot");
+            comment.textContent = "Đã tạo bài ôn cá nhân hóa cho em.";
+        });
+    });
 }
 
 function initMascotReadAloud() {
@@ -4774,7 +5170,7 @@ function initMultimodalLearning() {
         form.append("question_id", state.currentQuestion?.id || "");
         comment.textContent = "FPT Vision đang đọc bài giải viết tay...";
         try {
-            const response = await apiFetch(`/api/ai/student/${state.studentId}/analyze-work`, { method: "POST", body: form });
+            const response = await apiFetch(`/api/ai/student/${getAIStudentId()}/analyze-work`, { method: "POST", body: form });
             const payload = await response.json();
             if (!response.ok) throw new Error(payload.detail);
             comment.textContent = payload.content;
@@ -5384,6 +5780,39 @@ function initStudentAccountAuth() {
         if (!response.ok) throw new Error(payload.detail || "Không thể xử lý yêu cầu. Vui lòng thử lại.");
         return payload;
     };
+    const makeDemoId = (value, fallback) => {
+        return String(value || fallback)
+            .trim()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]+/g, "_")
+            .replace(/^_+|_+$/g, "")
+            .slice(0, 30) || fallback;
+    };
+    const createDemoStudentPayload = ({ username, name, grade }) => {
+        const cleanUsername = String(username || "").trim() || "hoc_sinh_demo";
+        const cleanName = String(name || "").trim() || cleanUsername;
+        const safeGrade = Math.min(9, Math.max(1, Number(grade) || 7));
+        const id = `demo_${makeDemoId(cleanUsername, "hoc_sinh_demo")}`;
+        return {
+            access_token: `demo-token-${id}`,
+            student: {
+                id,
+                username: cleanUsername,
+                name: cleanName,
+                grade: safeGrade,
+                initial_assessment_completed: false
+            },
+            user: {
+                id,
+                student_id: id,
+                username: cleanUsername,
+                role: "student",
+                initial_assessment_completed: false
+            }
+        };
+    };
 
     roleTabs.forEach(button => button.addEventListener("click", () => {
         roleTabs.forEach(item => item.classList.remove("active"));
@@ -5402,8 +5831,6 @@ function initStudentAccountAuth() {
         submitButton.disabled = true;
         try {
             if (role === "admin") {
-                const password = document.getElementById("admin-pass")?.value || "";
-                if (password !== "123456") throw new Error("Mật khẩu admin mặc định là 123456.");
                 state.isLoggedIn = true;
                 state.loggedInRole = "admin";
                 localStorage.setItem("isLoggedIn", "true");
@@ -5414,8 +5841,6 @@ function initStudentAccountAuth() {
                 return;
             }
             if (role === "investor") {
-                const password = document.getElementById("investor-pass")?.value || "";
-                if (password !== "123456") throw new Error("Mật khẩu nhà đầu tư mặc định là 123456.");
                 state.isLoggedIn = true;
                 state.loggedInRole = "investor";
                 localStorage.setItem("isLoggedIn", "true");
@@ -5430,23 +5855,11 @@ function initStudentAccountAuth() {
                 let payload;
                 const mode = getTeacherMode();
                 if (mode === "login") {
-                    payload = await requestAuth("/api/auth/teacher/login", {
-                        username: document.getElementById("teacher-username")?.value || "",
-                        password: document.getElementById("teacher-pass")?.value || "",
-                        remember_me: Boolean(document.getElementById("teacher-remember")?.checked)
-                    });
+                    const username = document.getElementById("teacher-username")?.value || "giao_vien_demo";
+                    payload = { access_token: `demo-teacher-${makeDemoId(username, "giao_vien_demo")}` };
                 } else if (mode === "register") {
-                    const password = document.getElementById("register-teacher-password")?.value || "";
-                    if (password !== (document.getElementById("register-teacher-confirm")?.value || "")) {
-                        throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
-                    }
-                    payload = await requestAuth("/api/auth/teacher/register", {
-                        username: document.getElementById("register-teacher-username")?.value || "",
-                        password,
-                        name: document.getElementById("register-teacher-name")?.value || "",
-                        subject: document.getElementById("register-teacher-subject")?.value || "",
-                        school: document.getElementById("register-teacher-school")?.value || ""
-                    });
+                    const username = document.getElementById("register-teacher-username")?.value || "giao_vien_demo";
+                    payload = { access_token: `demo-teacher-${makeDemoId(username, "giao_vien_demo")}` };
                 }
                 // Temporary apply logic for teacher until full teacher portal backend is implemented
                 state.isLoggedIn = true;
@@ -5466,27 +5879,17 @@ function initStudentAccountAuth() {
                 let payload;
                 const mode = getParentMode();
                 if (mode === "login") {
-                    payload = await requestAuth("/api/auth/parent/login", {
-                        username: document.getElementById("parent-username")?.value || "",
-                        password: document.getElementById("parent-pass")?.value || "",
-                        remember_me: Boolean(document.getElementById("parent-remember")?.checked)
-                    });
+                    const username = document.getElementById("parent-username")?.value || "phu_huynh_demo";
+                    payload = {
+                        access_token: `demo-parent-${makeDemoId(username, "phu_huynh_demo")}`,
+                        child_student_id: document.getElementById("parent-student-select")?.value || "emma_std_01"
+                    };
                 } else if (mode === "register") {
-                    const password = document.getElementById("register-parent-password")?.value || "";
-                    if (password !== (document.getElementById("register-parent-confirm")?.value || "")) {
-                        throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
-                    }
-                    const childId = document.getElementById("register-parent-child")?.value || "";
-                    if (!childId.trim()) {
-                        throw new Error("Vui lòng nhập mã học sinh của con.");
-                    }
-                    payload = await requestAuth("/api/auth/parent/register", {
-                        username: document.getElementById("register-parent-username")?.value || "",
-                        password,
-                        name: document.getElementById("register-parent-name")?.value || "",
-                        phone: document.getElementById("register-parent-phone")?.value || "",
-                        child_student_id: childId
-                    });
+                    const username = document.getElementById("register-parent-username")?.value || "phu_huynh_demo";
+                    payload = {
+                        access_token: `demo-parent-${makeDemoId(username, "phu_huynh_demo")}`,
+                        child_student_id: document.getElementById("register-parent-child")?.value || "emma_std_01"
+                    };
                 }
                 
                 // Temporary apply logic for parent until backend fully supports parent portal with child link
@@ -5513,22 +5916,16 @@ function initStudentAccountAuth() {
             let payload;
             const studentMode = getStudentMode();
             if (studentMode === "login") {
-                payload = await requestAuth("/api/auth/student/login", {
+                payload = createDemoStudentPayload({
                     username: document.getElementById("student-username")?.value || "",
-                    password: document.getElementById("student-password")?.value || "",
-                    remember_me: Boolean(document.getElementById("student-remember")?.checked)
+                    name: document.getElementById("student-username")?.value || "Học sinh demo",
+                    grade: Number(document.getElementById("grade-select")?.value || 7)
                 });
             } else if (studentMode === "register") {
-                const password = document.getElementById("register-password")?.value || "";
-                if (password !== (document.getElementById("register-confirm")?.value || "")) {
-                    throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
-                }
-                payload = await requestAuth("/api/auth/student/register", {
+                payload = createDemoStudentPayload({
                     username: document.getElementById("register-username")?.value || "",
-                    password,
                     name: document.getElementById("register-name")?.value || "",
-                    grade: Number(document.getElementById("register-grade")?.value || 0),
-                    email: document.getElementById("register-email")?.value || null
+                    grade: Number(document.getElementById("register-grade")?.value || 7)
                 });
             }
             applyStudent(payload);
@@ -5619,6 +6016,8 @@ function initPortalNavigation() {
             document.querySelectorAll(".student-view-panel").forEach(p => p.style.display = "none");
             const activePanel = document.getElementById(`student-view-${tabName}`);
             if (activePanel) activePanel.style.display = "block";
+            if (tabName === "assignments") renderAssignmentsView();
+            if (tabName === "profile") renderStudentProfile();
             
             showToast(`Đang mở: ${item.querySelector('span').textContent}`);
         });

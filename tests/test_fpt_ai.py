@@ -52,6 +52,22 @@ class TestFPTAIClient(unittest.TestCase):
                 client.complete(system_prompt="system", user_prompt="user")
         urlopen.assert_not_called()
 
+    def test_client_accepts_reasoning_content_when_content_is_null(self):
+        client = FPTAIClient(api_key="secret-test-key", model="test-model")
+
+        def fake_urlopen(request, timeout):
+            return _FakeResponse({
+                "model": "test-model",
+                "choices": [{"message": {"content": None, "reasoning_content": "Gợi ý Socratic"}}],
+                "usage": {"total_tokens": 9},
+            })
+
+        with patch("backend.fpt_ai.urllib.request.urlopen", side_effect=fake_urlopen):
+            result = client.complete(system_prompt="system", user_prompt="user")
+
+        self.assertEqual(result.content, "Gợi ý Socratic")
+        self.assertEqual(result.usage["total_tokens"], 9)
+
     def test_vision_client_sends_base64_image_content(self):
         client = FPTAIClient(api_key="secret-test-key", model="text-model", vision_model="vision-model")
         captured = {}
