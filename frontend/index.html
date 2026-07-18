@@ -772,6 +772,7 @@
             <div class="login-tabs">
                 <button class="login-tab-btn active" data-login-role="student"><i class="fa-solid fa-user-graduate"></i> Học sinh</button>
                 <button class="login-tab-btn" data-login-role="teacher"><i class="fa-solid fa-chalkboard-user"></i> Giáo viên</button>
+                <button class="login-tab-btn" data-login-role="register"><i class="fa-solid fa-user-plus"></i> Đăng ký</button>
             </div>
             
             <div class="login-body">
@@ -804,12 +805,36 @@
                     </div>
                 </div>
                 
+                <div id="login-form-register" class="login-form-panel">
+                    <div class="form-group">
+                        <label for="reg-username"><i class="fa-solid fa-user"></i> Tên đăng nhập:</label>
+                        <input type="text" id="reg-username" class="form-control" placeholder="Tên đăng nhập (viết liền không dấu)">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password"><i class="fa-solid fa-lock"></i> Mật khẩu:</label>
+                        <input type="password" id="reg-password" class="form-control" placeholder="Ít nhất 8 ký tự, có chữ và số">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-name"><i class="fa-solid fa-id-card"></i> Họ và tên:</label>
+                        <input type="text" id="reg-name" class="form-control" placeholder="Nhập họ và tên của bạn">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-grade"><i class="fa-solid fa-school"></i> Lớp:</label>
+                        <select id="reg-grade" class="form-control">
+                            <option value="5">Lớp 5</option>
+                            <option value="6">Lớp 6</option>
+                            <option value="7">Lớp 7</option>
+                            <option value="8">Lớp 8</option>
+                        </select>
+                    </div>
+                </div>
+                
                 <div id="login-error-msg" class="login-error-alert" style="display: none;">
                     <i class="fa-solid fa-circle-exclamation"></i> Mật khẩu hoặc tài khoản chưa đúng!
                 </div>
                 
                 <button id="btn-login-submit" class="btn btn-login-action">
-                    <span>Đăng nhập</span> <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                    <span id="btn-login-text">Đăng nhập</span> <i id="btn-login-icon" class="fa-solid fa-arrow-right-to-bracket"></i>
                 </button>
             </div>
             
@@ -819,6 +844,30 @@
         </div>
     </div>
 
+    <!-- Assessment Result Overlay -->
+    <div id="assessment-result-overlay" class="login-overlay hidden" style="z-index: 2000;">
+        <div class="login-background-shapes">
+            <div class="shape shape-circle"></div>
+            <div class="shape shape-triangle"></div>
+            <div class="shape shape-square"></div>
+            <div class="shape shape-cross">+</div>
+        </div>
+        <div class="memphis-card login-card animate-pop-in">
+            <div class="login-header">
+                <div class="login-logo-icon">
+                    <i class="fa-solid fa-ranking-star"></i>
+                </div>
+                <h1 class="login-title">Hoàn thành bài Test!</h1>
+                <p class="login-subtitle">Hệ thống đã thu thập đủ dữ liệu để xây dựng lộ trình học tập cho riêng bạn.</p>
+            </div>
+            <div class="login-body" style="text-align: center;">
+                <button id="btn-start-learning" class="btn btn-login-action" style="width: 100%; margin-top: 20px; font-size: 1.1rem;">
+                    Bắt đầu hành trình học tập <i class="fa-solid fa-rocket"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
