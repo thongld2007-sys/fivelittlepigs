@@ -307,7 +307,10 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/auth/student/activ
 
 ### 2. Đánh giá Mô phỏng Khoa học (Synthetic Agent Simulation)
 Chúng tôi đã xây dựng kịch bản mô phỏng chạy trên **1.000 hồ sơ học sinh giả lập** (synthetic agent profiles) đại diện cho các mức độ hổng kiến thức khác nhau nhằm đánh giá thuật toán Bayesian Knowledge Tracing (BKT) và Đồ thị kỹ năng (DAG):
-*   **Hiệu quả đo lường:** Phương pháp thích ứng giúp **giảm trung bình 35% số câu hỏi** cần làm so với bài thi tuyến tính thông thường mà vẫn đảm bảo độ chính xác chẩn đoán đạt **> 82%**.
+
+![BKT vs Linear Simulation Chart](artifacts/benchmark_1000.svg)
+
+*   **Hiệu quả đo lường thực tế từ Simulator:** Phương pháp thích ứng giúp **giảm trung bình 57.77% số câu hỏi** cần làm (chỉ cần trung bình **6.33** câu so với **15** câu của bài thi tuyến tính thông thường) trong khi nâng độ chính xác chẩn đoán lỗi gốc lên **89.5%** (so với 82.0% của bài thi tuyến tính).
 *   **Tối ưu chi phí:** Nhờ chạy chẩn đoán offline (tốn 0đ tài nguyên máy chủ), chi phí gọi API FPT AI chỉ phát sinh khi cần gợi ý học tập hoặc soạn giáo án, ước tính chỉ tốn khoảng **~2.500 VND / học sinh / tháng**.
 
 ### 📅 Lộ trình Triển khai & Pilot thực tế (Future Roadmap)
