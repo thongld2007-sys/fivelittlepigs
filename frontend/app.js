@@ -16,6 +16,7 @@ const state = {
     testStarted: false,
     surveyCompleted: false,
     baseStudentId: 'emma_std_01',
+    tutorChatHistory: [],
     testSession: {
         subject: "Toán",
         grade: 7,
@@ -573,7 +574,7 @@ function initSubjectSelectors() {
     }
 
     if (startBtn) {
-        startBtn.addEventListener("click", startAdaptiveTest);
+        startBtn.addEventListener("click", () => startAdaptiveTest(false));
     }
 }
 
@@ -1090,6 +1091,8 @@ function prepareTestSetup() {
     state.selectedOption = null;
     state.typedAnswer = "";
     state.currentQuestion = null;
+    state.tutorChatHistory = []; // Clear chat history when loading new question
+    clearChatUIs();
     resetTestStage();
     setQuestionVisibility(false);
     setSurveyResultVisibility(false);
@@ -1100,7 +1103,7 @@ function prepareTestSetup() {
     renderPersonalPath();
 }
 
-async function startAdaptiveTest() {
+async function startAdaptiveTest(isInitialAssessment = false) {
     const subjectSelect = document.getElementById("subject-select");
     const gradeSelect = document.getElementById("grade-select");
     const subject = subjectSelect ? subjectSelect.value : state.testSession.subject;
@@ -1109,7 +1112,11 @@ async function startAdaptiveTest() {
 
     state.testStarted = true;
     state.surveyCompleted = false;
-    state.studentId = `${state.baseStudentId}_survey_${Date.now()}`;
+    if (!isInitialAssessment) {
+        state.studentId = `${state.baseStudentId}_survey_${Date.now()}`;
+    } else {
+        state.studentId = state.baseStudentId;
+    }
     state.testSession.subject = subject;
     state.testSession.grade = grade;
     state.testSession.targetSkill = skillId;
@@ -1119,7 +1126,9 @@ async function startAdaptiveTest() {
     setQuestionVisibility(true);
     setSurveyResultVisibility(false);
     updateTestStageUI();
-    await createCleanSurveySession(grade);
+    if (!isInitialAssessment) {
+        await createCleanSurveySession(grade);
+    }
     showToast(`Bắt đầu bài test ${subject} - Lớp ${grade}`);
     loadStudentQuestion(skillId);
 }
@@ -1261,6 +1270,8 @@ async function loadStudentQuestion(skillId) {
             const data = await res.json();
             const question = data.question;
             state.currentQuestion = question;
+            state.tutorChatHistory = []; // Clear chat history
+            clearChatUIs();
             state.studentProgress.activeSkill = data.active_skill;
             state.testSession.currentSkill = data.active_skill;
             
@@ -1343,6 +1354,17 @@ function renderQuestionVisual(question) {
     const visual = getQuestionVisualMarkup(question);
     visualBox.innerHTML = visual;
     visualBox.style.display = visual ? "block" : "none";
+}
+
+function clearChatUIs() {
+    const mainChat = document.getElementById("chat-history-box");
+    if (mainChat) mainChat.innerHTML = "";
+    
+    const mascotChat = document.getElementById("mascot-chat-history");
+    if (mascotChat) mascotChat.innerHTML = "";
+    
+    const mascotComment = document.getElementById("mascot-comment");
+    if (mascotComment) mascotComment.textContent = "Bạn cần giúp gì ở câu này?";
 }
 
 function getQuestionVisualMarkup(question) {
@@ -2108,6 +2130,20 @@ async function submitAnswer() {
         const result = await submitSelectedAnswerToApi(submittedOption);
         if (result) {
             hideLoadingOverlay();
+            
+            if (result.assessment_just_completed) {
+                document.getElementById("assessment-result-overlay").classList.remove("hidden");
+                const btnStartLearning = document.getElementById("btn-start-learning");
+                if (btnStartLearning) {
+                    btnStartLearning.onclick = () => {
+                        document.getElementById("assessment-result-overlay").classList.add("hidden");
+                        document.body.classList.remove("assessment-mode");
+                        setQuestionVisibility(false);
+                        switchPortalUI("student");
+                    };
+                }
+            }
+            
             const isCorrect = result.is_correct;
             recordSurveyAttempt(isCorrect, submittedOption);
             const stageMessage = advanceQuestionFormatIfNeeded();
@@ -2898,7 +2934,7 @@ function renderInterventionQueue(priorityList = [], groups = []) {
             title: `Dạy lại: ${topGap.title}`,
             meta: `${topGap.count} học sinh cùng lỗ hổng`,
             action: "Tạo giáo án",
-            handler: () => triggerLessonPlanForSkill(topGap.skillId, topGap.title)
+            handler: () => triggerLessonPlanForSkill(topGap.skillId, topGap.title, topGap.members)
         });
     }
 
@@ -3084,7 +3120,7 @@ function renderGapGroups(groups) {
             </div>
         `;
         const lessonBtn = card.querySelector("button[data-skill-id]");
-        lessonBtn.addEventListener("click", () => triggerLessonPlanForSkill(grp.skill_id, grp.title));
+        lessonBtn.addEventListener("click", () => triggerLessonPlanForSkill(grp.skill_id, grp.title, grp.members));
         const assignBtn = card.querySelector("button[data-assign-skill]");
         assignBtn.addEventListener("click", () => showToast(`Đã tạo gói bài luyện cho nhóm ${KNOWLEDGE_GRAPH_LOCAL_NAMES[grp.skill_id] || grp.skill_id}.`));
         groupsGrid.appendChild(card);
@@ -3120,7 +3156,7 @@ function renderPriorityList(students) {
             </td>
         `;
         row.querySelector("button[data-student-id]").addEventListener("click", () => openDiagnosticInspector(std.id));
-        row.querySelector("button[data-ai-path-student-id]").addEventListener("click", () => openTeacherAILearningPath(std.id));
+        row.querySelector("button[data-ai-path-student-id]").addEventListener("click", () => openTeacherAILearningPath(std.id, std.current_skill_id));
         tableBody.appendChild(row);
     });
 }
@@ -3225,8 +3261,12 @@ async function renderTeacherDashboard() {
     renderOfflineTeacherDashboard();
 }
 
-function triggerLessonPlanForSkill(skillId, title) {
-    generateAILessonPlan(title || skillId, skillId);
+function triggerLessonPlanForSkill(skillId, title, groupMembers = null) {
+    let contextStr = "Nhóm học sinh có xác suất thành thạo dưới 0.50.";
+    if (groupMembers && groupMembers.length > 0) {
+        contextStr = "Danh sách học sinh cần hỗ trợ trong nhóm: " + groupMembers.join(", ") + ".";
+    }
+    generateAILessonPlan(title || skillId, skillId, contextStr);
     document.getElementById("modal-lesson-plan").style.display = "flex";
 }
 
@@ -3342,6 +3382,8 @@ function loadOfflineMockQuestion(skillId) {
 
     const question = OFFLINE_MOCK_QUESTIONS[skillId] || OFFLINE_MOCK_QUESTIONS["MATH_G7"];
     state.currentQuestion = question;
+    state.tutorChatHistory = []; // Clear chat history
+    clearChatUIs();
     state.selectedOption = null;
     state.typedAnswer = "";
     
@@ -3457,7 +3499,7 @@ function renderOfflineTeacherDashboard() {
                 <span><i class="fa-solid fa-chart-line"></i> Đo mastery sau can thiệp</span>
             </div>
             <div class="group-action">
-                <button class="btn btn-hint-outline btn-sm" onclick="triggerLessonPlanForSkill('${grp.skill_id}', '${grp.title}')"><i class="fa-solid fa-share-nodes"></i> Xem giáo án</button>
+                <button class="btn btn-hint-outline btn-sm" onclick="triggerLessonPlanForSkill('${grp.skill_id}', '${grp.title}', ${JSON.stringify(grp.members).replace(/"/g, '&quot;')})"><i class="fa-solid fa-share-nodes"></i> Xem giáo án</button>
                 <button class="btn btn-secondary-memphis btn-sm" onclick="showToast('Đã tạo gói bài luyện cho ${grp.title}.')"><i class="fa-solid fa-file-circle-plus"></i> Giao bài</button>
             </div>
         `;
@@ -3659,7 +3701,8 @@ function initAITutorChat() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 question_id: resolveTutorQuestionId(),
-                message: msg
+                message: msg,
+                history: state.tutorChatHistory.length > 0 ? state.tutorChatHistory : undefined
             })
         });
         if (!response.ok) {
@@ -3750,14 +3793,10 @@ function initAITutorChat() {
 
         const replyParagraph = appendTutorBubble("bot", "AI đang phân tích bài làm và nối với lộ trình học...");
         try {
-            if (useMode && ["find_error", "similar_question", "step_hint"].includes(selectedAIMode)) {
-                const data = await fetchAIWorkAnalysis(msg);
-                renderAIAnalysisReply(replyParagraph, data.analysis || {});
-                applyAIAnalysisToReview(data.analysis || {});
-            } else {
-                const data = await fetchAITutorReply(aiMessage);
-                replyParagraph.textContent = data.content;
-            }
+            const data = await fetchAITutorReply(msg);
+            replyParagraph.textContent = data.content;
+            state.tutorChatHistory.push({ role: "user", content: msg });
+            state.tutorChatHistory.push({ role: "assistant", content: data.content });
             await updateAIStatusBadge();
         } catch (error) {
             console.warn("[AI Tutor] Fallback offline.", error);
@@ -3971,12 +4010,40 @@ function initStudentMascotChat() {
         const activeSkill = resolveActiveLearningSkillId();
         const textL = text.toLowerCase();
 
-        if (textL.includes("ôn") || textL.includes("lộ trình") || textL.includes("bài ôn")) {
-            const steps = getOfflinePersonalReviewSteps(activeSkill);
-            return [
-                `Bài ôn nhanh cho ${getSkillDisplayName(activeSkill)}:`,
-                ...steps.map((step, index) => `${index + 1}. ${step.skill_name}: ${step.action}`)
-            ].join("\n");
+        // Show chat history if hidden
+        chatHistory.style.display = "flex";
+
+        // Append user message
+        const userMsg = document.createElement("div");
+        userMsg.className = "mascot-msg user";
+        userMsg.textContent = text;
+        chatHistory.appendChild(userMsg);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+        chatInput.value = "";
+        commentPara.textContent = "Trợ lý đang suy nghĩ...";
+
+        if (state.currentQuestion && state.isLoggedIn) {
+            try {
+                const response = await fetch(`/api/ai/student/${state.studentId}/tutor`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        question_id: state.currentQuestion.id,
+                        message: text,
+                        history: state.tutorChatHistory.length > 0 ? state.tutorChatHistory : undefined
+                    })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    appendTutorReply(data.content);
+                    state.tutorChatHistory.push({ role: "user", content: text });
+                    state.tutorChatHistory.push({ role: "assistant", content: data.content });
+                    return;
+                }
+            } catch (error) {
+                console.warn("[FPT AI] Không khả dụng, chuyển sang trợ lý offline.", error);
+            }
         }
 
         if (activeSkill === 'MATH_G7') {
@@ -4142,6 +4209,8 @@ function initAuthFlow() {
     const loginSubmitBtn = document.getElementById("btn-login-submit");
     const logoutBtn = document.getElementById("btn-logout");
     const errorMsg = document.getElementById("login-error-msg");
+    const btnLoginText = document.getElementById("btn-login-text");
+    const btnLoginIcon = document.getElementById("btn-login-icon");
     let activeRole = "student";
 
     const showError = (message) => {
@@ -4159,6 +4228,16 @@ function initAuthFlow() {
             const panel = document.getElementById(`login-form-${activeRole}`);
             if (panel) panel.classList.add("active");
             if (errorMsg) errorMsg.style.display = "none";
+            
+            if (btnLoginText && btnLoginIcon) {
+                if (activeRole === "register") {
+                    btnLoginText.textContent = "Đăng ký";
+                    btnLoginIcon.className = "fa-solid fa-user-plus";
+                } else {
+                    btnLoginText.textContent = "Đăng nhập";
+                    btnLoginIcon.className = "fa-solid fa-arrow-right-to-bracket";
+                }
+            }
         });
     });
 
@@ -4167,60 +4246,116 @@ function initAuthFlow() {
             if (errorMsg) errorMsg.style.display = "none";
 
             if (activeRole === "teacher") {
+                const username = document.getElementById("teacher-username")?.value || "";
                 const password = document.getElementById("teacher-pass")?.value || "";
-                if (password.trim() !== "123456") {
-                    showError("Mật khẩu giáo viên mặc định là 123456.");
-                    return;
+                try {
+                    const response = await fetch("/api/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username, password, role: "teacher" })
+                    });
+                    if (!response.ok) {
+                        showError("Tài khoản hoặc mật khẩu không đúng.");
+                        return;
+                    }
+                    const auth = await response.json();
+                    state.isLoggedIn = true;
+                    state.loggedInRole = "teacher";
+                    localStorage.setItem("isLoggedIn", "true");
+                    localStorage.setItem("loggedInRole", "teacher");
+                    localStorage.removeItem("studentId");
+                    localStorage.setItem("accessToken", auth.access_token);
+                    if (loginOverlay) loginOverlay.classList.add("hidden");
+                    switchPortalUI("teacher");
+                    showToast("Đăng nhập giáo viên thành công.");
+                } catch (e) {
+                    showError("Lỗi kết nối máy chủ.");
                 }
-                state.isLoggedIn = true;
-                state.loggedInRole = "teacher";
-                localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("loggedInRole", "teacher");
-                localStorage.removeItem("studentId");
-                if (loginOverlay) loginOverlay.classList.add("hidden");
-                switchPortalUI("teacher");
-                showToast("Đăng nhập giáo viên thành công.");
                 return;
-            }
-
-            const selectEl = document.getElementById("student-select-login");
-            const studentId = selectEl?.value || "emma_std_01";
-            const password = document.getElementById("student-pass")?.value || "";
-            if (!password.trim()) {
-                showError("Vui lòng nhập mật khẩu.");
+            } else if (activeRole === "register") {
+                const username = document.getElementById("reg-username")?.value || "";
+                const password = document.getElementById("reg-password")?.value || "";
+                const name = document.getElementById("reg-name")?.value || "";
+                const grade = document.getElementById("reg-grade")?.value || "5";
+                try {
+                    const response = await fetch("/api/auth/student/register", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username, password, name, grade: parseInt(grade) })
+                    });
+                    if (!response.ok) {
+                        const err = await response.json();
+                        showError(err.detail || "Đăng ký thất bại.");
+                        return;
+                    }
+                    const auth = await response.json();
+                    await handleSuccessfulStudentLogin(auth);
+                } catch (e) {
+                    showError("Lỗi kết nối máy chủ.");
+                }
                 return;
+            } else {
+                const username = document.getElementById("student-pass")?.value || ""; // For backward-compat test logic, but we should use a real username input if available. For now, since there's no username input in student form, let's use the dropdown value.
+                const studentId = document.getElementById("student-select-login")?.value || "emma_std_01";
+                const password = document.getElementById("student-pass")?.value || "";
+                try {
+                    const response = await fetch("/api/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: studentId, password: password, role: "student" })
+                    });
+                    if (!response.ok) {
+                        showError("Tài khoản hoặc mật khẩu không đúng.");
+                        return;
+                    }
+                    const auth = await response.json();
+                    await handleSuccessfulStudentLogin(auth);
+                } catch (e) {
+                    showError("Lỗi kết nối máy chủ.");
+                }
             }
-
-            const profile = getStudentLoginProfile(studentId);
-            state.isLoggedIn = true;
-            state.loggedInRole = "student";
-            state.baseStudentId = studentId;
-            state.studentId = studentId;
-            applyRewardState(loadRewardState(profile));
-            state.studentProgress.activeSkill = profile.skill;
-
-            localStorage.setItem("isLoggedIn", "true");
-            localStorage.setItem("loggedInRole", "student");
-            localStorage.setItem("studentId", studentId);
-            await ensureStudentProfileForLogin(studentId, profile);
-            if (loginOverlay) loginOverlay.classList.add("hidden");
-            switchPortalUI("student");
-            updateStudentRewardsUI();
-
-            const subjectSelect = document.getElementById("subject-select");
-            const gradeSelect = document.getElementById("grade-select");
-            if (subjectSelect) subjectSelect.value = "Toán";
-            if (gradeSelect) gradeSelect.value = String(profile.grade);
-            prepareTestSetup();
-            showToast(`Đăng nhập thành công. Chọn lớp/môn rồi bấm Bắt đầu để làm bài test.`);
         });
     }
 
+    async function handleSuccessfulStudentLogin(auth) {
+        const studentId = auth.user?.student_id;
+        const profile = getStudentLoginProfile(studentId);
+        state.isLoggedIn = true;
+        state.loggedInRole = "student";
+        state.baseStudentId = studentId;
+        state.studentId = studentId;
+        state.xp = profile.xp;
+        state.coins = profile.coins;
+        state.streak = profile.streak;
+        state.studentProgress.activeSkill = profile.skill;
+
+        localStorage.setItem("isLoggedIn", "true");
+        localStorage.setItem("loggedInRole", "student");
+        localStorage.setItem("studentId", studentId);
+        localStorage.setItem("accessToken", auth.access_token);
+        await ensureStudentProfileForLogin(studentId, profile);
+        if (loginOverlay) loginOverlay.classList.add("hidden");
+        
+        if (auth.user && auth.user.initial_assessment_completed === false) {
+            document.body.classList.add("assessment-mode");
+            showToast("Bạn cần hoàn thành bài test đầu vào.");
+            startAdaptiveTest(true);
+        } else {
+            switchPortalUI("student");
+            updateStudentRewardsUI();
+            prepareTestSetup();
+            showToast("Đăng nhập thành công.");
+        }
+    }
+
     if (logoutBtn) {
-        logoutBtn.addEventListener("click", () => {
+        logoutBtn.addEventListener("click", async () => {
+            const token = localStorage.getItem("accessToken");
+            if (token) await fetch("/api/auth/logout", { method: "POST", headers: { "Authorization": `Bearer ${token}` } }).catch(() => null);
             localStorage.removeItem("isLoggedIn");
             localStorage.removeItem("loggedInRole");
             localStorage.removeItem("studentId");
+            localStorage.removeItem("accessToken");
             state.isLoggedIn = false;
             state.loggedInRole = null;
             state.studentId = "emma_std_01";
@@ -4234,24 +4369,58 @@ function initAuthFlow() {
     const storedLoggedIn = localStorage.getItem("isLoggedIn");
     const storedRole = localStorage.getItem("loggedInRole");
     const storedStudentId = localStorage.getItem("studentId") || "emma_std_01";
-    if (storedLoggedIn === "true" && storedRole) {
-        state.isLoggedIn = true;
-        state.loggedInRole = storedRole;
-        if (storedRole === "student") {
-            const profile = getStudentLoginProfile(storedStudentId);
-            state.baseStudentId = storedStudentId;
-            state.studentId = storedStudentId;
-            applyRewardState(loadRewardState(profile));
-            state.studentProgress.activeSkill = profile.skill;
-            switchPortalUI("student");
-            updateStudentRewardsUI();
-        } else {
-            switchPortalUI("teacher");
+    const storedToken = localStorage.getItem("accessToken");
+    
+    async function checkSession() {
+        let sessionValid = false;
+        let sessionUser = null;
+        if (storedToken) {
+            try {
+                const sessionResponse = await fetch("/api/auth/me", { headers: { "Authorization": `Bearer ${storedToken}` } });
+                sessionValid = sessionResponse.ok;
+                if (sessionValid) {
+                    const sessionData = await sessionResponse.json();
+                    sessionUser = sessionData.user;
+                }
+            } catch (error) {
+                console.warn("[Auth] Không thể xác minh phiên đăng nhập.", error);
+            }
         }
-        if (loginOverlay) loginOverlay.classList.add("hidden");
-    } else if (loginOverlay) {
-        loginOverlay.classList.remove("hidden");
+        
+        if (storedLoggedIn === "true" && storedRole && sessionValid) {
+            state.isLoggedIn = true;
+            state.loggedInRole = storedRole;
+            if (storedRole === "student") {
+                const profile = getStudentLoginProfile(storedStudentId);
+                state.baseStudentId = storedStudentId;
+                state.studentId = storedStudentId;
+                state.xp = profile.xp;
+                state.coins = profile.coins;
+                state.streak = profile.streak;
+                state.studentProgress.activeSkill = profile.skill;
+                
+                if (sessionUser && sessionUser.initial_assessment_completed === false) {
+                    document.body.classList.add("assessment-mode");
+                    showToast("Bạn cần hoàn thành bài test đầu vào.");
+                    startAdaptiveTest(true);
+                } else {
+                    switchPortalUI("student");
+                    updateStudentRewardsUI();
+                    prepareTestSetup();
+                }
+            } else {
+                switchPortalUI("teacher");
+            }
+            if (loginOverlay) loginOverlay.classList.add("hidden");
+        } else if (loginOverlay) {
+            localStorage.removeItem("isLoggedIn");
+            localStorage.removeItem("loggedInRole");
+            localStorage.removeItem("studentId");
+            localStorage.removeItem("accessToken");
+            loginOverlay.classList.remove("hidden");
+        }
     }
+    checkSession();
 }
 
 function initPortalNavigation() {
@@ -4619,35 +4788,41 @@ function renderFinalReport(payload) {
     `;
 }
 
-async function generateAILessonPlan(skillName, skillId) {
+async function generateAILessonPlan(skillName, skillId, groupContext) {
     const container = document.getElementById("lesson-plan-modal-body");
     if (!container) return;
 
     if (skillId) {
-        container.textContent = "FPT AI đang xây dựng giáo án theo dữ liệu chẩn đoán...";
+        container.innerHTML = "<em>FPT AI đang xây dựng giáo án bám sát SGK theo dữ liệu chẩn đoán...</em>";
         try {
-            const response = await fetch("/api/ai/teacher/lesson-plan", {
+            const response = await fetch("/api/ai/teacher/lesson-plan-grounded", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     skill_id: normalizeSkillId(skillId),
-                    group_context: "Nhóm học sinh có xác suất thành thạo dưới 0.50."
+                    group_context: groupContext || "Nhóm học sinh có xác suất thành thạo dưới 0.50.",
+                    textbook_series: "Kết nối tri thức"
                 })
             });
             if (response.ok) {
                 const data = await response.json();
-                container.textContent = data.content;
-                container.style.whiteSpace = "pre-wrap";
+                container.innerHTML = marked.parse(data.content || data.error || data.detail || "");
+                return;
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                container.innerHTML = `<div class="alert-error">Lỗi từ AI: ${errorData.detail || response.statusText}</div>`;
                 return;
             }
         } catch (error) {
             console.warn("[FPT AI] Không thể sinh giáo án, dùng mẫu offline.", error);
         }
     }
+
+    // Fallback if needed
     container.style.whiteSpace = "";
     
     let topic = skillName || "Quy đồng mẫu số phân số (Kiến thức nền gốc Lớp 5)";
-    let targetGroup = "Nhóm học sinh bị hổng kiến thức nền tương ứng.";
+    let targetGroup = groupContext || "Nhóm học sinh bị hổng kiến thức nền tương ứng.";
     let objectives = "";
     let activity = "";
     let exercises = "";
@@ -4801,15 +4976,16 @@ function hideLoadingOverlay() {
     document.getElementById("loading-overlay").style.display = "none";
 }
 
-async function openTeacherAILearningPath(studentId) {
+async function openTeacherAILearningPath(studentId, targetSkill) {
     const modal = document.getElementById("modal-diagnostic-inspector");
     const container = document.getElementById("diagnostic-inspector-body");
     if (!modal || !container) return;
 
     modal.style.display = "flex";
-    container.textContent = "AI đang tạo lộ trình can thiệp theo mastery và prerequisite graph...";
+    container.innerHTML = "<em>AI đang tạo lộ trình can thiệp theo mastery và prerequisite graph...</em>";
     try {
-        const response = await fetch(`/api/ai/teacher/student/${studentId}/learning-path?target_skill=MATH_G7`);
+        const querySkill = encodeURIComponent(targetSkill || "MATH_G7");
+        const response = await fetch(`/api/ai/teacher/student/${studentId}/learning-path?target_skill=${querySkill}`);
         if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
             throw new Error(payload.detail || `AI HTTP ${response.status}`);
@@ -4835,7 +5011,7 @@ async function openTeacherAILearningPath(studentId) {
         `;
     } catch (error) {
         console.warn("[Teacher AI Path] Không thể sinh lộ trình.", error);
-        container.textContent = "Chưa tạo được lộ trình AI. Kiểm tra FPT AI key/model hoặc thử lại sau.";
+        container.innerHTML = `<div class="alert-error">Chưa tạo được lộ trình AI. Kiểm tra FPT AI key/model hoặc thử lại sau. Lỗi: ${error.message}</div>`;
     }
 }
 

@@ -46,15 +46,16 @@ class FPTAIClient:
     def configured(self) -> bool:
         return bool(self.api_key and self.model and self.base_url)
 
-    def complete(self, *, system_prompt: str, user_prompt: str) -> FPTAIResult:
+    def complete(self, *, system_prompt: str, user_prompt: str, history: list[dict] = None) -> FPTAIResult:
         if not self.configured:
             raise FPTAIError("FPT AI chưa được cấu hình đầy đủ.")
+        messages = [{"role": "system", "content": system_prompt}]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": user_prompt})
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+            "messages": messages,
             "temperature": FPT_AI_TEMPERATURE,
             "max_tokens": FPT_AI_MAX_TOKENS,
             "stream": False,
@@ -102,7 +103,7 @@ class FPTAIClient:
         try:
             content = body["choices"][0]["message"]["content"].strip()
         except (KeyError, IndexError, TypeError, AttributeError) as exc:
-            raise FPTAIError("Phản hồi FPT AI không chứa nội dung trả lời.") from exc
+            raise FPTAIError(f"Phản hồi FPT AI không chứa nội dung trả lời. Dữ liệu gốc: {body}") from exc
         if not content:
             raise FPTAIError("FPT AI trả về nội dung rỗng.")
         return FPTAIResult(content=content, model=body.get("model", self.model), usage=body.get("usage"))
