@@ -5477,12 +5477,16 @@ function initStudentAccountAuth() {
                     if (password !== (document.getElementById("register-parent-confirm")?.value || "")) {
                         throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
                     }
+                    const childId = document.getElementById("register-parent-child")?.value || "";
+                    if (!childId.trim()) {
+                        throw new Error("Vui lòng nhập mã học sinh của con.");
+                    }
                     payload = await requestAuth("/api/auth/parent/register", {
                         username: document.getElementById("register-parent-username")?.value || "",
                         password,
                         name: document.getElementById("register-parent-name")?.value || "",
                         phone: document.getElementById("register-parent-phone")?.value || "",
-                        child_student_id: document.getElementById("register-parent-child")?.value || ""
+                        child_student_id: childId
                     });
                 }
                 

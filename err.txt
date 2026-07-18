@@ -1,0 +1,1 @@
+{"detail":"FPT AI chưa được cấu hình đầy đủ."}

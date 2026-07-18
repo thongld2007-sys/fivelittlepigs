@@ -146,7 +146,7 @@ def register_teacher(*, username: str, password: str, name: str, subject: str | 
         _audit(session, user.id, "teacher_registered", user.id)
         return user
 
-def register_parent(*, username: str, password: str, name: str, phone: str | None = None, child_student_id: str | None = None) -> User:
+def register_parent(*, username: str, password: str, name: str, child_student_id: str, phone: str | None = None) -> User:
     username = normalize_username(username)
     validate_password(password)
     name = " ".join(name.strip().split())
@@ -159,11 +159,9 @@ def register_parent(*, username: str, password: str, name: str, phone: str | Non
         if session.scalar(select(User.id).where(User.email == normalized_email)):
             raise StudentAuthError("Email đã được sử dụng.", 409)
         
-        # Verify if child exists
-        if child_student_id:
-            student = session.get(Student, child_student_id)
-            if not student:
-                raise StudentAuthError("Không tìm thấy mã học sinh của con.", 404)
+        student = session.get(Student, child_student_id)
+        if not student:
+            raise StudentAuthError("Không tìm thấy mã học sinh của con.", 404)
 
         user = User(
             username=username,
