@@ -134,6 +134,16 @@ def _migrate_legacy_sqlite():
             for name, definition in additions.items():
                 if name not in columns:
                     connection.execute(f"ALTER TABLE question_bank ADD COLUMN {name} {definition}")
+        if "mastery_history" in tables:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(mastery_history)")}
+            if "probability" not in columns:
+                connection.execute("ALTER TABLE mastery_history ADD COLUMN probability FLOAT DEFAULT 0.5")
+        if "audit_logs" in tables:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(audit_logs)")}
+            if "metadata_json" not in columns:
+                connection.execute("ALTER TABLE audit_logs ADD COLUMN metadata_json JSON")
+            if "actor_user_id" not in columns:
+                connection.execute("ALTER TABLE audit_logs ADD COLUMN actor_user_id TEXT")
         connection.commit()
     finally:
         connection.close()
