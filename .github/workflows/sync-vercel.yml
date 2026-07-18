@@ -12,4 +12,4 @@ jobs:
           fetch-depth: 0
       - name: Push to Vercel-connected repo
         run: |
-          git push --force https://x-access-token:${{ secrets.VERCEL_SYNC_TOKEN }}@github.com/nguyenducthanh265/fivelittlepigsss.git main
+          git push --force https://${{ secrets.VERCEL_SYNC_TOKEN }}@github.com/nguyenducthanh265/fivelittlepigsss.git main
