@@ -1,18 +1,20 @@
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import time
 import os
 import json
-import sqlite3
 import re
+import math
 
 from backend.config import APP_AUTH_REQUIRED, Config, FPT_AI_MAX_IMAGE_BYTES
 from backend.database import (
     init_db, get_student, get_student_mastery, record_response,
-    get_consecutive_failed_count, get_stuck_time_minutes, get_db_connection,
-    add_student, get_ai_usage_summary, list_students
+    get_consecutive_failed_count, get_stuck_time_minutes, get_answered_question_ids,
+    add_student, get_ai_usage_summary, list_students, reset_student_session,
+    get_dashboard_snapshot, record_ai_usage, record_uploaded_work,
+    get_response_event, get_db_connection,
 )
 from backend.diagnostic_engine import update_student_skill, get_next_recommended_skill, get_next_question_difficulty_and_skill
 from backend.fpt_ai import FPTAIError, fpt_ai_client
@@ -20,6 +22,7 @@ from backend.fpt_speech import fpt_speech_client
 from backend.auth import exchange_api_key, require_auth
 from backend.pedagogical_agents import lesson_planner_agent, socratic_agent
 from backend.knowledge_graph import KNOWLEDGE_GRAPH
+from backend.storage import object_storage
 
 app = FastAPI(title="VGap AI - Adaptive Tutoring Backend")
 
@@ -156,6 +159,8 @@ def get_knowledge_graph():
 class AnswerSubmission(BaseModel):
     question_id: str
     selected_option: str
+    event_id: str | None = Field(default=None, max_length=36)
+    time_spent_ms: int = Field(default=0, ge=0, le=86_400_000)
 
 class CheckAnswerRequest(BaseModel):
     question_id: str
@@ -186,7 +191,7 @@ class TTSRequest(BaseModel):
     speed: int = 0
 
 # Endpoints
-@app.get("/api/students")
+@app.get("/api/students", dependencies=[Depends(require_auth)])
 def get_students():
     return list_students()
 
@@ -268,9 +273,15 @@ async def analyze_student_work(
         )
     except FPTAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    stored = object_storage.save(content, image.content_type, original_name=image.filename)
+    record_ai_usage("vision_analysis", result.model, result.usage, result.latency_ms)
+    upload_id = record_uploaded_work(
+        student_id, question_id, stored["object_key"], image.content_type,
+        vision_result={"content": result.content, "model": result.model, "usage": result.usage},
+    )
     return {
         "provider": "FPT AI Factory VLM", "content": result.content, "model": result.model,
-        "usage": result.usage, "latency_ms": result.latency_ms,
+        "usage": result.usage, "latency_ms": result.latency_ms, "upload_id": upload_id,
     }
 
 
@@ -279,9 +290,9 @@ def speech_tts(payload: TTSRequest):
     if not 3 <= len(payload.text) <= 5000 or not -3 <= payload.speed <= 3:
         raise HTTPException(status_code=422, detail="Invalid text length or speed")
     try:
-        return {"provider": "FPT.AI Speech", **fpt_speech_client.text_to_speech(
-            payload.text, voice=payload.voice, speed=payload.speed
-        )}
+        result = fpt_speech_client.text_to_speech(payload.text, voice=payload.voice, speed=payload.speed)
+        record_ai_usage("speech_tts", "FPT.AI TTS", {}, result.get("latency_ms", 0))
+        return {"provider": "FPT.AI Speech", **result}
     except FPTAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -292,46 +303,34 @@ async def speech_stt(audio: UploadFile = File(...)):
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Audio is too large")
     try:
-        return {"provider": "FPT.AI Speech", **fpt_speech_client.speech_to_text(
-            content, audio.content_type or "audio/wav"
-        )}
+        result = fpt_speech_client.speech_to_text(content, audio.content_type or "audio/wav")
+        record_ai_usage("speech_stt", "FPT.AI STT", {}, result.get("latency_ms", 0))
+        return {"provider": "FPT.AI Speech", **result}
     except FPTAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
-@app.post("/api/students")
+@app.post("/api/students", dependencies=[Depends(require_auth)])
 def create_student(payload: StudentCreate):
     if not (1 <= payload.grade <= 12):
         raise HTTPException(status_code=422, detail="Grade must be between 1 and 12")
     return add_student(payload.student_id, payload.name.strip() or payload.student_id, payload.grade)
 
-@app.post("/api/student/session")
+@app.post("/api/student/session", dependencies=[Depends(require_auth)])
 def create_survey_session(payload: SurveySessionRequest):
     """Create a clean student profile for one adaptive survey attempt."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO students (id, name, grade) VALUES (?, ?, ?)",
-        (payload.student_id, payload.name, payload.grade)
+    session_id = reset_student_session(
+        payload.student_id, payload.name, payload.grade, KNOWLEDGE_GRAPH.keys()
     )
-
-    for skill_id in KNOWLEDGE_GRAPH.keys():
-        cursor.execute("""
-            INSERT OR REPLACE INTO student_mastery (student_id, skill_id, mastery_probability)
-            VALUES (?, ?, ?)
-        """, (payload.student_id, skill_id, 0.5))
-
-    cursor.execute("DELETE FROM responses WHERE student_id = ?", (payload.student_id,))
-    conn.commit()
-    conn.close()
 
     return {
         "student_id": payload.student_id,
         "grade": payload.grade,
-        "status": "ready"
+        "status": "ready",
+        "session_id": session_id,
     }
 
-@app.get("/api/student/{student_id}/next-question")
+@app.get("/api/student/{student_id}/next-question", dependencies=[Depends(require_auth)])
 def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_format: str = "choice"):
     student = get_student(student_id)
     if not student:
@@ -379,15 +378,7 @@ def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_fo
 
     # Avoid serving a question the student has already answered for this skill
     # until all candidates at the chosen level have been exhausted.
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT question_id FROM responses
-        WHERE student_id = ? AND skill_id = ?
-        ORDER BY id DESC
-    """, (student_id, recommended_skill))
-    answered_ids = {row[0] for row in cursor.fetchall()}
-    conn.close()
+    answered_ids = get_answered_question_ids(student_id, recommended_skill)
 
     fresh_questions = [q for q in skill_questions if q["id"] not in answered_ids]
     if fresh_questions:
@@ -415,7 +406,7 @@ def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_fo
         "target_difficulty": target_difficulty
     }
 
-@app.post("/api/student/{student_id}/submit")
+@app.post("/api/student/{student_id}/submit", dependencies=[Depends(require_auth)])
 def submit_answer(student_id: str, submission: AnswerSubmission):
     student = get_student(student_id)
     if not student:
@@ -431,6 +422,23 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
         
     is_correct = (submission.selected_option == question["correct_answer"])
     distractor_explanations = build_distractor_explanations(question)
+
+    existing_event = get_response_event(submission.event_id)
+    if existing_event:
+        if existing_event["student_id"] != student_id or existing_event["question_id"] != question["id"]:
+            raise HTTPException(status_code=409, detail="event_id is already used by another answer")
+        mastery = get_student_mastery(student_id, question["skill_id"])
+        next_skill, next_diff = get_next_question_difficulty_and_skill(student_id, question["skill_id"])
+        return {
+            "is_correct": existing_event["is_correct"],
+            "correct_answer": question["correct_answer"],
+            "distractor_explanation": None if existing_event["is_correct"] else distractor_explanations.get(submission.selected_option),
+            "hint": question.get("hint", ""),
+            "new_mastery_probability": mastery,
+            "next_recommended_skill": next_skill,
+            "next_recommended_difficulty": next_diff,
+            "idempotent_replay": True,
+        }
     
     # Record response in DB (with difficulty_level)
     record_response(
@@ -439,7 +447,10 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
         question["skill_id"], 
         question.get("difficulty_level", 2), 
         is_correct, 
-        int(time.time())
+        int(time.time()),
+        selected_option=submission.selected_option,
+        event_id=submission.event_id,
+        time_spent_ms=max(0, submission.time_spent_ms),
     )
     
     # Run BKT Bayesian Update
@@ -458,7 +469,7 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
         "next_recommended_difficulty": next_diff
     }
 
-@app.post("/api/check-answer")
+@app.post("/api/check-answer", dependencies=[Depends(require_auth)])
 def check_answer(submission: CheckAnswerRequest):
     """Compatibility endpoint for frontend modules that submit answers globally."""
     if not get_student(submission.student_id):
@@ -473,6 +484,69 @@ def check_answer(submission: CheckAnswerRequest):
 
 @app.get("/api/teacher/dashboard", dependencies=[Depends(require_auth)])
 def get_teacher_dashboard():
+    snapshot = get_dashboard_snapshot(KNOWLEDGE_GRAPH.keys())
+    total_students = snapshot["total_students"]
+    groups = {}
+    for skill_id, members in snapshot["gaps"].items():
+        if members:
+            groups[skill_id] = {
+                "title": f"Nhóm hổng: {KNOWLEDGE_GRAPH[skill_id]['name']}",
+                "skill_id": skill_id,
+                "count": len(members),
+                "members": members[:5] + (
+                    [f"+{len(members) - 5} học sinh khác"] if len(members) > 5 else []
+                ),
+            }
+    class_progress = [
+        {
+            "skill_id": skill_id,
+            "label": KNOWLEDGE_GRAPH[skill_id]["name"],
+            "percent": max(0, min(100, int(round(ratio * 100)))),
+        }
+        for skill_id, ratio in snapshot["skill_averages"].items()
+        if ratio is not None
+    ]
+    class_progress = sorted(class_progress, key=lambda item: item["skill_id"])[:8]
+    reteach = next(
+        (
+            KNOWLEDGE_GRAPH[skill_id]["name"]
+            for skill_id, group in groups.items()
+            if total_students and group["count"] / total_students >= 0.20
+        ),
+        None,
+    )
+    priority_list = []
+    for student_id, name in snapshot["students"]:
+        active_skill = snapshot["last_skills"].get(student_id)
+        if active_skill not in KNOWLEDGE_GRAPH:
+            active_skill = "MATH_G7"
+        mastery = get_student_mastery(student_id, active_skill)
+        failed = get_consecutive_failed_count(student_id, active_skill)
+        stuck = get_stuck_time_minutes(student_id, active_skill)
+        score = (1.0 - mastery) * (1.0 + failed) * math.log(stuck + 2)
+        priority_list.append({
+            "id": student_id,
+            "name": name,
+            "current_skill": KNOWLEDGE_GRAPH[active_skill]["name"],
+            "n_failed": failed,
+            "t_stuck": stuck,
+            "mastery": round(mastery, 2),
+            "priority_score": round(score, 2),
+        })
+    priority_list.sort(key=lambda item: item["priority_score"], reverse=True)
+    return {
+        "metrics": {
+            "total_students": total_students,
+            "average_mastery": f"{int(snapshot['average_mastery'] * 100)}%",
+            "gap_groups_count": f"{len(groups)} nhóm",
+            "re_teach_alert": reteach,
+        },
+        "groups": list(groups.values()),
+        "priority_list": priority_list,
+        "class_progress": class_progress,
+    }
+
+    # Legacy implementation retained below temporarily for migration review; unreachable.
     conn = get_db_connection()
     cursor = conn.cursor()
     

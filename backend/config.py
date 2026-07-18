@@ -17,9 +17,15 @@ class Config:
     QUESTIONS_JSON_PATH = os.path.join(DATA_DIR, "questions.json")
     PORT = 8000
     HOST = "127.0.0.1"
+    DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH.replace(os.sep, '/')}")
+    DB_ECHO = os.getenv("DB_ECHO", "false").lower() in {"1", "true", "yes"}
+    DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
+    DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+    UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(DATA_DIR, "uploads"))
 
 # Ensure data directory exists
 os.makedirs(Config.DATA_DIR, exist_ok=True)
+os.makedirs(Config.UPLOAD_DIR, exist_ok=True)
 
 # FPT AI Factory settings are intentionally read from environment variables.
 # Never put a real key in source control; copy .env.example to .env locally.

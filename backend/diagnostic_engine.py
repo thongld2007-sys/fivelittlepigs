@@ -1,6 +1,6 @@
 import math
 import random
-from backend.database import get_student_mastery, update_student_mastery, get_db_connection
+from backend.database import get_response_history, get_student_mastery, update_student_mastery
 from backend.knowledge_graph import KNOWLEDGE_GRAPH, get_prerequisites
 
 CORRECT_COUNT_STABILITY_THRESHOLD = 3
@@ -72,16 +72,7 @@ def get_next_question_difficulty_and_skill(student_id, current_skill_id):
            - Select the prerequisite with the lowest mastery probability.
            - Serve the prerequisite skill, difficulty randomly level 2 or 3.
     """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT question_id, difficulty_level, is_correct 
-        FROM responses 
-        WHERE student_id = ? AND skill_id = ? 
-        ORDER BY id DESC
-    """, (student_id, current_skill_id))
-    rows = [dict(r) for r in cursor.fetchall()]
-    conn.close()
+    rows = get_response_history(student_id, current_skill_id)
     
     if not rows:
         # No history on this skill: start with random difficulty 2 or 3

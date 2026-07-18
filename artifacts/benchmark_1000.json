@@ -23,8 +23,8 @@
   },
   "comparison": {
     "question_reduction_percent": 57.77,
-    "simulation_latency_ms_total": 8.57,
-    "simulation_latency_ms_per_student": 0.0086,
+    "simulation_latency_ms_total": 11.15,
+    "simulation_latency_ms_per_student": 0.0111,
     "estimated_ai_tokens_per_socratic_turn": 900,
     "token_note": "Estimate only; provider usage is recorded on live agent responses."
   }

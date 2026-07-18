@@ -3,6 +3,8 @@ VAIC 2026 - HACKERS GUIDELINES.pdf
 
 # Exclude local database
 data/tutor.db
+data/*.db
+data/uploads/
 
 # Exclude python cache
 __pycache__/
@@ -19,4 +21,3 @@ tests/__pycache__/
 !.env.example
 data/*.db-shm
 data/*.db-wal
-data/test_*.db

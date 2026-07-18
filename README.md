@@ -160,3 +160,39 @@ và [LLM API Reference](https://github.com/fpt-corp/ai-marketplace/blob/main/API
 FPT references used by these adapters: [Marketplace VLM](https://ai-docs.fptcloud.com/api-reference/ai-marketplace/api-reference/api-integration-vision-language-model-md),
 [FPT TTS v5](https://docs.fpt.ai/docs/vi/speech/api/text-to-speech.html), and
 [FPT STT](https://docs.fpt.ai/docs/vi/speech/api/speech-to-text/).
+
+## Persistent database
+
+The backend now uses SQLAlchemy and the same repository layer for SQLite and PostgreSQL. The schema
+stores organizations and users, classes and enrollments, students, the skill/question bank,
+diagnostic sessions, current and historical mastery, answer events, private work uploads, AI agent
+traces, provider token/latency usage, and audit logs.
+
+For a local pilot, keep the default in `.env` and run the versioned migration:
+
+```powershell
+Copy-Item .env.example .env
+.venv\Scripts\alembic.exe upgrade head
+py -3 run.py
+```
+
+For production, create an empty PostgreSQL database, set a secret URL locally, and migrate it:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://vgap:strong-password@db-host:5432/vgap
+```
+
+```powershell
+.venv\Scripts\alembic.exe upgrade head
+```
+
+To copy existing SQLite learning data, first inspect the read-only plan and then run the transaction:
+
+```powershell
+python tools/migrate_sqlite_to_postgres.py --sqlite data/tutor.db --database-url $env:DATABASE_URL --dry-run
+python tools/migrate_sqlite_to_postgres.py --sqlite data/tutor.db --database-url $env:DATABASE_URL
+```
+
+The copy refuses a non-empty target, verifies row counts before commit, and never modifies the
+SQLite source. Student-work images are private under `UPLOAD_DIR`; production deployments should
+mount this path on encrypted persistent storage or replace the adapter with S3-compatible storage.

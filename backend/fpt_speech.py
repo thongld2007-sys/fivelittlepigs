@@ -1,6 +1,7 @@
 """FPT.AI Console Speech adapters (TTS v5 and general ASR)."""
 
 import json
+import time
 import urllib.error
 import urllib.request
 
@@ -20,10 +21,12 @@ class FPTSpeechClient:
             "api-key": FPT_SPEECH_API_KEY, "voice": voice, "speed": str(speed),
             "format": "mp3", "Content-Type": "text/plain; charset=utf-8",
         })
+        started = time.perf_counter()
         body = self._json_request(request)
         if body.get("error") not in (0, "0", None) or not body.get("async"):
             raise FPTAIError("FPT TTS không tạo được tệp âm thanh.")
-        return {"audio_url": body["async"], "request_id": body.get("request_id"), "voice": voice}
+        return {"audio_url": body["async"], "request_id": body.get("request_id"), "voice": voice,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2)}
 
     def speech_to_text(self, audio: bytes, content_type: str) -> dict:
         if not self.configured:
@@ -31,12 +34,14 @@ class FPTSpeechClient:
         request = urllib.request.Request(FPT_STT_URL, data=audio, method="POST", headers={
             "api-key": FPT_SPEECH_API_KEY, "Content-Type": content_type,
         })
+        started = time.perf_counter()
         body = self._json_request(request)
         hypotheses = body.get("hypotheses") or []
         text = hypotheses[0].get("utterance", "").strip() if hypotheses else ""
         if body.get("status") not in (0, "0") or not text:
             raise FPTAIError("FPT STT không nhận dạng được nội dung âm thanh.")
-        return {"text": text, "request_id": body.get("id")}
+        return {"text": text, "request_id": body.get("id"),
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2)}
 
     @staticmethod
     def _json_request(request: urllib.request.Request) -> dict:
