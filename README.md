@@ -112,3 +112,43 @@ flowchart TD
     CheckStop -->|Chưa| GetQ
     CheckStop -->|Rồi| End([Hoàn thành chẩn đoán & Cập nhật Dashboard giáo viên])
 ```
+
+---
+
+## 5. Danh sách chức năng đã hoàn thành
+
+### Phía Học sinh
+- [x] Đăng nhập / tạo hồ sơ học sinh theo tên, lớp
+- [x] Bài kiểm tra chẩn đoán thích ứng (Adaptive Diagnostic Test) với 3 mức độ khó: Nhận biết, Thông hiểu, Vận dụng
+- [x] Tự động hạ độ khó khi trả lời sai, tăng độ khó khi trả lời đúng liên tiếp
+- [x] Tự động lùi về kỹ năng tiên quyết (prerequisite) trong Knowledge Graph khi phát hiện hổng gốc
+- [x] Cập nhật xác suất thành thạo theo Bayesian Knowledge Tracing (BKT) sau mỗi câu trả lời
+- [x] Hiển thị tiến trình học tập cá nhân và trạng thái thành thạo từng kỹ năng
+- [x] Hỗ trợ gợi ý học tập Socratic qua tích hợp FPT.AI (có fallback offline)
+- [x] Sinh lộ trình học tập cá nhân từ dữ liệu BKT và Knowledge Graph
+
+### Phía Giáo viên
+- [x] Dashboard tổng quan lớp học: sĩ số, tỷ lệ thành thạo trung bình, số nhóm hổng kiến thức
+- [x] Danh sách ưu tiên can thiệp (Priority List) xếp hạng theo công thức: `PS = (1 - mastery) × (1 + n_failed) × ln(t_stuck + 2)`
+- [x] Tự động phân nhóm học sinh theo lỗ hổng kiến thức chung (Auto-Grouping)
+- [x] Biểu đồ tiến trình lớp học theo từng kỹ năng (Class Progress Chart)
+- [x] Cảnh báo dạy lại (Re-teach Alert) khi ≥ 20% lớp hổng cùng một kỹ năng
+- [x] Cây lập luận chẩn đoán (Reasoning Tree) cho từng học sinh
+- [x] Dòng sự kiện thời gian thực (Realtime Event Feed) hiển thị 20 lượt trả lời gần nhất
+- [x] Sinh giáo án bổ trợ tự động bằng FPT.AI theo node Knowledge Graph (có fallback offline)
+- [x] WebSocket cập nhật dashboard theo thời gian thực (`/ws/teacher/dashboard`)
+
+### Tích hợp FPT.AI
+- [x] FPT AI Inference: Adapter gọi API Chat Completions cho gợi ý Socratic và sinh giáo án
+- [x] FPT AI Speech: Endpoint cache manifest cho Text-to-Speech (`/api/speech/cache`)
+- [x] Fallback offline hoàn toàn: BKT, chấm bài, điều hướng kỹ năng vẫn hoạt động khi không có API key
+
+### Hạ tầng kỹ thuật
+- [x] Knowledge Graph (DAG) gồm 58 node kỹ năng Toán từ lớp 1 đến lớp 9
+- [x] Ngân hàng câu hỏi 168 câu cho 58 kỹ năng, hỗ trợ 6 môn học
+- [x] SQLite database local với event log idempotent
+- [x] Behavioral anomaly filter: giảm trọng số BKT cho câu khó trả lời đúng quá nhanh
+- [x] Pedagogical explanation log: ghi nhận lý do hệ thống hạ độ khó hoặc lùi prerequisite
+- [x] Đồng bộ dữ liệu offline-to-cloud qua batch sync (`/api/sync/push`)
+- [x] Bộ kiểm thử tự động 25 test case (Pytest)
+- [x] Deploy tự động trên Vercel với CI/CD từ GitHub
