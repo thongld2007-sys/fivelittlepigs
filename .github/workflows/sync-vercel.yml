@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Debug Token Owner
         run: |
-          curl -H "Authorization: token ${{ secrets.VERCEL_SYNC_TOKEN }}" https://api.github.com/user | jq .login
+          curl -I -H "Authorization: token ${{ secrets.VERCEL_SYNC_TOKEN }}" https://api.github.com/user
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
