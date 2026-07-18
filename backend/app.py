@@ -699,6 +699,20 @@ class StudentActivationRequest(BaseModel):
 class ActivationCodeRequest(BaseModel):
     student_id: str = Field(min_length=1, max_length=64)
 
+class TeacherRegisterRequest(BaseModel):
+    username: str = Field(min_length=4, max_length=30)
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=2, max_length=100)
+    subject: Optional[str] = None
+    school: Optional[str] = None
+
+class ParentRegisterRequest(BaseModel):
+    username: str = Field(min_length=4, max_length=30)
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=2, max_length=100)
+    phone: Optional[str] = None
+    child_student_id: Optional[str] = None
+
 
 def _student_auth_error(exc: StudentAuthError):
     raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
@@ -797,6 +811,43 @@ def student_refresh(response: FastAPIResponse, vgap_refresh: Optional[str] = Coo
     _set_refresh_cookie(response, session["refresh_token"], session.get("remember_me", False))
     return _public_auth_payload(session)
 
+@app.post("/api/auth/teacher/register", status_code=201)
+def teacher_register(payload: TeacherRegisterRequest):
+    try:
+        from backend.student_auth import register_teacher
+        user = register_teacher(username=payload.username, password=payload.password,
+                                name=payload.name, subject=payload.subject, school=payload.school)
+        return {"id": user.id, "username": user.username, "role": "teacher"}
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+
+@app.post("/api/auth/parent/register", status_code=201)
+def parent_register(payload: ParentRegisterRequest):
+    try:
+        from backend.student_auth import register_parent
+        user = register_parent(username=payload.username, password=payload.password,
+                               name=payload.name, phone=payload.phone, child_student_id=payload.child_student_id)
+        return {"id": user.id, "username": user.username, "role": "parent", "child_student_id": payload.child_student_id}
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+
+@app.post("/api/auth/teacher/login")
+def teacher_login(payload: StudentLoginRequest):
+    try:
+        from backend.student_auth import authenticate_teacher
+        auth = authenticate_teacher(payload.username, payload.password)
+        return {"id": auth["user_id"], "username": auth["username"], "role": "teacher"}
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
+
+@app.post("/api/auth/parent/login")
+def parent_login(payload: StudentLoginRequest):
+    try:
+        from backend.student_auth import authenticate_parent
+        auth = authenticate_parent(payload.username, payload.password)
+        return {"id": auth["user_id"], "username": auth["username"], "role": "parent", "child_student_id": auth.get("child_student_id")}
+    except StudentAuthError as exc:
+        _student_auth_error(exc)
 
 @app.post("/api/auth/logout", status_code=204)
 def logout(response: FastAPIResponse, authorization: Optional[str] = Header(default=None), vgap_refresh: str | None = Cookie(default=None)):

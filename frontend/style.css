@@ -4596,14 +4596,14 @@ body {
     display: none;
 }
 
-.student-auth-switch {
+.student-auth-switch, .teacher-auth-switch, .parent-auth-switch {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 0.35rem;
     margin-bottom: 1rem;
 }
 
-.student-auth-mode {
+.student-auth-mode, .teacher-auth-mode, .parent-auth-mode {
     border: 2px solid #000;
     border-radius: 9px;
     background: #f1f5f9;
@@ -4612,16 +4612,16 @@ body {
     cursor: pointer;
 }
 
-.student-auth-mode.active {
+.student-auth-mode.active, .teacher-auth-mode.active, .parent-auth-mode.active {
     background: var(--accent);
     box-shadow: 2px 2px 0 #000;
 }
 
-.student-auth-panel {
+.student-auth-panel, .teacher-auth-panel, .parent-auth-panel {
     display: none;
 }
 
-.student-auth-panel.active {
+.student-auth-panel.active, .teacher-auth-panel.active, .parent-auth-panel.active {
     display: block;
 }
 

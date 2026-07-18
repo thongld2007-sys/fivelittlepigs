@@ -5315,13 +5315,30 @@ function initStudentAccountAuth() {
     const overlay = document.getElementById("login-overlay");
     const roleTabs = document.querySelectorAll(".login-tab-btn");
     const rolePanels = document.querySelectorAll(".login-form-panel");
-    const modeButtons = document.querySelectorAll(".student-auth-mode");
-    const modePanels = document.querySelectorAll(".student-auth-panel");
     const submitButton = document.getElementById("btn-login-submit");
     const errorBox = document.getElementById("login-error-msg");
     const logoutButton = document.getElementById("btn-logout");
     let role = "student";
-    let studentMode = "login";
+
+    const setupAuthSwitch = (roleName) => {
+        const buttons = document.querySelectorAll(`.${roleName}-auth-mode`);
+        const panels = document.querySelectorAll(`.${roleName}-auth-panel`);
+        let mode = "login";
+        buttons.forEach(button => button.addEventListener("click", () => {
+            mode = button.getAttribute(`data-${roleName}-auth-mode`) || "login";
+            buttons.forEach(item => item.classList.toggle("active", item === button));
+            panels.forEach(panel => panel.classList.toggle(
+                "active", panel.getAttribute(`data-${roleName}-auth-panel`) === mode
+            ));
+            clearError();
+            setSubmitLabel();
+        }));
+        return () => mode;
+    };
+
+    const getStudentMode = setupAuthSwitch("student");
+    const getTeacherMode = setupAuthSwitch("teacher");
+    const getParentMode = setupAuthSwitch("parent");
 
     const showError = message => {
         if (!errorBox) return;
@@ -5332,7 +5349,12 @@ function initStudentAccountAuth() {
     const setSubmitLabel = () => {
         const labels = { login: "Đăng nhập", register: "Tạo tài khoản", activate: "Kích hoạt hồ sơ" };
         const span = submitButton?.querySelector("span");
-        if (span) span.textContent = role === "student" ? labels[studentMode] : "Đăng nhập";
+        if (span) {
+            if (role === "student") span.textContent = labels[getStudentMode()];
+            else if (role === "teacher") span.textContent = labels[getTeacherMode()] || "Đăng nhập";
+            else if (role === "parent") span.textContent = labels[getParentMode()] || "Đăng nhập";
+            else span.textContent = "Đăng nhập";
+        }
     };
     const applyStudent = payload => {
         authAccessToken = payload.access_token;
@@ -5377,49 +5399,12 @@ function initStudentAccountAuth() {
         setSubmitLabel();
     }));
 
-    modeButtons.forEach(button => button.addEventListener("click", () => {
-        studentMode = button.getAttribute("data-student-auth-mode") || "login";
-        modeButtons.forEach(item => item.classList.toggle("active", item === button));
-        modePanels.forEach(panel => panel.classList.toggle(
-            "active", panel.getAttribute("data-student-auth-panel") === studentMode
-        ));
-        clearError();
-        setSubmitLabel();
-    }));
+
 
     submitButton?.addEventListener("click", async () => {
         clearError();
         submitButton.disabled = true;
         try {
-            if (role === "teacher") {
-                const password = document.getElementById("teacher-pass")?.value || "";
-                if (password !== "123456") throw new Error("Tài khoản hoặc mật khẩu giáo viên chưa đúng.");
-                state.isLoggedIn = true;
-                state.loggedInRole = "teacher";
-                localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("loggedInRole", "teacher");
-                overlay?.classList.add("hidden");
-                switchPortalUI("teacher");
-                return;
-            }
-            if (role === "parent") {
-                const studentId = document.getElementById("parent-student-select")?.value || "emma_std_01";
-                const password = document.getElementById("parent-pass")?.value || "";
-                if (password !== "123456") throw new Error("Mật khẩu phụ huynh mặc định là 123456.");
-                const profile = getStudentLoginProfile(studentId);
-                state.isLoggedIn = true;
-                state.loggedInRole = "parent";
-                state.baseStudentId = studentId;
-                state.studentId = studentId;
-                applyRewardState(loadRewardState(profile));
-                state.studentProgress.activeSkill = profile.skill;
-                localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("loggedInRole", "parent");
-                localStorage.setItem("studentId", studentId);
-                overlay?.classList.add("hidden");
-                switchPortalUI("parent");
-                return;
-            }
             if (role === "admin") {
                 const password = document.getElementById("admin-pass")?.value || "";
                 if (password !== "123456") throw new Error("Mật khẩu admin mặc định là 123456.");
@@ -5444,7 +5429,83 @@ function initStudentAccountAuth() {
                 switchPortalUI("investor");
                 return;
             }
+            
+            if (role === "teacher") {
+                let payload;
+                const mode = getTeacherMode();
+                if (mode === "login") {
+                    payload = await requestAuth("/api/auth/teacher/login", {
+                        username: document.getElementById("teacher-username")?.value || "",
+                        password: document.getElementById("teacher-pass")?.value || "",
+                        remember_me: Boolean(document.getElementById("teacher-remember")?.checked)
+                    });
+                } else if (mode === "register") {
+                    const password = document.getElementById("register-teacher-password")?.value || "";
+                    if (password !== (document.getElementById("register-teacher-confirm")?.value || "")) {
+                        throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
+                    }
+                    payload = await requestAuth("/api/auth/teacher/register", {
+                        username: document.getElementById("register-teacher-username")?.value || "",
+                        password,
+                        name: document.getElementById("register-teacher-name")?.value || "",
+                        subject: document.getElementById("register-teacher-subject")?.value || "",
+                        school: document.getElementById("register-teacher-school")?.value || ""
+                    });
+                }
+                // Temporary apply logic for teacher until full teacher portal backend is implemented
+                state.isLoggedIn = true;
+                state.loggedInRole = "teacher";
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "teacher");
+                overlay?.classList.add("hidden");
+                switchPortalUI("teacher");
+                showToast(mode === "login" ? "Đăng nhập thành công." : "Tài khoản giáo viên đã sẵn sàng.");
+                return;
+            }
+            
+            if (role === "parent") {
+                let payload;
+                const mode = getParentMode();
+                if (mode === "login") {
+                    payload = await requestAuth("/api/auth/parent/login", {
+                        username: document.getElementById("parent-username")?.value || "",
+                        password: document.getElementById("parent-pass")?.value || "",
+                        remember_me: Boolean(document.getElementById("parent-remember")?.checked)
+                    });
+                } else if (mode === "register") {
+                    const password = document.getElementById("register-parent-password")?.value || "";
+                    if (password !== (document.getElementById("register-parent-confirm")?.value || "")) {
+                        throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
+                    }
+                    payload = await requestAuth("/api/auth/parent/register", {
+                        username: document.getElementById("register-parent-username")?.value || "",
+                        password,
+                        name: document.getElementById("register-parent-name")?.value || "",
+                        phone: document.getElementById("register-parent-phone")?.value || "",
+                        child_student_id: document.getElementById("register-parent-child")?.value || ""
+                    });
+                }
+                
+                // Temporary apply logic for parent until backend fully supports parent portal with child link
+                const studentId = payload.child_student_id || "emma_std_01";
+                const profile = getStudentLoginProfile(studentId);
+                state.isLoggedIn = true;
+                state.loggedInRole = "parent";
+                state.baseStudentId = studentId;
+                state.studentId = studentId;
+                applyRewardState(loadRewardState(profile));
+                state.studentProgress.activeSkill = profile.skill;
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("loggedInRole", "parent");
+                localStorage.setItem("studentId", studentId);
+                overlay?.classList.add("hidden");
+                switchPortalUI("parent");
+                showToast(mode === "login" ? "Đăng nhập thành công." : "Tài khoản phụ huynh đã sẵn sàng.");
+                return;
+            }
+
             let payload;
+            const studentMode = getStudentMode();
             if (studentMode === "login") {
                 payload = await requestAuth("/api/auth/student/login", {
                     username: document.getElementById("student-username")?.value || "",
@@ -5462,17 +5523,6 @@ function initStudentAccountAuth() {
                     name: document.getElementById("register-name")?.value || "",
                     grade: Number(document.getElementById("register-grade")?.value || 0),
                     email: document.getElementById("register-email")?.value || null
-                });
-            } else {
-                const password = document.getElementById("activate-password")?.value || "";
-                if (password !== (document.getElementById("activate-confirm")?.value || "")) {
-                    throw new Error("Hai lần nhập mật khẩu chưa giống nhau.");
-                }
-                payload = await requestAuth("/api/auth/student/activate", {
-                    student_id: document.getElementById("activate-student-id")?.value || "",
-                    activation_code: document.getElementById("activate-code")?.value || "",
-                    username: document.getElementById("activate-username")?.value || "",
-                    password
                 });
             }
             applyStudent(payload);

@@ -1006,7 +1006,6 @@
                     <div class="student-auth-switch" role="tablist" aria-label="Chế độ tài khoản học sinh">
                         <button type="button" class="student-auth-mode active" data-student-auth-mode="login">Đăng nhập</button>
                         <button type="button" class="student-auth-mode" data-student-auth-mode="register">Đăng ký mới</button>
-                        <button type="button" class="student-auth-mode" data-student-auth-mode="activate">Hồ sơ cũ</button>
                     </div>
                     <div class="student-auth-panel active" data-student-auth-panel="login">
                         <div class="form-group"><label for="student-username">Tên đăng nhập</label><input id="student-username" class="form-control" autocomplete="username" maxlength="30" placeholder="Ví dụ: nguyenvanan"></div>
@@ -1024,16 +1023,6 @@
                         </div>
                         <p class="auth-help">Mật khẩu cần ít nhất 8 ký tự, gồm chữ cái và chữ số.</p>
                     </div>
-                    <div class="student-auth-panel" data-student-auth-panel="activate">
-                        <p class="auth-help">Nhập mã do giáo viên cấp để liên kết tài khoản với tiến trình BKT hiện có.</p>
-                        <div class="auth-form-grid">
-                            <div class="form-group"><label for="activate-student-id">Mã học sinh</label><input id="activate-student-id" class="form-control" maxlength="64" placeholder="Ví dụ: an_01"></div>
-                            <div class="form-group"><label for="activate-code">Mã kích hoạt</label><input id="activate-code" class="form-control" maxlength="20" placeholder="XXXX-XXXX"></div>
-                            <div class="form-group auth-span-2"><label for="activate-username">Tên đăng nhập mới</label><input id="activate-username" class="form-control" autocomplete="username" maxlength="30"></div>
-                            <div class="form-group"><label for="activate-password">Mật khẩu mới</label><input type="password" id="activate-password" class="form-control" autocomplete="new-password" maxlength="128"></div>
-                            <div class="form-group"><label for="activate-confirm">Nhập lại mật khẩu</label><input type="password" id="activate-confirm" class="form-control" autocomplete="new-password" maxlength="128"></div>
-                        </div>
-                    </div>
                     <div class="form-group">
                         <label for="student-select-login"><i class="fa-solid fa-user"></i> Chọn tài khoản học sinh:</label>
                         <select id="student-select-login" class="form-control">
@@ -1050,31 +1039,60 @@
                 </div>
                 
                 <div id="login-form-teacher" class="login-form-panel">
-                    <div class="form-group">
-                        <label for="teacher-username"><i class="fa-solid fa-chalkboard-user"></i> Tài khoản giáo viên:</label>
-                        <select id="teacher-username" class="form-control">
-                            <option value="teacher_hung">Thầy Hùng (GV Toán)</option>
-                        </select>
+                    <div class="teacher-auth-switch" role="tablist" aria-label="Chế độ tài khoản giáo viên">
+                        <button type="button" class="teacher-auth-mode active" data-teacher-auth-mode="login">Đăng nhập</button>
+                        <button type="button" class="teacher-auth-mode" data-teacher-auth-mode="register">Đăng ký mới</button>
                     </div>
-                    <div class="form-group">
-                        <label for="teacher-pass"><i class="fa-solid fa-lock"></i> Mật khẩu:</label>
-                        <input type="password" id="teacher-pass" class="form-control" placeholder="Mật khẩu giáo viên" value="123456">
+                    <div class="teacher-auth-panel active" data-teacher-auth-panel="login">
+                        <div class="form-group">
+                            <label for="teacher-username"><i class="fa-solid fa-chalkboard-user"></i> Tên đăng nhập:</label>
+                            <input id="teacher-username" class="form-control" autocomplete="username" maxlength="30" placeholder="Tên đăng nhập giáo viên">
+                        </div>
+                        <div class="form-group">
+                            <label for="teacher-pass"><i class="fa-solid fa-lock"></i> Mật khẩu:</label>
+                            <input type="password" id="teacher-pass" class="form-control" autocomplete="current-password" placeholder="Mật khẩu giáo viên">
+                        </div>
+                        <label class="auth-checkbox"><input type="checkbox" id="teacher-remember"> Ghi nhớ đăng nhập</label>
+                    </div>
+                    <div class="teacher-auth-panel" data-teacher-auth-panel="register">
+                        <div class="auth-form-grid">
+                            <div class="form-group auth-span-2"><label for="register-teacher-name">Họ và tên</label><input id="register-teacher-name" class="form-control" autocomplete="name" maxlength="100"></div>
+                            <div class="form-group"><label for="register-teacher-username">Tên đăng nhập</label><input id="register-teacher-username" class="form-control" autocomplete="username" maxlength="30"></div>
+                            <div class="form-group"><label for="register-teacher-subject">Môn giảng dạy</label><input id="register-teacher-subject" class="form-control" placeholder="Ví dụ: Toán"></div>
+                            <div class="form-group auth-span-2"><label for="register-teacher-school">Trường học <span class="auth-optional">(không bắt buộc)</span></label><input id="register-teacher-school" class="form-control" maxlength="200"></div>
+                            <div class="form-group"><label for="register-teacher-password">Mật khẩu</label><input type="password" id="register-teacher-password" class="form-control" autocomplete="new-password" maxlength="128"></div>
+                            <div class="form-group"><label for="register-teacher-confirm">Nhập lại mật khẩu</label><input type="password" id="register-teacher-confirm" class="form-control" autocomplete="new-password" maxlength="128"></div>
+                        </div>
+                        <p class="auth-help">Mật khẩu cần ít nhất 8 ký tự, gồm chữ cái và chữ số.</p>
                     </div>
                 </div>
 
                 <div id="login-form-parent" class="login-form-panel">
-                    <div class="form-group">
-                        <label for="parent-student-select"><i class="fa-solid fa-child-reaching"></i> Chọn hồ sơ con:</label>
-                        <select id="parent-student-select" class="form-control">
-                            <option value="emma_std_01">Emma (Lớp 7A)</option>
-                            <option value="an_01">Nguyễn Văn An (Lớp 6B)</option>
-                            <option value="binh_02">Trần Bình (Lớp 5A)</option>
-                            <option value="hoang_06">Lê Huy Hoàng (Lớp 7C)</option>
-                        </select>
+                    <div class="parent-auth-switch" role="tablist" aria-label="Chế độ tài khoản phụ huynh">
+                        <button type="button" class="parent-auth-mode active" data-parent-auth-mode="login">Đăng nhập</button>
+                        <button type="button" class="parent-auth-mode" data-parent-auth-mode="register">Đăng ký mới</button>
                     </div>
-                    <div class="form-group">
-                        <label for="parent-pass"><i class="fa-solid fa-lock"></i> Mật khẩu phụ huynh:</label>
-                        <input type="password" id="parent-pass" class="form-control" placeholder="Mật khẩu phụ huynh" value="123456">
+                    <div class="parent-auth-panel active" data-parent-auth-panel="login">
+                        <div class="form-group">
+                            <label for="parent-username"><i class="fa-solid fa-people-roof"></i> Tên đăng nhập:</label>
+                            <input id="parent-username" class="form-control" autocomplete="username" maxlength="30" placeholder="Tên đăng nhập phụ huynh">
+                        </div>
+                        <div class="form-group">
+                            <label for="parent-pass"><i class="fa-solid fa-lock"></i> Mật khẩu:</label>
+                            <input type="password" id="parent-pass" class="form-control" autocomplete="current-password" placeholder="Mật khẩu phụ huynh">
+                        </div>
+                        <label class="auth-checkbox"><input type="checkbox" id="parent-remember"> Ghi nhớ đăng nhập</label>
+                    </div>
+                    <div class="parent-auth-panel" data-parent-auth-panel="register">
+                        <div class="auth-form-grid">
+                            <div class="form-group auth-span-2"><label for="register-parent-name">Họ và tên</label><input id="register-parent-name" class="form-control" autocomplete="name" maxlength="100"></div>
+                            <div class="form-group"><label for="register-parent-username">Tên đăng nhập</label><input id="register-parent-username" class="form-control" autocomplete="username" maxlength="30"></div>
+                            <div class="form-group"><label for="register-parent-phone">Số điện thoại</label><input type="tel" id="register-parent-phone" class="form-control" placeholder="Ví dụ: 0987654321"></div>
+                            <div class="form-group auth-span-2"><label for="register-parent-child">Mã học sinh của con <span class="auth-optional">(không bắt buộc)</span></label><input id="register-parent-child" class="form-control" maxlength="64" placeholder="Nhập để liên kết hồ sơ của con"></div>
+                            <div class="form-group"><label for="register-parent-password">Mật khẩu</label><input type="password" id="register-parent-password" class="form-control" autocomplete="new-password" maxlength="128"></div>
+                            <div class="form-group"><label for="register-parent-confirm">Nhập lại mật khẩu</label><input type="password" id="register-parent-confirm" class="form-control" autocomplete="new-password" maxlength="128"></div>
+                        </div>
+                        <p class="auth-help">Mật khẩu cần ít nhất 8 ký tự, gồm chữ cái và chữ số.</p>
                     </div>
                 </div>
 

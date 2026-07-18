@@ -114,10 +114,69 @@ def register_student(*, username: str, password: str, name: str, grade: int, ema
         student = Student(id=f"std_{uuid4().hex[:16]}", user_id=user.id, name=name, grade=grade)
         session.add(student)
         session.flush()
+        session.flush()
         for skill_id in session.scalars(select(Skill.id)).all():
             session.add(StudentMastery(student_id=student.id, skill_id=skill_id, mastery_probability=.5))
         _audit(session, user.id, "student_registered", student.id)
         return _student_payload(student, user)
+
+def register_teacher(*, username: str, password: str, name: str, subject: str | None = None, school: str | None = None) -> User:
+    username = normalize_username(username)
+    validate_password(password)
+    name = " ".join(name.strip().split())
+    if len(name) < 2 or len(name) > 100:
+        raise StudentAuthError("Họ tên không hợp lệ.")
+    normalized_email = f"{username}@teachers.local"
+    with db_session() as session:
+        if session.scalar(select(User.id).where(User.username == username)):
+            raise StudentAuthError("Tên đăng nhập đã được sử dụng.", 409)
+        if session.scalar(select(User.id).where(User.email == normalized_email)):
+            raise StudentAuthError("Email đã được sử dụng.", 409)
+        user = User(
+            username=username,
+            display_name=name,
+            email=normalized_email,
+            password_hash=password_hasher.hash(password),
+            role="teacher",
+            is_active=True,
+        )
+        # Store additional teacher info in metadata if needed, but for now we just create the User
+        session.add(user)
+        session.flush()
+        _audit(session, user.id, "teacher_registered", user.id)
+        return user
+
+def register_parent(*, username: str, password: str, name: str, phone: str | None = None, child_student_id: str | None = None) -> User:
+    username = normalize_username(username)
+    validate_password(password)
+    name = " ".join(name.strip().split())
+    if len(name) < 2 or len(name) > 100:
+        raise StudentAuthError("Họ tên không hợp lệ.")
+    normalized_email = f"{username}@parents.local"
+    with db_session() as session:
+        if session.scalar(select(User.id).where(User.username == username)):
+            raise StudentAuthError("Tên đăng nhập đã được sử dụng.", 409)
+        if session.scalar(select(User.id).where(User.email == normalized_email)):
+            raise StudentAuthError("Email đã được sử dụng.", 409)
+        
+        # Verify if child exists
+        if child_student_id:
+            student = session.get(Student, child_student_id)
+            if not student:
+                raise StudentAuthError("Không tìm thấy mã học sinh của con.", 404)
+
+        user = User(
+            username=username,
+            display_name=name,
+            email=normalized_email,
+            password_hash=password_hasher.hash(password),
+            role="parent",
+            is_active=True,
+        )
+        session.add(user)
+        session.flush()
+        _audit(session, user.id, "parent_registered", user.id, metadata={"child_student_id": child_student_id, "phone": phone})
+        return user
 
 
 def create_activation_code(student_id: str, ttl_hours: int = 24) -> dict:
@@ -236,6 +295,94 @@ def authenticate_student(username: str, password: str) -> dict:
                         user.password_hash = password_hasher.hash(password)
                     _audit(session, user.id, "student_login_succeeded", student.id)
                     payload = {"user_id": user.id, "student": _student_payload(student, user)}
+    if error:
+        raise error
+    return payload
+
+def authenticate_teacher(username: str, password: str) -> dict:
+    try:
+        username = normalize_username(username)
+    except StudentAuthError:
+        username = "invalid-user"
+    error = None
+    payload = None
+    with db_session() as session:
+        user = session.scalar(select(User).where(or_(User.username == username, User.email == username), User.role == "teacher"))
+        if not user:
+            try:
+                password_hasher.verify(_DUMMY_HASH, password)
+            except (VerifyMismatchError, InvalidHashError):
+                pass
+            error = StudentAuthError("Tên đăng nhập hoặc mật khẩu không chính xác.", 401)
+        elif not user.is_active:
+            error = StudentAuthError("Tài khoản hiện không hoạt động.", 403)
+        elif _aware(user.locked_until) and _aware(user.locked_until) > now_utc():
+            error = StudentAuthError("Tài khoản tạm khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau.", 423)
+        else:
+            try:
+                valid = password_hasher.verify(user.password_hash, password)
+            except (VerifyMismatchError, InvalidHashError):
+                valid = False
+            if not valid:
+                user.failed_login_count = (user.failed_login_count or 0) + 1
+                if user.failed_login_count >= MAX_FAILED_LOGINS:
+                    user.locked_until = now_utc() + timedelta(minutes=LOCK_MINUTES)
+                    user.failed_login_count = 0
+                _audit(session, user.id, "teacher_login_failed")
+                error = StudentAuthError("Tên đăng nhập hoặc mật khẩu không chính xác.", 401)
+            else:
+                user.failed_login_count = 0
+                user.locked_until = None
+                user.last_login_at = now_utc()
+                if password_hasher.check_needs_rehash(user.password_hash):
+                    user.password_hash = password_hasher.hash(password)
+                _audit(session, user.id, "teacher_login_succeeded", user.id)
+                payload = {"user_id": user.id, "username": user.username, "role": "teacher"}
+    if error:
+        raise error
+    return payload
+
+def authenticate_parent(username: str, password: str) -> dict:
+    try:
+        username = normalize_username(username)
+    except StudentAuthError:
+        username = "invalid-user"
+    error = None
+    payload = None
+    with db_session() as session:
+        user = session.scalar(select(User).where(or_(User.username == username, User.email == username), User.role == "parent"))
+        if not user:
+            try:
+                password_hasher.verify(_DUMMY_HASH, password)
+            except (VerifyMismatchError, InvalidHashError):
+                pass
+            error = StudentAuthError("Tên đăng nhập hoặc mật khẩu không chính xác.", 401)
+        elif not user.is_active:
+            error = StudentAuthError("Tài khoản hiện không hoạt động.", 403)
+        elif _aware(user.locked_until) and _aware(user.locked_until) > now_utc():
+            error = StudentAuthError("Tài khoản tạm khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau.", 423)
+        else:
+            try:
+                valid = password_hasher.verify(user.password_hash, password)
+            except (VerifyMismatchError, InvalidHashError):
+                valid = False
+            if not valid:
+                user.failed_login_count = (user.failed_login_count or 0) + 1
+                if user.failed_login_count >= MAX_FAILED_LOGINS:
+                    user.locked_until = now_utc() + timedelta(minutes=LOCK_MINUTES)
+                    user.failed_login_count = 0
+                _audit(session, user.id, "parent_login_failed")
+                error = StudentAuthError("Tên đăng nhập hoặc mật khẩu không chính xác.", 401)
+            else:
+                user.failed_login_count = 0
+                user.locked_until = None
+                user.last_login_at = now_utc()
+                if password_hasher.check_needs_rehash(user.password_hash):
+                    user.password_hash = password_hasher.hash(password)
+                _audit(session, user.id, "parent_login_succeeded", user.id)
+                log = session.scalar(select(AuditLog).where(AuditLog.actor_user_id == user.id, AuditLog.action == "parent_registered").order_by(AuditLog.created_at.desc()))
+                child_student_id = log.metadata_json.get("child_student_id") if log and log.metadata_json else None
+                payload = {"user_id": user.id, "username": user.username, "role": "parent", "child_student_id": child_student_id}
     if error:
         raise error
     return payload
