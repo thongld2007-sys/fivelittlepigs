@@ -16,6 +16,11 @@ class _FakeAIResult:
 
 class TestAIProductBehaviors(unittest.TestCase):
     def setUp(self):
+        from backend.app import fpt_ai_client
+        fpt_ai_client.api_key = "test-key"
+        fpt_ai_client.model = "test-model"
+        fpt_ai_client.base_url = "https://example.com"
+        
         self.client = TestClient(app)
         self.client.post("/api/students", json={
             "student_id": "ai_behavior_student",
