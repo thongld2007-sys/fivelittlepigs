@@ -1,150 +1,114 @@
-# Adaptive Tutoring System — Backend
+# VGap AI — Hệ thống Chẩn đoán Lỗ hổng Kiến thức Toán học thích ứng
 
-FastAPI + SQLite backend chạy offline trên máy giáo viên hoặc máy chủ LAN. Hệ thống chấm
-trắc nghiệm phía server, cập nhật Bayesian Knowledge Tracing, điều hướng xuống kỹ năng tiên
-quyết và cung cấp dashboard API cho giáo viên.
+## 1. Mô tả bài toán và phạm vi hệ thống
 
-## Chạy local
+### Bài toán đặt ra
+Học sinh từ lớp 5 đến lớp 9 thường gặp khó khăn khi làm các bài tập Toán học mới không phải vì kiến thức lớp hiện tại quá phức tạp, mà do bị **hổng kiến thức nền tảng (kỹ năng tiên quyết)** từ các lớp trước. Giáo viên với sĩ số lớp học đông (35-45 học sinh) rất khó để theo dõi, chẩn đoán chính xác lỗ hổng gốc của từng em bằng phương pháp chấm điểm thủ công hay phán đoán cảm tính.
 
-```powershell
-py -3 -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python run.py
+### Phạm vi hệ thống
+Hệ thống **VGap AI** được thiết kế như một công cụ chẩn đoán thông minh hỗ trợ giáo viên và học sinh:
+- **Phía Học sinh (Adaptive Test):** Cung cấp các bài kiểm tra chẩn đoán thích ứng. Khi học sinh trả lời sai một câu hỏi, hệ thống sẽ tự động hạ độ khó hoặc lùi về kiểm tra kỹ năng tiên quyết trong Đồ thị kiến thức (Knowledge Graph) thay vì chọn câu hỏi ngẫu nhiên.
+- **Phía Giáo viên (Teacher Dashboard):** Cung cấp bảng điều khiển trực quan gồm danh sách ưu tiên can thiệp (Priority List), tự động phân nhóm học sinh theo lỗ hổng kiến thức chung (Auto-Grouping), biểu đồ tiến trình và cây lập luận chẩn đoán (Reasoning Tree) cho từng học sinh.
+- **Phạm vi kiến thức:** Hệ thống bao phủ 168 câu hỏi cho 58 kỹ năng Toán học chuẩn từ lớp 1 đến lớp 9 theo chương trình GDPT mới.
+- **Mức độ tích hợp:** Hoạt động offline-first trên SQLite local để đảm bảo khả năng chạy ổn định ngay cả trong môi trường mạng yếu của nhà trường, đồng thời tích hợp FPT.AI để tự động sinh gợi ý học tập Socratic và kế hoạch bài giảng hỗ trợ giáo viên.
+
+---
+
+## 2. Công nghệ sử dụng và môi trường chạy
+
+### Công nghệ sử dụng
+- **Backend Core:** Python 3.10+, FastAPI (phục vụ API hiệu năng cao và gọn nhẹ).
+- **Thuật toán Chẩn đoán:** Bayesian Knowledge Tracing (BKT) để cập nhật xác suất thành thạo kỹ năng của học sinh sau mỗi câu trả lời.
+- **Đồ thị kiến thức:** Đồ thị có hướng không chu trình (DAG - Directed Acyclic Graph) để biểu diễn mối quan hệ tiên quyết giữa các kỹ năng.
+- **Database:** SQLite (chế độ local/offline) hỗ trợ lưu trữ cục bộ và đồng bộ dữ liệu.
+- **Frontend:** Vanilla HTML5, CSS3 hiện đại, và JavaScript (ES6+) kết hợp mô hình cập nhật trạng thái động, không phụ thuộc vào các framework nặng nề như React hay Angular.
+- **Tích hợp AI:** Adapter kết nối API FPT.AI (Marketplace Chat & Speech).
+- **Deployment Platform:** Vercel (chạy Serverless 24/7, kết nối CI/CD tự động từ GitHub).
+
+### Môi trường chạy và Yêu cầu cài đặt
+- **Hệ điều hành hỗ trợ:** Windows, macOS, Linux.
+- **Trình duyệt khuyến nghị:** Google Chrome, Microsoft Edge, Safari.
+- **Yêu cầu cài đặt cơ bản:** Python 3.10 trở lên đã cấu hình trong biến môi trường PATH.
+
+---
+
+## 3. Cấu trúc thư mục và các module chính
+
+```
+fivelittlepigs2/
+├── backend/                  # Mã nguồn xử lý Backend (FastAPI)
+│   ├── app.py                # Điểm khởi chạy API và định tuyến chính
+│   ├── config.py             # Cấu hình môi trường và đường dẫn
+│   ├── database.py           # Quản trị cơ sở dữ liệu SQLite local
+│   ├── diagnostic_engine.py  # Thuật toán Bayesian Knowledge Tracing (BKT)
+│   ├── knowledge_graph.py    # Cấu trúc đồ thị kỹ năng lớp 5-9 (DAG)
+│   └── fpt_ai.py             # Adapter tích hợp API FPT.AI
+├── frontend/                 # Giao diện người dùng tĩnh (Vanilla HTML/JS/CSS)
+│   ├── index.html            # Giao diện Dashboard học sinh & giáo viên
+│   ├── app.js                # Logic tương tác, gọi API và cập nhật DOM
+│   └── style.css             # Thiết kế giao diện (Responsive & Modern)
+├── api/                      # Thư mục cấu hình phục vụ cho Vercel Serverless
+│   └── index.py              # Entrypoint để Vercel chạy FastAPI
+├── docs/                     # Tài liệu hướng dẫn và gói đánh giá
+├── tests/                    # Bộ kiểm thử tự động (Pytest)
+├── vercel.json               # Cấu hình định tuyến của Vercel
+├── requirements.txt          # Các thư viện Python cần thiết
+└── run.py                    # Script chạy local nhanh tự động mở trình duyệt
 ```
 
-Swagger UI: `http://localhost:8000/docs`. Health check: `GET /api/health`.
+---
 
-Giao diện VGap AI được đồng bộ từ repository `thongld2007-sys/fivelittlepigs` và được
-FastAPI phục vụ trực tiếp tại `http://localhost:8000/`; không cần chạy thêm npm hoặc web
-server riêng. Frontend đã được chuẩn hóa để dùng API an toàn của backend này thay cho API
-prototype trong repository nguồn.
+## 4. Biểu đồ thiết kế hệ thống (UML)
 
-Ngân hàng mở rộng từ repo gồm 165 câu cho 55 kỹ năng thuộc 6 môn, lớp 1–9. Ba câu hỏi lõi
-và ba mã kỹ năng chuẩn trong báo cáo vẫn được giữ lại, nâng tổng số lên 168 câu và 58 node
-Knowledge Graph. Backend tự chuẩn hóa hai schema dữ liệu khi khởi động.
+### Sơ đồ kiến trúc thành phần (Component UML)
+Sơ đồ mô tả sự tương tác giữa các tầng Frontend, Backend, cơ sở dữ liệu SQLite cục bộ và API FPT.AI:
 
-## Luồng API tối thiểu
+```mermaid
+graph TD
+    subgraph Frontend [Web Client - Vanilla HTML/JS/CSS]
+        UI["Giao diện người dùng (Dashboard)"]
+        JS["app.js (API Client & State Manager)"]
+    end
 
-1. `POST /api/students` tạo/cập nhật hồ sơ học sinh.
-2. `GET /api/student/{id}/next-question` lấy câu tiếp theo không chứa đáp án.
-3. `POST /api/student/{id}/submit` gửi `question_id`, `selected_index`, `time_spent` và
-   `event_id` tùy chọn. Backend tự chấm và yêu cầu lặp có cùng `event_id` là idempotent.
-4. Dashboard dùng `/api/teacher/priority-list`, `/api/teacher/groups`,
-   `/api/teacher/gap-alerts` và `/api/teacher/students/{id}/reasoning-tree`.
-5. Tab giáo viên "Bằng chứng final" dùng `GET /api/evidence/final-scorecard` để trình bày
-   scorecard barem, benchmark, câu chuyện FPT AI và readiness triển khai trong một màn demo.
+    subgraph Backend [FastAPI Server]
+        API["app.py (API Endpoints & Routing)"]
+        BKT["diagnostic_engine.py (BKT Processor)"]
+        KG["knowledge_graph.py (DAG Knowledge Graph)"]
+        DB_Layer["database.py (SQLite DB Adapter)"]
+    end
 
-## Đồng bộ mạng yếu
+    subgraph External [External Services]
+        FPT_AI["FPT.AI Marketplace API"]
+    end
 
-Đặt `TUTOR_CLOUD_SYNC_URL` và tùy chọn `TUTOR_DEVICE_ID`. `POST /api/sync/push` gửi batch
-log JSON nén gzip. Chỉ sau HTTP 2xx các event local mới được đánh dấu đã đồng bộ. Khi chưa
-cấu hình hoặc mất mạng, log vẫn nằm an toàn trong SQLite.
+    subgraph Storage [Local Storage]
+        DB[("SQLite Database (tutor.db)")]
+    end
 
-Các biến khác: `TUTOR_DB_PATH`, `TUTOR_DATA_DIR`, `TUTOR_QUESTIONS_PATH`,
-`TUTOR_REPO_QUESTIONS_PATH`,
-`TUTOR_SYNC_TIMEOUT_SECONDS`, `TUTOR_MAX_SYNC_BATCH`.
-
-## Kiểm thử
-
-```powershell
-python -m pytest -q
+    UI <--> JS
+    JS <-->|HTTPS / WebSockets| API
+    API <--> BKT
+    API <--> KG
+    API <--> DB_Layer
+    DB_Layer <--> DB
+    API <-->|API Key / JSON| FPT_AI
 ```
 
-Test sử dụng SQLite tạm, không ghi vào `data/tutor.db` thật.
+### Sơ đồ luồng chẩn đoán thích ứng (Activity UML)
+Sơ đồ minh họa quá trình hệ thống chọn lựa câu hỏi tiếp theo dựa trên câu trả lời của học sinh:
 
-## Demo kịch bản backend
-
-```powershell
-py -3 demo_backend.py
+```mermaid
+flowchart TD
+    Start([Học sinh bắt đầu làm bài]) --> GetQ[Lấy câu hỏi tiếp theo: /next-question]
+    GetQ --> Answer[Học sinh gửi câu trả lời: /submit]
+    Answer --> Check{Kết quả trả lời?}
+    Check -->|Sai| DecreaseDifficulty[Hạ độ khó / Lùi về Kỹ năng tiên quyết trong DAG]
+    Check -->|Đúng| IncreaseDifficulty[Tăng độ khó / Chuyển sang Kỹ năng tiếp theo]
+    DecreaseDifficulty --> UpdateBKT[Cập nhật xác suất thành thạo bằng BKT]
+    IncreaseDifficulty --> UpdateBKT
+    UpdateBKT --> SaveDB[(Lưu kết quả học tập vào SQLite)]
+    SaveDB --> LogPed[Ghi nhận Pedagogical Explanation Log]
+    LogPed --> CheckStop{Đã đạt độ chính xác chẩn đoán hoặc hết câu hỏi?}
+    CheckStop -->|Chưa| GetQ
+    CheckStop -->|Rồi| End([Hoàn thành chẩn đoán & Cập nhật Dashboard giáo viên])
 ```
-
-Demo mô phỏng học sinh lớp 7 trả lời sai, chẩn đoán xuống lỗ hổng phân số lớp 5 và hiển thị
-Priority List, Auto-Grouping, Gap Alert cùng Reasoning Tree. Demo dùng database tạm.
-
-## Tài khoản giao diện demo
-
-- Học sinh: chọn một hồ sơ có sẵn và nhập mật khẩu bất kỳ không rỗng.
-- Giáo viên: mật khẩu demo `123456`.
-
-Đây chỉ là luồng đăng nhập trình diễn phía frontend, chưa phải cơ chế xác thực dùng trong
-production. Khi triển khai thực tế cần bổ sung tài khoản, mật khẩu băm và phân quyền API.
-
-## Chuẩn bị FPT AI Hackathon Final
-
-Tài liệu phản biện theo góc nhìn ban giám khảo khó tính nằm tại
-[`docs/fpt_ai_hackathon_judge_pack.md`](docs/fpt_ai_hackathon_judge_pack.md).
-
-Khi pitch, không định vị sản phẩm như một chatbot. Hãy định vị là hệ thống chẩn đoán lỗ
-hổng kiến thức gốc, có:
-
-- Knowledge Graph theo kỹ năng và lớp học.
-- Bayesian Knowledge Tracing để cập nhật xác suất thành thạo.
-- Dashboard giáo viên gồm phân nhóm, danh sách ưu tiên, heatmap và biểu đồ tiến trình lớp.
-- Offline-first backend để demo được trong môi trường mạng yếu.
-
-Các bằng chứng cần có trước vòng final:
-
-| Bằng chứng | Mục tiêu tối thiểu |
-|---|---|
-| Diagnostic accuracy | >= 70% trên bộ kiểm thử nhỏ có nhãn giáo viên |
-| Precision/Recall cảnh báo học sinh cần kèm | >= 75% / >= 70% |
-| p95 latency `/next-question` | < 300 ms local |
-| p95 latency `/teacher/dashboard` | < 500 ms local |
-| Cost story | BKT/DAG gần như 0 đồng; chỉ gọi FPT AI khi sinh nhận xét/gợi ý/giao án |
-
-Chạy smoke benchmark kỹ thuật:
-
-```powershell
-python tests/benchmark_diagnostics.py
-```
-
-Benchmark hiện tạo 30 case kỹ thuật có nhãn từ 3 mẫu hành vi ổn định: hổng phân số lớp 7,
-hổng số nguyên lớp 6 và học sinh mạnh lớp 7. Output gồm accuracy, precision, recall, latency
-trung bình và p95 cho submit/next-question. Lưu ý: benchmark này chỉ kiểm tra kịch bản kỹ thuật để bảo vệ demo trước ban
-giám khảo. Khi pitch chính thức vẫn cần pilot thật với học sinh/giáo viên.
-
-Kế hoạch khai thác FPT AI nên bám vào Inference, Knowledge, Agents, Speech, OCR và MCP,
-thay vì chỉ gọi một API chat tổng quát.
-
-Các endpoint bằng chứng cho ban giám khảo:
-
-- `GET /api/evidence/fpt-ai-coverage`: FPT AI đang dùng ở đâu và adapter nào còn trong roadmap.
-- `GET /api/evidence/cost-model?students=1000`: ước tính cost/student/month và câu chuyện scale.
-- `GET /api/evidence/safety`: guardrails đã có và khoảng trống production còn lại.
-- `GET /api/evidence/final-scorecard`: payload tổng hợp cho tab "Bằng chứng final" trong
-  dashboard giáo viên.
-
-Các lát production đã có trong bản demo mới:
-
-- Event log idempotent để đồng bộ SQLite local lên cloud theo batch.
-- Pedagogical explanation log giải thích vì sao hệ thống hạ độ khó hoặc lùi prerequisite.
-- Behavioral anomaly filter giảm trọng số BKT cho câu khó trả lời đúng quá nhanh.
-- Grounded lesson-plan endpoint có citation từ local knowledge base, sẵn nối FPT AI Knowledge.
-- Speech cache manifest để sinh audio một lần và phát lại qua LAN khi nối FPT AI Speech.
-- WebSocket dashboard snapshot tại `/ws/teacher/dashboard`.
-
-## FPT AI Factory
-
-FPT AI được dùng như lớp tăng cường online cho gia sư Socratic và sinh giáo án. BKT, chấm
-đáp án và điều hướng kỹ năng vẫn chạy offline khi FPT AI không khả dụng.
-
-1. Sao chép `.env.example` thành `.env`.
-2. Điền `FPT_AI_API_KEY` và tên model đã enable trong `FPT_AI_MODEL`.
-3. Khởi động lại server và kiểm tra `GET /api/ai/status`.
-
-```dotenv
-FPT_AI_API_KEY=your-local-secret
-FPT_AI_MODEL=your-enabled-model-name
-FPT_AI_BASE_URL=https://mkp-api.fptcloud.com
-```
-
-Không đưa `.env` hoặc API key vào frontend, commit hay ảnh chụp màn hình. `.env` đã được
-Git ignore. Các endpoint tích hợp:
-
-- `GET /api/ai/status`: trạng thái cấu hình, không trả API key.
-- `POST /api/ai/student/{student_id}/tutor`: gợi ý Socratic có grounding theo câu hỏi/BKT.
-- `POST /api/ai/teacher/lesson-plan`: sinh giáo án theo node Knowledge Graph.
-
-Tham khảo [FPT AI Factory Quickstart](https://ai-docs.fptcloud.com/fpt-ai-marketplace/fpt-ai-inference/quickstart)
-và [LLM API Reference](https://github.com/fpt-corp/ai-marketplace/blob/main/API%20Integration%20-%20Large%20Language%20Model.md).
