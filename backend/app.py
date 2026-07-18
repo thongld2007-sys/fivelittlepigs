@@ -1691,4 +1691,5 @@ async def teacher_dashboard_websocket(websocket: WebSocket):
 
 # Serve Frontend static assets
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
-app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+if not os.getenv("VERCEL"):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
