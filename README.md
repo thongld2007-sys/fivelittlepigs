@@ -233,9 +233,7 @@ Quá trình xác thực học sinh được xử lý hoàn toàn ở backend; tr
 Thiết lập `AUTH_COOKIE_SECURE=true` khi deploy production có HTTPS. Access token được lưu trong bộ nhớ tạm của trình duyệt; Refresh token được lưu dưới dạng băm SHA-256 trong CSDL và quản lý qua cookie bảo mật `HttpOnly`, `SameSite=Lax`. Giáo viên/Nhân viên trường có thể tạo mã kích hoạt bằng lệnh:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/auth/student/activation-code `
-  -Headers @{ "X-API-Key" = $env:VGAP_STAFF_API_KEY } `
-  -ContentType "application/json" -Body '{"student_id":"an_01"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/auth/student/activation-code -Headers @{ "X-API-Key" = $env:VGAP_STAFF_API_KEY } -ContentType "application/json" -Body '{"student_id":"an_01"}'
 ```
 
 ## 📊 Kết quả Thử nghiệm & Lộ trình Triển khai (Pilot Roadmap)
