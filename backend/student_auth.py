@@ -171,6 +171,19 @@ def activate_student(*, student_id: str, activation_code: str, username: str,
         return _student_payload(student, user)
 
 
+from sqlalchemy import select, or_
+import hmac
+
+def verify_legacy_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, salt, expected = encoded.split('$', 2)
+        if algorithm != 'pbkdf2_sha256':
+            return False
+        actual = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt), 120_000).hex()
+        return hmac.compare_digest(actual, expected)
+    except (ValueError, TypeError, AttributeError):
+        return False
+
 def authenticate_student(username: str, password: str) -> dict:
     try:
         username = normalize_username(username)
@@ -179,7 +192,7 @@ def authenticate_student(username: str, password: str) -> dict:
     error = None
     payload = None
     with db_session() as session:
-        user = session.scalar(select(User).where(User.username == username, User.role == "student"))
+        user = session.scalar(select(User).where(or_(User.username == username, User.email == username), User.role == "student"))
         if not user:
             try:
                 password_hasher.verify(_DUMMY_HASH, password)
@@ -192,7 +205,12 @@ def authenticate_student(username: str, password: str) -> dict:
             error = StudentAuthError("Tài khoản tạm khóa do đăng nhập sai nhiều lần. Vui lòng thử lại sau.", 423)
         else:
             try:
-                valid = password_hasher.verify(user.password_hash, password)
+                if user.password_hash.startswith("pbkdf2_sha256$"):
+                    valid = verify_legacy_password(password, user.password_hash)
+                    if valid:
+                        user.password_hash = password_hasher.hash(password)
+                else:
+                    valid = password_hasher.verify(user.password_hash, password)
             except (VerifyMismatchError, InvalidHashError):
                 valid = False
             if not valid:
