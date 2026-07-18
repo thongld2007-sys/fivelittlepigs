@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Cookie, Depends, FastAPI, File, Form, Header, HTTPException, Response as FastAPIResponse, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
