@@ -786,10 +786,13 @@ def create_survey_session(payload: SurveySessionRequest):
     """Create a clean student profile for one adaptive survey attempt."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO students (id, name, grade) VALUES (?, ?, ?)",
-        (payload.student_id, payload.name, payload.grade)
-    )
+    now = int(time.time())
+    cursor.execute("""
+        INSERT INTO students (id, name, grade, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            name = excluded.name, grade = excluded.grade, updated_at = excluded.updated_at
+    """, (payload.student_id, payload.name, payload.grade, now, now))
 
     for skill_id in KNOWLEDGE_GRAPH.keys():
         cursor.execute("""
