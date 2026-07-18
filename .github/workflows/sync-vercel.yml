@@ -10,6 +10,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Push to Vercel-connected repo
         run: |
           CLEAN_TOKEN=$(echo "${{ secrets.VERCEL_SYNC_TOKEN }}" | tr -d '\r\n[:space:]')
