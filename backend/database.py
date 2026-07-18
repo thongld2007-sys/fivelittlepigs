@@ -110,10 +110,21 @@ def _migrate_legacy_sqlite():
             additions = {
                 "subject": "TEXT",
                 "grade": "INTEGER",
+                "description": "TEXT",
+                "prerequisites": "JSON",
             }
             for name, definition in additions.items():
                 if name not in columns:
                     connection.execute(f"ALTER TABLE skills ADD COLUMN {name} {definition}")
+        if "question_bank" in tables:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(question_bank)")}
+            additions = {
+                "difficulty_level": "INTEGER DEFAULT 2",
+                "metadata_json": "JSON",
+            }
+            for name, definition in additions.items():
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE question_bank ADD COLUMN {name} {definition}")
         connection.commit()
     finally:
         connection.close()
