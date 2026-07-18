@@ -1,6 +1,9 @@
 """Portable SQLAlchemy schema for SQLite pilots and PostgreSQL production."""
 
+from __future__ import annotations
+
 from datetime import datetime, timezone
+from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
@@ -89,7 +92,7 @@ class User(Base):
 class Student(Base):
     __tablename__ = "students"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     grade: Mapped[int] = mapped_column(Integer, nullable=False)
     initial_assessment_completed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
@@ -99,7 +102,7 @@ class Classroom(Base):
     __tablename__ = "classrooms"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
-    teacher_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
+    teacher_user_id: Mapped[Optional[str]] = mapped_column(ForeignKey("users.id"))
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     grade: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -167,8 +170,8 @@ class Response(Base):
     difficulty_level: Mapped[int] = mapped_column(Integer, default=2)
     is_correct: Mapped[int] = mapped_column(Integer, nullable=False)
     timestamp: Mapped[int] = mapped_column(Integer, nullable=False)
-    selected_option: Mapped[str | None] = mapped_column(String(30))
-    event_id: Mapped[str | None] = mapped_column(String(36), unique=True)
+    selected_option: Mapped[Optional[str]] = mapped_column(String(30))
+    event_id: Mapped[Optional[str]] = mapped_column(String(36), unique=True)
     time_spent_ms: Mapped[int] = mapped_column(Integer, default=0)
     __table_args__ = (Index("idx_responses_student_skill_time", "student_id", "skill_id", "timestamp"),)
 
@@ -177,7 +180,7 @@ class UploadedWork(Base):
     __tablename__ = "uploaded_works"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
-    question_id: Mapped[str | None] = mapped_column(String(64))
+    question_id: Mapped[Optional[str]] = mapped_column(String(64))
     object_key: Mapped[str] = mapped_column(String(500), nullable=False)
     mime_type: Mapped[str] = mapped_column(String(80), nullable=False)
     vision_result: Mapped[dict | None] = mapped_column(JSON)
@@ -188,9 +191,9 @@ class UploadedWork(Base):
 class AgentRun(Base):
     __tablename__ = "agent_runs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
-    student_id: Mapped[str | None] = mapped_column(ForeignKey("students.id"), index=True)
+    student_id: Mapped[Optional[str]] = mapped_column(ForeignKey("students.id"), index=True)
     operation: Mapped[str] = mapped_column(String(60), nullable=False)
-    model: Mapped[str | None] = mapped_column(String(120))
+    model: Mapped[Optional[str]] = mapped_column(String(120))
     trace: Mapped[list] = mapped_column(JSON, default=list)
     sources: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow)
@@ -200,7 +203,7 @@ class AIUsage(Base):
     __tablename__ = "ai_usage"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     operation: Mapped[str] = mapped_column(String(60), nullable=False)
-    model: Mapped[str | None] = mapped_column(String(120))
+    model: Mapped[Optional[str]] = mapped_column(String(120))
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
@@ -211,10 +214,10 @@ class AIUsage(Base):
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    actor_user_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    actor_user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True)
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(80), nullable=False)
-    entity_id: Mapped[str | None] = mapped_column(String(80))
+    entity_id: Mapped[Optional[str]] = mapped_column(String(80))
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow)
 

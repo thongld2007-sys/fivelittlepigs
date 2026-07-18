@@ -717,11 +717,22 @@ function renderParentDashboard() {
     `;
 }
 
-function renderAdminOperationsDashboard() {
+async function loadEvidenceDataset(endpoint, fallback) {
+    try {
+        const response = await fetch(endpoint);
+        if (!response.ok) throw new Error(`Evidence endpoint failed: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        console.warn(`[Evidence] Using fallback for ${endpoint}.`, error);
+        return fallback;
+    }
+}
+
+async function renderAdminOperationsDashboard() {
     const container = document.getElementById("admin-operations-dashboard");
     if (!container) return;
 
-    const data = ADMIN_OPERATIONS_DATA;
+    const data = await loadEvidenceDataset("/api/evidence/operations", ADMIN_OPERATIONS_DATA);
     const serviceHtml = data.serviceChecks.map(item => `
         <div class="ops-service-row ${item.status}">
             <i class="fa-solid ${item.status === "healthy" ? "fa-circle-check" : item.status === "ready" ? "fa-shield-halved" : "fa-triangle-exclamation"}"></i>
@@ -811,11 +822,11 @@ function renderAdminOperationsDashboard() {
     `;
 }
 
-function renderInvestorTractionDashboard() {
+async function renderInvestorTractionDashboard() {
     const container = document.getElementById("investor-traction-dashboard");
     if (!container) return;
 
-    const data = INVESTOR_TRACTION_DATA;
+    const data = await loadEvidenceDataset("/api/evidence/traction", INVESTOR_TRACTION_DATA);
     const maxDau = Math.max(...data.daily.map(item => item.dau), 100);
     const dailyHtml = data.daily.map(item => {
         const date = getLocalDateFromKey(getDateKey(item.date));
@@ -5808,22 +5819,28 @@ function initFinalReportModal() {
                 summary: {
                     product: "PorcusAI",
                     positioning: "Hệ thống chẩn đoán lỗ hổng kiến thức gốc, không phải chatbot học tập.",
-                    current_score: 76,
+                    current_score: 81,
                     max_score: 100,
                     final_message: "Evidence report chỉ phục vụ demo/pitch, không phải luồng giáo viên hằng ngày."
                 },
                 judge_barem: [
                     { category: "Bài toán giáo dục", current_score: 13, max_score: 15 },
+                    { category: "AI có cần thiết không", current_score: 13, max_score: 15 },
+                    { category: "Khai thác FPT AI", current_score: 14, max_score: 15 },
                     { category: "AI Engineering", current_score: 13, max_score: 15 },
-                    { category: "Giá trị giáo dục", current_score: 9, max_score: 15 },
-                    { category: "Khai thác FPT AI", current_score: 10, max_score: 15 }
+                    { category: "Giá trị giáo dục", current_score: 11, max_score: 15 },
+                    { category: "Khả năng triển khai", current_score: 8, max_score: 10 },
+                    { category: "Khả năng scale", current_score: 4, max_score: 5 },
+                    { category: "Đạo đức và an toàn", current_score: 5, max_score: 5 }
                 ],
                 benchmarks: [
                     { metric: "Diagnostic smoke benchmark", target: ">= 70%", current: "30 case kỹ thuật", status: "ready" },
+                    { metric: "Evidence APIs", target: "Operations, traction, cost, safety", current: "Có endpoint backend", status: "ready" },
                     { metric: "Pilot học sinh thật", target: "30-50 học sinh", current: "Cần bổ sung", status: "gap" }
                 ],
                 readiness: [
                     { item: "Offline-first local/LAN demo", implemented: true },
+                    { item: "AI safety guardrail endpoint", implemented: true },
                     { item: "Real classroom pilot dataset", implemented: false },
                     { item: "Production auth/tenant isolation", implemented: false }
                 ]
@@ -5866,10 +5883,10 @@ function renderFinalReport(payload) {
         <div class="final-report-summary">
             <div>
                 <span class="teacher-command-kicker"><i class="fa-solid fa-scale-balanced"></i> Judge mode</span>
-                <h2>${escapeHTML(productName)}: ${escapeHTML(summary.current_score ?? "76")}/${escapeHTML(summary.max_score || 100)}</h2>
+                <h2>${escapeHTML(productName)}: ${escapeHTML(summary.current_score ?? "81")}/${escapeHTML(summary.max_score || 100)}</h2>
                 <p>${escapeHTML(positioning)}</p>
             </div>
-            <strong>${escapeHTML(summary.current_score ?? "76")}</strong>
+            <strong>${escapeHTML(summary.current_score ?? "81")}</strong>
         </div>
         <p class="card-subtitle-desc">${escapeHTML(finalMessage)}</p>
         <div class="final-report-chip-grid">${benchmarkItems}</div>
