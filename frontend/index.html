@@ -206,70 +206,6 @@
                                     <div class="test-stage-pill" data-stage="short_answer"><i class="fa-solid fa-keyboard"></i> Trả lời ngắn</div>
                                     <div class="test-stage-pill" data-stage="essay"><i class="fa-solid fa-pen-nib"></i> Tự luận AI</div>
                                 </div>
-                                <div class="student-path-summary">
-                                    <div class="student-path-summary-item">
-                                        <i class="fa-solid fa-location-dot"></i>
-                                        <div>
-                                            <strong>Đang học</strong>
-                                            <span id="summary-active-skill">Toán 7 · Cộng trừ số hữu tỉ</span>
-                                        </div>
-                                    </div>
-                                    <div class="student-path-summary-item">
-                                        <i class="fa-solid fa-magnifying-glass-chart"></i>
-                                        <div>
-                                            <strong>AI đang kiểm tra</strong>
-                                            <span id="summary-ai-check">Lỗi lớp 7 hay hổng phân số lớp 5-6</span>
-                                        </div>
-                                    </div>
-                                    <div class="student-path-summary-item">
-                                        <i class="fa-solid fa-forward-step"></i>
-                                        <div>
-                                            <strong>Bước tiếp theo</strong>
-                                            <span id="summary-next-step">Làm bài test thích ứng để mở khóa lộ trình</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="memphis-card ai-decision-log-card" id="ai-decision-log-card">
-                                    <div class="ai-decision-header">
-                                        <div>
-                                            <span class="badge badge-skill"><i class="fa-solid fa-brain"></i> Nhật ký quyết định AI</span>
-                                            <h3>AI đã can thiệp gì?</h3>
-                                        </div>
-                                        <small id="ai-decision-count">0 quyết định</small>
-                                    </div>
-                                    <div id="ai-decision-log-list" class="ai-decision-log-list">
-                                        <div class="ai-decision-empty">Làm bài khảo sát hoặc gửi tự luận để AI ghi lại quyết định chẩn đoán.</div>
-                                    </div>
-                                </div>
-                                <div class="memphis-card personal-review-card" id="personal-review-card">
-                                    <div class="personal-review-header">
-                                        <div>
-                                            <span class="badge badge-skill"><i class="fa-solid fa-wand-magic-sparkles"></i> Ôn tập AI cá nhân hóa</span>
-                                            <h3>Bài ôn tiếp theo</h3>
-                                        </div>
-                                        <button id="btn-build-personal-review" class="btn btn-primary-memphis btn-sm"><i class="fa-solid fa-route"></i> Tạo bài ôn</button>
-                                    </div>
-                                    <div id="personal-review-list" class="personal-review-list">
-                                        <div class="personal-review-step">
-                                            <span>1</span>
-                                            <div>
-                                                <strong>Làm bài test thích ứng</strong>
-                                                <p>AI cần vài đáp án đầu để biết em hổng ở lớp 7 hay kiến thức nền lớp 5-6.</p>
-                                            </div>
-                                        </div>
-                                        <div class="personal-review-step">
-                                            <span>2</span>
-                                            <div>
-                                                <strong>Ôn đúng điểm yếu</strong>
-                                                <p>Lộ trình sẽ ưu tiên skill nền trước, rồi mới quay lại bài đang học.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="personal-review-actions">
-                                        <button id="btn-generate-review-question" class="btn btn-hint-outline btn-sm"><i class="fa-solid fa-square-plus"></i> Sinh 1 câu luyện</button>
-                                        <button id="btn-open-review-assistant" class="btn btn-secondary-memphis btn-sm"><i class="fa-solid fa-robot"></i> Hỏi trợ lý</button>
-                                    </div>
-                                </div>
                                 <div id="survey-result-card" class="memphis-card survey-result-card" style="display: none;"></div>
                                 <div id="question-card" class="memphis-card question-card" style="padding: 1.5rem; display: none;">
                                     <div class="question-card-header" style="display: flex; justify-content: space-between; margin-bottom: 1.2rem;">
@@ -389,6 +325,70 @@
                                     </div>
                                 </div>
                             </div>
+                                <div class="student-path-summary">
+                                    <div class="student-path-summary-item">
+                                        <i class="fa-solid fa-location-dot"></i>
+                                        <div>
+                                            <strong>Đang học</strong>
+                                            <span id="summary-active-skill">Toán 7 · Cộng trừ số hữu tỉ</span>
+                                        </div>
+                                    </div>
+                                    <div class="student-path-summary-item">
+                                        <i class="fa-solid fa-magnifying-glass-chart"></i>
+                                        <div>
+                                            <strong>AI đang kiểm tra</strong>
+                                            <span id="summary-ai-check">Lỗi lớp 7 hay hổng phân số lớp 5-6</span>
+                                        </div>
+                                    </div>
+                                    <div class="student-path-summary-item">
+                                        <i class="fa-solid fa-forward-step"></i>
+                                        <div>
+                                            <strong>Bước tiếp theo</strong>
+                                            <span id="summary-next-step">Làm bài test thích ứng để mở khóa lộ trình</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="memphis-card ai-decision-log-card" id="ai-decision-log-card">
+                                    <div class="ai-decision-header">
+                                        <div>
+                                            <span class="badge badge-skill"><i class="fa-solid fa-brain"></i> Nhật ký quyết định AI</span>
+                                            <h3>AI đã can thiệp gì?</h3>
+                                        </div>
+                                        <small id="ai-decision-count">0 quyết định</small>
+                                    </div>
+                                    <div id="ai-decision-log-list" class="ai-decision-log-list">
+                                        <div class="ai-decision-empty">Làm bài khảo sát hoặc gửi tự luận để AI ghi lại quyết định chẩn đoán.</div>
+                                    </div>
+                                </div>
+                                <div class="memphis-card personal-review-card" id="personal-review-card">
+                                    <div class="personal-review-header">
+                                        <div>
+                                            <span class="badge badge-skill"><i class="fa-solid fa-wand-magic-sparkles"></i> Ôn tập AI cá nhân hóa</span>
+                                            <h3>Bài ôn tiếp theo</h3>
+                                        </div>
+                                        <button id="btn-build-personal-review" class="btn btn-primary-memphis btn-sm"><i class="fa-solid fa-route"></i> Tạo bài ôn</button>
+                                    </div>
+                                    <div id="personal-review-list" class="personal-review-list">
+                                        <div class="personal-review-step">
+                                            <span>1</span>
+                                            <div>
+                                                <strong>Làm bài test thích ứng</strong>
+                                                <p>AI cần vài đáp án đầu để biết em hổng ở lớp 7 hay kiến thức nền lớp 5-6.</p>
+                                            </div>
+                                        </div>
+                                        <div class="personal-review-step">
+                                            <span>2</span>
+                                            <div>
+                                                <strong>Ôn đúng điểm yếu</strong>
+                                                <p>Lộ trình sẽ ưu tiên skill nền trước, rồi mới quay lại bài đang học.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="personal-review-actions">
+                                        <button id="btn-generate-review-question" class="btn btn-hint-outline btn-sm"><i class="fa-solid fa-square-plus"></i> Sinh 1 câu luyện</button>
+                                        <button id="btn-open-review-assistant" class="btn btn-secondary-memphis btn-sm"><i class="fa-solid fa-robot"></i> Hỏi trợ lý</button>
+                                    </div>
+                                </div>
                         </div>
                     </div>
 
