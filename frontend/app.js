@@ -1,4 +1,4 @@
-﻿// PorcusAI - Frontend Interactive Engine (Memphis Style)
+// PorcusAI - Frontend Interactive Engine (Memphis Style)
 // Supporting both Offline Fallback Mode and Online API integration.
 
 // Global State
@@ -4300,6 +4300,32 @@ function initAITutorChat() {
     const aiStatusPill = document.getElementById("ai-status-pill");
     let selectedAIMode = "explain";
 
+    async function loadChatHistory() {
+        const studentId = state.studentId || localStorage.getItem("studentId") || "emma_std_01";
+        const token = localStorage.getItem("porcus_token");
+        if (!token) return;
+        
+        try {
+            const res = await fetch(`/api/ai/student/${studentId}/chat/history`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.history && data.history.length > 0) {
+                    chatHistory.innerHTML = ""; // Clear old history
+                    data.history.forEach(msg => {
+                        appendTutorBubble(msg.role, msg.content);
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load chat history:", e);
+        }
+    }
+
+    // Call it right away
+    setTimeout(loadChatHistory, 1500); // Give auth some time to settle
+
     const aiModeConfig = {
         explain: {
             label: "Giải thích",
@@ -4364,10 +4390,13 @@ function initAITutorChat() {
         avatar.appendChild(icon);
 
         const content = document.createElement("div");
-        content.className = "bubble-content";
-        const paragraph = document.createElement("p");
-        paragraph.textContent = text;
-        content.appendChild(paragraph);
+        content.className = "bubble-content markdown-body";
+        
+        if (role === "robot" && typeof marked !== "undefined") {
+            content.innerHTML = marked.parse(text);
+        } else {
+            content.textContent = text;
+        }
 
         if (role === "user") {
             bubble.append(content, avatar);
@@ -4376,16 +4405,66 @@ function initAITutorChat() {
         }
         chatHistory.appendChild(bubble);
         chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+    
+    async function sendUserMessage(msg, options = {}) {
+        if (!msg || !msg.trim()) return;
         
-        if (chatInput) chatInput.value = "";
+        // Append user bubble
+        appendTutorBubble("user", msg);
+        if (workInput) workInput.value = "";
         
-        requestSocraticTutor(msg).then(result => {
-            const robotBubble = document.createElement("div");
-            robotBubble.className = "chat-bubble robot-bubble";
-            robotBubble.textContent = result.content;
-            chatHistory.appendChild(robotBubble);
-            chatHistory.scrollTop = chatHistory.scrollHeight;
-        }).catch(error => showToast(error.message));
+        // Add loading indicator
+        const loadingBubble = document.createElement("div");
+        loadingBubble.className = "chat-bubble robot-bubble";
+        loadingBubble.innerHTML = "<div class='bubble-avatar'><i class='fa-solid fa-robot'></i></div><div class='bubble-content'><p>Đang phân tích...</p></div>";
+        chatHistory.appendChild(loadingBubble);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+        
+        try {
+            let response;
+            // Handle image upload if a file is selected
+            if (imageInput && imageInput.files && imageInput.files[0]) {
+                const formData = new FormData();
+                formData.append("image", imageInput.files[0]);
+                formData.append("question_id", "");
+                
+                response = await fetch(`/api/ai/student/${state.studentId}/analyze-work`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${localStorage.getItem("porcus_token")}`
+                    },
+                    body: formData
+                });
+                
+                // Clear the file input after sending
+                imageInput.value = "";
+                if (imageLabel) imageLabel.textContent = "Gửi ảnh bài làm";
+            } else {
+                // Regular chat request
+                const mode = options.useMode ? selectedAIMode : "explain";
+                response = await fetch(`/api/ai/student/${state.studentId}/chat`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${localStorage.getItem("porcus_token")}`
+                    },
+                    body: JSON.stringify({ message: msg, mode: mode })
+                });
+            }
+            
+            if (!response.ok) throw new Error("Lỗi khi kết nối với máy chủ AI");
+            const data = await response.json();
+            
+            // Remove loading indicator
+            chatHistory.removeChild(loadingBubble);
+            
+            // Append robot response
+            appendTutorBubble("robot", data.content);
+        } catch (error) {
+            chatHistory.removeChild(loadingBubble);
+            showToast(error.message);
+        }
     }
     
     document.querySelectorAll("[data-ai-mode]").forEach(btn => {
@@ -4629,37 +4708,6 @@ async function apiFetch(input, init = {}) {
         }
     }
     return response;
-}
-
-function initAITutorChat() {
-    const input = document.getElementById("tutor-chat-input");
-    const button = document.getElementById("btn-send-tutor");
-    const history = document.getElementById("chat-history-box");
-    if (!input || !button || !history) return;
-    const send = async () => {
-        const message = input.value.trim();
-        if (!message) return;
-        input.value = "";
-        const user = document.createElement("div");
-        user.className = "chat-bubble user-bubble";
-        user.textContent = message;
-        history.appendChild(user);
-        try {
-            const result = await requestSocraticTutor(message);
-            const bot = document.createElement("div");
-            bot.className = "chat-bubble robot-bubble";
-            bot.textContent = result.content;
-            history.appendChild(bot);
-        } catch (error) {
-            const notice = document.createElement("div");
-            notice.className = "chat-bubble robot-bubble";
-            notice.textContent = error.message;
-            history.appendChild(notice);
-        }
-        history.scrollTop = history.scrollHeight;
-    };
-    button.addEventListener("click", send);
-    input.addEventListener("keypress", event => { if (event.key === "Enter") send(); });
 }
 
 function initStudentMascotChat() {

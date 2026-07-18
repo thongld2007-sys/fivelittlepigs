@@ -17,8 +17,9 @@ from backend.database import (
     get_consecutive_failed_count, get_stuck_time_minutes, get_answered_question_ids,
     add_student, get_ai_usage_summary, list_students, reset_student_session,
     get_dashboard_snapshot, record_ai_usage, record_uploaded_work,
-    get_response_event, get_db_connection,
+    get_response_event, get_db_connection, db_session,
 )
+from backend.models import ChatMessage
 from backend.diagnostic_engine import update_student_skill, get_next_recommended_skill, get_next_question_difficulty_and_skill
 from backend.fpt_ai import FPTAIError, fpt_ai_client
 from backend.fpt_speech import fpt_speech_client
@@ -28,7 +29,7 @@ from backend.student_auth import (
     create_session as create_student_auth_session, get_student_for_user,
     refresh_session, register_student, revoke_session,
 )
-from backend.pedagogical_agents import lesson_planner_agent, socratic_agent
+from backend.pedagogical_agents import lesson_planner_agent, socratic_agent, general_assistant
 from backend.knowledge_graph import KNOWLEDGE_GRAPH
 from backend.storage import object_storage
 
@@ -642,6 +643,10 @@ class AITutorRequest(BaseModel):
     message: str
     history: Optional[list[dict]] = None
 
+class AIChatRequest(BaseModel):
+    mode: str = "explain"
+    message: str = Field(min_length=1, max_length=1000)
+
 class SafetyCheckRequest(BaseModel):
     message: str = Field(min_length=1, max_length=1000)
 
@@ -892,6 +897,44 @@ def ai_tutor(student_id: str, payload: AITutorRequest):
     try:
         agent_result = socratic_agent.run(
             student_id=student_id, question=question, message=payload.message.strip()
+        )
+    except FPTAIError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"provider": "FPT AI Factory", **agent_result}
+
+@app.get("/api/ai/student/{student_id}/chat/history", dependencies=[Depends(require_auth)])
+def get_chat_history(student_id: str):
+    student = get_student(student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+        
+    with db_session() as session:
+        msgs = session.query(ChatMessage).filter(
+            ChatMessage.student_id == student_id
+        ).order_by(ChatMessage.created_at.desc()).limit(50).all()
+        
+    return {
+        "history": [
+            {
+                "id": msg.id,
+                "role": msg.role,
+                "content": msg.content,
+                "mode": msg.mode,
+                "created_at": msg.created_at.isoformat()
+            }
+            for msg in reversed(msgs)
+        ]
+    }
+
+@app.post("/api/ai/student/{student_id}/chat", dependencies=[Depends(require_auth)])
+def ai_chat(student_id: str, payload: AIChatRequest):
+    student = get_student(student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    try:
+        agent_result = general_assistant.run(
+            student_id=student_id, mode=payload.mode, message=payload.message.strip()
         )
     except FPTAIError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

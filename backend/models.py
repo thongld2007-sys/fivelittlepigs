@@ -240,3 +240,13 @@ class AccountActivationToken(Base):
     expires_at: Mapped[datetime] = mapped_column(MixedDateTime, nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(MixedDateTime)
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow)
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_string)
+    student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)  # "user" or "robot"
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    mode: Mapped[str | None] = mapped_column(String(50))  # e.g., "explain", "find_error"
+    created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow, index=True)

@@ -10,9 +10,11 @@ from backend.database import (
     get_student_mastery,
     record_agent_run,
     record_ai_usage,
+    db_session,
 )
 from backend.fpt_ai import fpt_ai_client
 from backend.knowledge_graph import KNOWLEDGE_GRAPH
+from backend.models import ChatMessage
 from backend.rag import rag_retriever
 
 
@@ -122,3 +124,56 @@ class LessonPlannerAgent:
 
 socratic_agent = SocraticPedagogicalAgent()
 lesson_planner_agent = LessonPlannerAgent()
+
+class GeneralLearningAssistant:
+    def run(self, *, student_id: str, mode: str, message: str) -> dict:
+        prompts = {
+            "explain": "Bạn là gia sư AI PorcusAI. Hãy giải thích nội dung học sinh gửi một cách dễ hiểu, có ví dụ minh họa nếu cần. Lời lẽ thân thiện, khuyến khích.",
+            "find_error": "Bạn là gia sư AI PorcusAI. Hãy tìm lỗi sai trong bài làm của học sinh (nếu có). Chỉ ra bước sai, giải thích vì sao sai và gợi ý cách sửa từng bước.",
+            "similar_question": "Bạn là gia sư AI PorcusAI. Dựa trên nội dung học sinh gửi, hãy tạo ra MỘT câu hỏi tương tự cùng độ khó để học sinh luyện tập.",
+            "step_hint": "Bạn là gia sư AI PorcusAI. Hãy đưa ra gợi ý từng bước (Socratic method) để học sinh tự tìm ra đáp án, tuyệt đối KHÔNG nói thẳng kết quả cuối cùng.",
+            "summarize": "Bạn là gia sư AI PorcusAI. Hãy tóm tắt nội dung học sinh gửi thành các ý chính ngắn gọn, dễ nhớ."
+        }
+        
+        formatting_rule = (
+            "\n\nQUY TẮC TRÌNH BÀY: "
+            "1. Cực kỳ ngắn gọn, súc tích, đi thẳng vào vấn đề. "
+            "2. Trình bày bố cục rõ ràng, chia đoạn hoặc dùng gạch đầu dòng gọn gàng. "
+            "3. Tuyệt đối không dùng các ký tự thừa thãi như ###, --- hoặc lạm dụng in đậm (**) nếu không thực sự cần nhấn mạnh."
+        )
+        
+        system = prompts.get(mode, prompts["explain"]) + formatting_rule
+        
+        with db_session() as session:
+            recent_msgs = session.query(ChatMessage).filter(
+                ChatMessage.student_id == student_id
+            ).order_by(ChatMessage.created_at.desc()).limit(20).all()
+            
+            history = [{"role": msg.role, "content": msg.content} for msg in reversed(recent_msgs)]
+            
+            result = fpt_ai_client.complete(system_prompt=system, user_prompt=message, history=history)
+            
+            user_msg = ChatMessage(student_id=student_id, role="user", content=message, mode=mode)
+            ai_msg = ChatMessage(student_id=student_id, role="robot", content=result.content, mode=mode)
+            session.add(user_msg)
+            session.add(ai_msg)
+            
+        record_ai_usage("general_tutor", result.model, result.usage, result.latency_ms)
+        
+        trace = [
+            {"step": "general_chat", "mode": mode}
+        ]
+        run_id = record_agent_run(
+            "general_tutor", result.model, trace, [], student_id=student_id
+        )
+        return {
+            "content": result.content,
+            "model": result.model,
+            "usage": result.usage,
+            "latency_ms": result.latency_ms,
+            "agent_run_id": run_id,
+            "agent_trace": trace,
+            "sources": [],
+        }
+
+general_assistant = GeneralLearningAssistant()

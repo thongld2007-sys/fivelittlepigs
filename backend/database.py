@@ -14,7 +14,7 @@ from sqlalchemy.pool import NullPool
 from backend.config import Config
 from backend.models import (
     AIUsage, AgentRun, Base, DiagnosticSession, MasteryHistory, Question, Response,
-    Skill, Student, StudentMastery, UploadedWork,
+    Skill, Student, StudentMastery, UploadedWork, ChatMessage,
 )
 
 

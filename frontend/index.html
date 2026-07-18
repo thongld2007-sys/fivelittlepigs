@@ -620,64 +620,62 @@
                             <p class="card-subtitle-desc">Gửi bài làm hoặc câu hỏi ở bảng bên phải, chọn đúng chế độ để AI xử lý theo nhiệm vụ.</p>
                             <span id="ai-status-pill" class="realtime-status polling">Đang kiểm tra AI</span>
                         </div>
-                        <div class="tutor-chat-layout">
-                            <!-- Chat box area -->
-                            <div class="memphis-card chat-card">
-                                <div class="chat-history" id="chat-history-box">
-                                    <div class="chat-bubble robot-bubble">
-                                        <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
-                                        <div class="bubble-content">
-                                            <p>Xin chào Emma! Tôi là trợ lý học tập PorcusAI. Hôm nay bạn muốn tìm hiểu hay luyện tập phần kiến thức nào?</p>
-                                        </div>
+                        <div class="modern-chat-container">
+                            <!-- Chat History -->
+                            <div class="chat-history-modern" id="chat-history-box">
+                                <div class="chat-bubble robot-bubble">
+                                    <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
+                                    <div class="bubble-content">
+                                        <p>Xin chào Emma! Tôi là trợ lý học tập PorcusAI. Hôm nay bạn muốn tìm hiểu hay luyện tập phần kiến thức nào?</p>
                                     </div>
-                                    <div class="chat-bubble user-bubble">
-                                        <div class="bubble-content">
-                                            <p>Giải thích giúp em cách quy đồng mẫu số phân số 3/4 và 5/6 với ạ.</p>
-                                        </div>
-                                        <div class="bubble-avatar"><i class="fa-solid fa-user-ninja"></i></div>
+                                </div>
+                                <div class="chat-bubble user-bubble">
+                                    <div class="bubble-content">
+                                        <p>Giải thích giúp em cách quy đồng mẫu số phân số 3/4 và 5/6 với ạ.</p>
                                     </div>
-                                    <div class="chat-bubble robot-bubble">
-                                        <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
-                                        <div class="bubble-content">
-                                            <p>Để quy đồng mẫu số 3/4 và 5/6:</p>
-                                            <ol>
-                                                <li>Bước 1: Tìm BCNN của 4 và 6. BCNN(4, 6) = 12.</li>
-                                                <li>Bước 2: Tìm nhân tử phụ: 12 : 4 = 3; 12 : 6 = 2.</li>
-                                                <li>Bước 3: Nhân cả tử và mẫu với nhân tử phụ tương ứng:
-                                                    <ul>
-                                                        <li>3/4 = (3 x 3)/(4 x 3) = 9/12</li>
-                                                        <li>5/6 = (5 x 2)/(6 x 2) = 10/12</li>
-                                                    </ul>
-                                                </li>
-                                            </ol>
-                                            <p>Bây giờ hai phân số đã có cùng mẫu số là 12 rồi đó!</p>
-                                        </div>
+                                    <div class="bubble-avatar"><i class="fa-solid fa-user-ninja"></i></div>
+                                </div>
+                                <div class="chat-bubble robot-bubble">
+                                    <div class="bubble-avatar"><i class="fa-solid fa-robot"></i></div>
+                                    <div class="bubble-content">
+                                        <p>Để quy đồng mẫu số 3/4 và 5/6:</p>
+                                        <ol>
+                                            <li>Bước 1: Tìm BCNN của 4 và 6. BCNN(4, 6) = 12.</li>
+                                            <li>Bước 2: Tìm nhân tử phụ: 12 : 4 = 3; 12 : 6 = 2.</li>
+                                            <li>Bước 3: Nhân cả tử và mẫu với nhân tử phụ tương ứng:
+                                                <ul>
+                                                    <li>3/4 = (3 x 3)/(4 x 3) = 9/12</li>
+                                                    <li>5/6 = (5 x 2)/(6 x 2) = 10/12</li>
+                                                </ul>
+                                            </li>
+                                        </ol>
+                                        <p>Bây giờ hai phân số đã có cùng mẫu số là 12 rồi đó!</p>
                                     </div>
                                 </div>
                             </div>
-                            <!-- AI task composer sidebar -->
-                            <div class="memphis-card quick-tutor-actions ai-task-panel">
-                                <h4>Chọn việc cho AI</h4>
-                                <div class="ai-mode-grid" id="ai-mode-grid">
-                                    <button type="button" class="ai-mode-btn active" data-ai-mode="explain"><i class="fa-solid fa-lightbulb"></i><span>Giải thích</span></button>
-                                    <button type="button" class="ai-mode-btn" data-ai-mode="find_error"><i class="fa-solid fa-circle-xmark"></i><span>Tìm lỗi sai</span></button>
-                                    <button type="button" class="ai-mode-btn" data-ai-mode="similar_question"><i class="fa-solid fa-clone"></i><span>Câu tương tự</span></button>
-                                    <button type="button" class="ai-mode-btn" data-ai-mode="step_hint"><i class="fa-solid fa-shoe-prints"></i><span>Gợi ý từng bước</span></button>
-                                    <button type="button" class="ai-mode-btn" data-ai-mode="summarize"><i class="fa-solid fa-layer-group"></i><span>Tóm tắt</span></button>
+
+                            <!-- Chat Composer Area -->
+                            <div class="chat-composer-container">
+                                <!-- AI Mode Chips -->
+                                <div class="ai-mode-chips" id="ai-mode-grid">
+                                    <button type="button" class="ai-mode-chip active" data-ai-mode="explain"><i class="fa-solid fa-lightbulb"></i><span>Giải thích</span></button>
+                                    <button type="button" class="ai-mode-chip" data-ai-mode="find_error"><i class="fa-solid fa-circle-xmark"></i><span>Tìm lỗi sai</span></button>
+                                    <button type="button" class="ai-mode-chip" data-ai-mode="similar_question"><i class="fa-solid fa-clone"></i><span>Câu tương tự</span></button>
+                                    <button type="button" class="ai-mode-chip" data-ai-mode="step_hint"><i class="fa-solid fa-shoe-prints"></i><span>Gợi ý từng bước</span></button>
+                                    <button type="button" class="ai-mode-chip" data-ai-mode="summarize"><i class="fa-solid fa-layer-group"></i><span>Tóm tắt</span></button>
                                 </div>
-                                <label class="ai-work-label" for="ai-work-input">Bài làm / câu hỏi của em</label>
-                                <textarea id="ai-work-input" class="memphis-input ai-work-input" rows="6" placeholder="Gõ câu hỏi, dán bài làm, hoặc mô tả ảnh em gửi..."></textarea>
-                                <label class="ai-upload-tile" for="ai-image-input">
-                                    <i class="fa-solid fa-image"></i>
-                                    <span id="ai-image-label">Gửi ảnh bài làm</span>
-                                    <input id="ai-image-input" type="file" accept="image/*">
-                                </label>
-                                <button id="btn-run-ai-task" class="btn btn-primary-memphis btn-run-ai-task" type="button"><i class="fa-solid fa-wand-magic-sparkles"></i> Gửi cho AI</button>
-                                <div class="ai-evidence-strip">
-                                    <strong><i class="fa-solid fa-brain"></i> AI can thiệp</strong>
-                                    <span>Đọc bài làm → tìm lỗi gốc → tạo gói ôn → đo lại mastery.</span>
+
+                                <div class="chat-input-wrapper">
+                                    <label id="ai-image-label" class="chat-upload-btn" for="ai-image-input" title="Đính kèm ảnh">
+                                        <i class="fa-solid fa-image"></i>
+                                        <input id="ai-image-input" type="file" accept="image/*" style="display: none;">
+                                    </label>
+                                    <textarea id="ai-work-input" class="chat-work-input" rows="1" placeholder="Gõ câu hỏi, dán bài làm của em..."></textarea>
+                                    <button id="btn-run-ai-task" class="chat-send-btn" type="button" title="Gửi cho AI"><i class="fa-solid fa-paper-plane"></i></button>
                                 </div>
-                                <p class="ai-task-note">AI chỉ làm theo chế độ đã chọn. Muốn tạo câu tương tự thì chọn đúng chế độ đó trước.</p>
+                                <div class="chat-composer-footer">
+                                    <span><i class="fa-solid fa-brain"></i> AI can thiệp: Đọc bài làm → tìm lỗi gốc → tạo gói ôn → đo lại mastery. AI chỉ làm theo chế độ đã chọn phía trên.</span>
+                                </div>
                             </div>
                         </div>
                     </div>
