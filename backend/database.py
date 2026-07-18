@@ -93,9 +93,17 @@ def _migrate_legacy_sqlite():
         if "users" in tables:
             columns = {row[1] for row in connection.execute("PRAGMA table_info(users)")}
             additions = {
-                "username": "TEXT", "failed_login_count": "INTEGER DEFAULT 0",
-                "locked_until": "DATETIME", "last_login_at": "DATETIME", "updated_at": "DATETIME",
                 "organization_id": "TEXT",
+                "username": "TEXT",
+                "email": "TEXT",
+                "password_hash": "TEXT",
+                "role": "TEXT DEFAULT 'student'",
+                "is_active": "BOOLEAN DEFAULT 1",
+                "failed_login_count": "INTEGER DEFAULT 0",
+                "locked_until": "DATETIME",
+                "last_login_at": "DATETIME",
+                "created_at": "DATETIME",
+                "updated_at": "DATETIME",
             }
             for name, definition in additions.items():
                 if name not in columns:
