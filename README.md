@@ -236,7 +236,7 @@ Thiết lập `AUTH_COOKIE_SECURE=true` khi deploy production có HTTPS. Access 
 Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/auth/student/activation-code `
   -Headers @{ "X-API-Key" = $env:VGAP_STAFF_API_KEY } `
   -ContentType "application/json" -Body '{"student_id":"an_01"}'
-
+```
 
 ## 📊 Kết quả Thử nghiệm & Lộ trình Triển khai (Pilot Roadmap)
 
