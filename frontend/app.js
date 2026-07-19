@@ -2397,7 +2397,18 @@ async function loadStudentQuestion(skillId) {
 
     state.selectedOption = null;
     state.typedAnswer = "";
-    document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
+    state.questionAnswered = false;
+    state.nextQuestionPending = null;
+    
+    const submitBtn = document.getElementById("btn-submit-answer");
+    if (submitBtn) {
+        submitBtn.setAttribute("disabled", "true");
+        submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Gửi đáp án`;
+    }
+    const hintBtn = document.getElementById("btn-show-hint");
+    if (hintBtn) hintBtn.style.display = "block";
+    const distractorBox = document.getElementById("distractor-feedback-box");
+    if (distractorBox) distractorBox.style.display = "none";
     
     try {
         const params = new URLSearchParams({
@@ -2673,6 +2684,10 @@ function renderCurrentQuestion(question) {
 }
 
 function handleShortAnswerInput(e) {
+    if (state.questionAnswered) {
+        e.target.value = state.typedAnswer;
+        return;
+    }
     state.typedAnswer = e.target.value;
     state.selectedOption = state.typedAnswer.trim() ? "__SHORT_ANSWER__" : null;
     const submitBtn = document.getElementById("btn-submit-answer");
@@ -2753,9 +2768,41 @@ function answerTextMatches(inputValue, optionText) {
 }
 
 function findOptionByShortAnswer(question, typedAnswer) {
-    const answer = String(typedAnswer ?? "").trim();
+    const answer = String(typedAnswer ?? "").trim().toLowerCase();
     if (!answer) return null;
 
+    // 1. Exact match (case insensitive, trimmed)
+    let found = question.options.find(opt => opt.text.trim().toLowerCase() === answer);
+    if (found) return found;
+
+    // 2. Normalize and check contains / match
+    const normAnswer = normalizeAnswer(answer);
+    found = question.options.find(opt => normalizeAnswer(opt.text) === normAnswer);
+    if (found) return found;
+
+    // 3. Compact answer match
+    const compAnswer = compactAnswer(answer);
+    found = question.options.find(opt => compactAnswer(opt.text) === compAnswer);
+    if (found) return found;
+
+    // 4. Try matching numbers if both are numeric
+    const parsedInput = parseNumericAnswer(answer);
+    if (parsedInput !== null) {
+        found = question.options.find(opt => {
+            const parsedOpt = parseNumericAnswer(opt.text);
+            return parsedOpt !== null && Math.abs(parsedInput - parsedOpt) < 1e-9;
+        });
+        if (found) return found;
+    }
+
+    // 5. Fallback: check if the option text contains the typed answer, or vice versa
+    found = question.options.find(opt => {
+        const t = opt.text.trim().toLowerCase();
+        return t.includes(answer) || answer.includes(t);
+    });
+    if (found) return found;
+
+    // 6. Original smart numeric parser logic
     return question.options.find(opt => isShortAnswerCompatibleText(opt.text) && answerTextMatches(answer, opt.text)) || null;
 }
 
@@ -3032,7 +3079,12 @@ function getNextSkillTowardTarget(currentSkillId) {
 
 function chooseNextSkillAfterSubmit(result, isCorrect) {
     const currentSkill = state.currentQuestion?.skill_id || state.testSession.currentSkill || state.testSession.targetSkill;
-    if (isCorrect) return getRandomSkillForCurrentSelection(currentSkill);
+    if (isCorrect) {
+        if (result?.next_recommended_skill && result.next_recommended_skill !== currentSkill) {
+            return result.next_recommended_skill;
+        }
+        return getRandomSkillForSubject(state.testSession.subject, currentSkill);
+    }
     return result?.next_recommended_skill || currentSkill;
 }
 
@@ -3137,7 +3189,7 @@ function renderSurveyResult() {
  * @param {HTMLButtonElement} optionButton - Button element that was selected.
  */
 function handleAnswerSelection(optionKey, optionButton) {
-    if (state.isSubmitting) return;
+    if (state.isSubmitting || state.questionAnswered) return;
 
     const optionsContainer = document.getElementById("options-container");
     optionsContainer.querySelectorAll(".option-btn").forEach(btn => {
@@ -3262,8 +3314,25 @@ function updateAnswerFeedbackUI(result, isCorrect) {
  * Handles the full submit flow after a student has selected an answer.
  */
 async function submitAnswer() {
+    if (state.questionAnswered) {
+        // This is the "Continue" (Tiếp tục) action!
+        state.isSubmitting = false;
+        state.questionAnswered = false;
+        const pending = state.nextQuestionPending;
+        state.nextQuestionPending = null;
+        
+        if (pending?.stageMessage?.message) showToast(pending.stageMessage.message);
+        if (pending?.stageMessage?.completed) {
+            completeSurvey();
+            return;
+        }
+        loadStudentQuestion(pending?.nextSkill);
+        return;
+    }
+
     state.isSubmitting = true;
-    document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
+    const submitBtn = document.getElementById("btn-submit-answer");
+    if (submitBtn) submitBtn.setAttribute("disabled", "true");
 
     if (state.testSession.stage === "essay") {
         await submitEssayAnswer();
@@ -3271,10 +3340,8 @@ async function submitAnswer() {
     }
 
     const submittedOption = resolveSubmissionOption();
-    
     showLoadingOverlay("Đang chấm điểm và cập nhật chẩn đoán...");
     
-    // 1. Submit through backend API
     try {
         const result = await submitSelectedAnswerToApi(submittedOption);
         if (result) {
@@ -3302,40 +3369,50 @@ async function submitAnswer() {
             
             if (isCorrect) {
                 showToast(reward.message);
-                
-                setTimeout(() => {
-                    state.isSubmitting = false;
-                    if (stageMessage?.message) showToast(stageMessage.message);
-                    if (stageMessage?.completed) {
-                        completeSurvey();
-                        return;
-                    }
-                    loadStudentQuestion(nextSkill);
-                }, 2000);
-            } else {
-                setTimeout(() => {
-                    state.isSubmitting = false;
-                    if (stageMessage?.message) showToast(stageMessage.message);
-                    if (stageMessage?.completed) {
-                        completeSurvey();
-                        return;
-                    }
-                    loadStudentQuestion(nextSkill);
-                }, 4000);
             }
+            
+            // Set pending state and update button to "Tiếp tục"
+            state.questionAnswered = true;
+            state.nextQuestionPending = { nextSkill, stageMessage };
+            state.isSubmitting = false;
+            
+            if (submitBtn) {
+                submitBtn.removeAttribute("disabled");
+                submitBtn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Tiếp tục`;
+            }
+            const hintBtn = document.getElementById("btn-show-hint");
+            if (hintBtn) hintBtn.style.display = "none";
+            
             return;
         }
     } catch (e) {
         console.warn("[-] Submit API failed. Falling back to offline mock mode simulation.", e);
     }
     
-    // 2. Offline Mock submission
     submitAnswerOffline();
 }
 
 async function submitEssayAnswer() {
+    if (state.questionAnswered) {
+        state.isSubmitting = false;
+        state.questionAnswered = false;
+        const pending = state.nextQuestionPending;
+        state.nextQuestionPending = null;
+        
+        if (pending?.stageMessage?.message) showToast(pending.stageMessage.message);
+        if (pending?.stageMessage?.completed) {
+            completeSurvey();
+            return;
+        }
+        loadStudentQuestion(pending?.nextSkill);
+        return;
+    }
+    
     const essayText = String(state.typedAnswer || "").trim();
     showLoadingOverlay("AI đang chấm tự luận và tìm lỗi gốc...");
+    
+    const submitBtn = document.getElementById("btn-submit-answer");
+    if (submitBtn) submitBtn.setAttribute("disabled", "true");
 
     try {
         const response = await fetch(`/api/ai/student/${getAIStudentId()}/chat`, {
@@ -3421,15 +3498,18 @@ async function submitEssayAnswer() {
             })), analysis.summary || "AI đã tạo gói ôn từ bài tự luận.");
         }
 
-        setTimeout(() => {
-            state.isSubmitting = false;
-            if (stageMessage?.message) showToast(stageMessage.message);
-            if (stageMessage?.completed) {
-                completeSurvey();
-                return;
-            }
-            loadStudentQuestion(chooseNextSkillAfterSubmit(null, isCorrect));
-        }, hasClearError ? 2600 : 1800);
+        const nextSkill = chooseNextSkillAfterSubmit(null, isCorrect);
+        state.questionAnswered = true;
+        state.nextQuestionPending = { nextSkill, stageMessage };
+        state.isSubmitting = false;
+        
+        if (submitBtn) {
+            submitBtn.removeAttribute("disabled");
+            submitBtn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Tiếp tục`;
+        }
+        const hintBtn = document.getElementById("btn-show-hint");
+        if (hintBtn) hintBtn.style.display = "none";
+
     } catch (error) {
         console.warn("[Essay AI] Analyzer failed.", error);
         hideLoadingOverlay();
@@ -3452,11 +3532,18 @@ async function submitEssayAnswer() {
         awardQuizRewards(false);
         document.getElementById("mascot-comment").textContent = "AI chấm tự luận đang lỗi kết nối. Hệ thống vẫn lưu bài và đánh dấu cần chấm lại.";
         showToast("AI chấm tự luận chưa hoạt động, đã lưu phần cần kiểm tra lại.");
-        setTimeout(() => {
-            state.isSubmitting = false;
-            if (stageMessage?.completed) completeSurvey();
-            else loadStudentQuestion(state.testSession.currentSkill);
-        }, 2000);
+        
+        const nextSkill = state.testSession.currentSkill;
+        state.questionAnswered = true;
+        state.nextQuestionPending = { nextSkill, stageMessage };
+        state.isSubmitting = false;
+        
+        if (submitBtn) {
+            submitBtn.removeAttribute("disabled");
+            submitBtn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> Tiếp tục`;
+        }
+        const hintBtn = document.getElementById("btn-show-hint");
+        if (hintBtn) hintBtn.style.display = "none";
     }
 }
 
@@ -4599,11 +4686,22 @@ function loadOfflineMockQuestion(skillId) {
     clearChatUIs();
     state.selectedOption = null;
     state.typedAnswer = "";
+    state.questionAnswered = false;
+    state.nextQuestionPending = null;
     
     renderCurrentQuestion(question);
     
     document.getElementById("hint-content-box").style.display = "none";
-    document.getElementById("btn-submit-answer").setAttribute("disabled", "true");
+    const submitBtn = document.getElementById("btn-submit-answer");
+    if (submitBtn) {
+        submitBtn.setAttribute("disabled", "true");
+        submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Gửi đáp án`;
+    }
+    const hintBtn = document.getElementById("btn-show-hint");
+    if (hintBtn) hintBtn.style.display = "block";
+    const distractorBox = document.getElementById("distractor-feedback-box");
+    if (distractorBox) distractorBox.style.display = "none";
+    
     document.getElementById("mascot-comment").textContent = "Hãy đọc kỹ đề bài nhé! Tôi tin bạn làm được!";
     resetToolboxForNewQuestion();
     renderPersonalPath();
