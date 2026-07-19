@@ -1332,7 +1332,7 @@ const REASONING_TREES = {
 
 // Initialize Application
 document.addEventListener("DOMContentLoaded", async () => {
-    initStudentAccountAuth();
+    initAuthFlow();
     initPortalNavigation();
     initTeacherTabs();
     initAITutorChat();
@@ -5578,6 +5578,40 @@ function initAuthFlow() {
         errorMsg.style.display = "flex";
     };
 
+    // Helper to setup sub-auth tab navigation
+    const setupSubAuthSwitch = (roleName) => {
+        const buttons = document.querySelectorAll(`.${roleName}-auth-mode`);
+        const panels = document.querySelectorAll(`.${roleName}-auth-panel`);
+        buttons.forEach(button => {
+            button.addEventListener("click", () => {
+                const mode = button.getAttribute(`data-${roleName}-auth-mode`) || "login";
+                buttons.forEach(item => item.classList.toggle("active", item === button));
+                panels.forEach(panel => panel.classList.toggle(
+                    "active", panel.getAttribute(`data-${roleName}-auth-panel`) === mode
+                ));
+                if (errorMsg) errorMsg.style.display = "none";
+                
+                // Update submit button text
+                if (btnLoginText && btnLoginIcon) {
+                    if (mode === "register") {
+                        btnLoginText.textContent = "Đăng ký";
+                        btnLoginIcon.className = "fa-solid fa-user-plus";
+                    } else if (mode === "activate") {
+                        btnLoginText.textContent = "Kích hoạt";
+                        btnLoginIcon.className = "fa-solid fa-key";
+                    } else {
+                        btnLoginText.textContent = "Đăng nhập";
+                        btnLoginIcon.className = "fa-solid fa-arrow-right-to-bracket";
+                    }
+                }
+            });
+        });
+    };
+
+    setupSubAuthSwitch("student");
+    setupSubAuthSwitch("teacher");
+    setupSubAuthSwitch("parent");
+
     tabBtns.forEach(btn => {
         btn.addEventListener("click", () => {
             tabBtns.forEach(b => b.classList.remove("active"));
@@ -5588,8 +5622,11 @@ function initAuthFlow() {
             if (panel) panel.classList.add("active");
             if (errorMsg) errorMsg.style.display = "none";
             
+            // Check if subtab register or login is active for this panel and set correct label
+            const subPanel = document.querySelector(`.${activeRole}-auth-panel.active`);
+            const mode = subPanel ? subPanel.getAttribute(`data-${activeRole}-auth-panel`) : "login";
             if (btnLoginText && btnLoginIcon) {
-                if (activeRole === "register") {
+                if (mode === "register") {
                     btnLoginText.textContent = "Đăng ký";
                     btnLoginIcon.className = "fa-solid fa-user-plus";
                 } else {
@@ -5604,56 +5641,191 @@ function initAuthFlow() {
         loginSubmitBtn.addEventListener("click", async () => {
             if (errorMsg) errorMsg.style.display = "none";
 
+            // Common password criteria validation helper
+            const validatePasswordStr = (password) => {
+                const regex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+                return regex.test(password);
+            };
+
             if (activeRole === "teacher") {
-                const username = document.getElementById("teacher-username")?.value || "";
-                const password = document.getElementById("teacher-pass")?.value || "";
-                try {
-                    const response = await fetch("/api/auth/login", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username, password, role: "teacher" })
-                    });
-                    if (!response.ok) {
-                        showError("Tài khoản hoặc mật khẩu không đúng.");
+                const teacherLoginPanel = document.querySelector(".teacher-auth-panel[data-teacher-auth-panel='login']");
+                const isTeacherLogin = teacherLoginPanel && teacherLoginPanel.classList.contains("active");
+
+                if (isTeacherLogin) {
+                    const username = document.getElementById("teacher-username")?.value || "";
+                    const password = document.getElementById("teacher-pass")?.value || "";
+                    if (!username.trim() || !password.trim()) {
+                        showError("Vui lòng nhập tên đăng nhập và mật khẩu.");
                         return;
                     }
-                    const auth = await response.json();
-                    state.isLoggedIn = true;
-                    state.loggedInRole = "teacher";
-                    state.user = auth.user;
-                    localStorage.setItem("isLoggedIn", "true");
-                    localStorage.setItem("loggedInRole", "teacher");
-                    localStorage.removeItem("studentId");
-                    localStorage.setItem("accessToken", auth.access_token);
-                    if (loginOverlay) loginOverlay.classList.add("hidden");
-                    switchPortalUI("teacher");
-                    showToast("Đăng nhập giáo viên thành công.");
-                } catch (e) {
-                    showError("Lỗi kết nối máy chủ.");
+                    try {
+                        const response = await fetch("/api/auth/login", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username, password, role: "teacher" })
+                        });
+                        if (!response.ok) {
+                            showError("Tài khoản hoặc mật khẩu không đúng.");
+                            return;
+                        }
+                        const auth = await response.json();
+                        state.isLoggedIn = true;
+                        state.loggedInRole = "teacher";
+                        state.user = auth.user;
+                        localStorage.setItem("isLoggedIn", "true");
+                        localStorage.setItem("loggedInRole", "teacher");
+                        localStorage.removeItem("studentId");
+                        localStorage.setItem("accessToken", auth.access_token);
+                        authAccessToken = auth.access_token;
+                        if (loginOverlay) loginOverlay.classList.add("hidden");
+                        switchPortalUI("teacher");
+                        showToast("Đăng nhập giáo viên thành công.");
+                    } catch (e) {
+                        showError("Lỗi kết nối máy chủ.");
+                    }
+                } else {
+                    const name = document.getElementById("register-teacher-name")?.value || "";
+                    const username = document.getElementById("register-teacher-username")?.value || "";
+                    const subject = document.getElementById("register-teacher-subject")?.value || "";
+                    const school = document.getElementById("register-teacher-school")?.value || "";
+                    const password = document.getElementById("register-teacher-password")?.value || "";
+                    const confirm = document.getElementById("register-teacher-confirm")?.value || "";
+
+                    if (!username.trim() || !password.trim() || !name.trim()) {
+                        showError("Vui lòng điền các thông tin bắt buộc.");
+                        return;
+                    }
+                    if (password !== confirm) {
+                        showError("Mật khẩu nhập lại không khớp.");
+                        return;
+                    }
+                    if (!validatePasswordStr(password)) {
+                        showError("Mật khẩu phải từ 8 ký tự trở lên, gồm chữ cái và chữ số.");
+                        return;
+                    }
+                    try {
+                        const response = await fetch("/api/auth/teacher/register", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username, password, name, subject, school })
+                        });
+                        if (!response.ok) {
+                            const err = await response.json();
+                            showError(err.detail || "Đăng ký thất bại.");
+                            return;
+                        }
+                        const auth = await response.json();
+                        state.isLoggedIn = true;
+                        state.loggedInRole = "teacher";
+                        state.user = auth.user;
+                        localStorage.setItem("isLoggedIn", "true");
+                        localStorage.setItem("loggedInRole", "teacher");
+                        localStorage.removeItem("studentId");
+                        localStorage.setItem("accessToken", auth.access_token);
+                        authAccessToken = auth.access_token;
+                        if (loginOverlay) loginOverlay.classList.add("hidden");
+                        switchPortalUI("teacher");
+                        showToast("Đăng ký giáo viên thành công.");
+                    } catch (e) {
+                        showError("Lỗi kết nối máy chủ.");
+                    }
                 }
                 return;
             }
 
-            if (activeRole === "register") {
-                const username = document.getElementById("reg-username")?.value || "";
-                const password = document.getElementById("reg-password")?.value || "";
-                const name = document.getElementById("reg-name")?.value || "";
-                const grade = document.getElementById("reg-grade")?.value || "5";
-                try {
-                    const response = await fetch("/api/auth/student/register", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username, password, name, grade: parseInt(grade) })
-                    });
-                    if (!response.ok) {
-                        const err = await response.json();
-                        showError(err.detail || "Đăng ký thất bại.");
+            if (activeRole === "parent") {
+                const parentLoginPanel = document.querySelector(".parent-auth-panel[data-parent-auth-panel='login']");
+                const isParentLogin = parentLoginPanel && parentLoginPanel.classList.contains("active");
+
+                if (isParentLogin) {
+                    const username = document.getElementById("parent-username")?.value || "";
+                    const password = document.getElementById("parent-pass")?.value || "";
+                    if (!username.trim() || !password.trim()) {
+                        showError("Vui lòng nhập tên đăng nhập và mật khẩu.");
                         return;
                     }
-                    const auth = await response.json();
-                    await handleSuccessfulStudentLogin(auth);
-                } catch (e) {
-                    showError("Lỗi kết nối máy chủ.");
+                    try {
+                        const response = await fetch("/api/auth/login", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username, password, role: "parent" })
+                        });
+                        if (!response.ok) {
+                            showError("Tài khoản hoặc mật khẩu không đúng.");
+                            return;
+                        }
+                        const auth = await response.json();
+                        const studentId = auth.user?.child_student_id || "emma_std_01";
+                        const profile = getStudentLoginProfile(studentId);
+                        state.isLoggedIn = true;
+                        state.loggedInRole = "parent";
+                        state.baseStudentId = studentId;
+                        state.studentId = studentId;
+                        state.user = auth.user;
+                        state.surveyCompleted = auth.user?.initial_assessment_completed || false;
+                        applyRewardState(loadRewardState(profile));
+                        localStorage.setItem("isLoggedIn", "true");
+                        localStorage.setItem("loggedInRole", "parent");
+                        localStorage.setItem("studentId", studentId);
+                        localStorage.setItem("accessToken", auth.access_token);
+                        authAccessToken = auth.access_token;
+                        if (loginOverlay) loginOverlay.classList.add("hidden");
+                        switchPortalUI("parent");
+                        showToast("Đăng nhập phụ huynh thành công.");
+                    } catch (e) {
+                        showError("Lỗi kết nối máy chủ.");
+                    }
+                } else {
+                    const name = document.getElementById("register-parent-name")?.value || "";
+                    const username = document.getElementById("register-parent-username")?.value || "";
+                    const phone = document.getElementById("register-parent-phone")?.value || "";
+                    const childStudentId = document.getElementById("register-parent-child")?.value || "";
+                    const password = document.getElementById("register-parent-password")?.value || "";
+                    const confirm = document.getElementById("register-parent-confirm")?.value || "";
+
+                    if (!username.trim() || !password.trim() || !name.trim() || !childStudentId.trim()) {
+                        showError("Vui lòng điền các thông tin bắt buộc.");
+                        return;
+                    }
+                    if (password !== confirm) {
+                        showError("Mật khẩu nhập lại không khớp.");
+                        return;
+                    }
+                    if (!validatePasswordStr(password)) {
+                        showError("Mật khẩu phải từ 8 ký tự trở lên, gồm chữ cái và chữ số.");
+                        return;
+                    }
+                    try {
+                        const response = await fetch("/api/auth/parent/register", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username, password, name, phone, child_student_id: childStudentId })
+                        });
+                        if (!response.ok) {
+                            const err = await response.json();
+                            showError(err.detail || "Đăng ký thất bại.");
+                            return;
+                        }
+                        const auth = await response.json();
+                        const profile = getStudentLoginProfile(childStudentId);
+                        state.isLoggedIn = true;
+                        state.loggedInRole = "parent";
+                        state.baseStudentId = childStudentId;
+                        state.studentId = childStudentId;
+                        state.user = auth.user;
+                        state.surveyCompleted = auth.user?.initial_assessment_completed || false;
+                        applyRewardState(loadRewardState(profile));
+                        localStorage.setItem("isLoggedIn", "true");
+                        localStorage.setItem("loggedInRole", "parent");
+                        localStorage.setItem("studentId", childStudentId);
+                        localStorage.setItem("accessToken", auth.access_token);
+                        authAccessToken = auth.access_token;
+                        if (loginOverlay) loginOverlay.classList.add("hidden");
+                        switchPortalUI("parent");
+                        showToast("Đăng ký phụ huynh thành công.");
+                    } catch (e) {
+                        showError("Lỗi kết nối máy chủ.");
+                    }
                 }
                 return;
             }
@@ -5661,6 +5833,10 @@ function initAuthFlow() {
             if (activeRole === "admin") {
                 const username = document.getElementById("admin-username")?.value || "";
                 const password = document.getElementById("admin-pass")?.value || "";
+                if (!username.trim() || !password.trim()) {
+                    showError("Vui lòng nhập tên đăng nhập và mật khẩu.");
+                    return;
+                }
                 try {
                     const response = await fetch("/api/auth/login", {
                         method: "POST",
@@ -5668,7 +5844,7 @@ function initAuthFlow() {
                         body: JSON.stringify({ username, password, role: "admin" })
                     });
                     if (!response.ok) {
-                        showError("Mật khẩu admin không chính xác.");
+                        showError("Tài khoản hoặc mật khẩu admin không đúng.");
                         return;
                     }
                     const auth = await response.json();
@@ -5691,6 +5867,10 @@ function initAuthFlow() {
             if (activeRole === "investor") {
                 const username = document.getElementById("investor-username")?.value || "";
                 const password = document.getElementById("investor-pass")?.value || "";
+                if (!username.trim() || !password.trim()) {
+                    showError("Vui lòng nhập tên đăng nhập và mật khẩu.");
+                    return;
+                }
                 try {
                     const response = await fetch("/api/auth/login", {
                         method: "POST",
@@ -5719,62 +5899,69 @@ function initAuthFlow() {
                 return;
             }
 
-            if (activeRole === "parent") {
-                const studentId = document.getElementById("parent-student-select")?.value || "emma_std_01";
-                const password = document.getElementById("parent-pass")?.value || "";
+            // Student login/registration
+            const studentLoginPanel = document.querySelector(".student-auth-panel[data-student-auth-panel='login']");
+            const isStudentLogin = studentLoginPanel && studentLoginPanel.classList.contains("active");
+
+            if (isStudentLogin) {
+                const studentId = document.getElementById("student-username")?.value || "";
+                const studentPassword = document.getElementById("student-password")?.value || "";
+
+                if (!studentId.trim() || !studentPassword.trim()) {
+                    showError("Vui lòng nhập tên đăng nhập và mật khẩu.");
+                    return;
+                }
                 try {
                     const response = await fetch("/api/auth/login", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username: "parent_emma", password, role: "parent" })
+                        body: JSON.stringify({ username: studentId, password: studentPassword, role: "student" })
                     });
                     if (!response.ok) {
-                        showError("Mật khẩu phụ huynh không chính xác.");
+                        showError("Tài khoản hoặc mật khẩu không đúng.");
                         return;
                     }
                     const auth = await response.json();
-                    const profile = getStudentLoginProfile(studentId);
-                    state.isLoggedIn = true;
-                    state.loggedInRole = "parent";
-                    state.baseStudentId = studentId;
-                    state.studentId = studentId;
-                    state.user = auth.user;
-                    applyRewardState(loadRewardState(profile));
-                    localStorage.setItem("isLoggedIn", "true");
-                    localStorage.setItem("loggedInRole", "parent");
-                    localStorage.setItem("studentId", studentId);
-                    localStorage.setItem("accessToken", auth.access_token);
-                    authAccessToken = auth.access_token;
-                    if (loginOverlay) loginOverlay.classList.add("hidden");
-                    switchPortalUI("parent");
-                    showToast("Đăng nhập phụ huynh thành công.");
+                    await handleSuccessfulStudentLogin(auth);
                 } catch (e) {
                     showError("Lỗi kết nối máy chủ.");
                 }
-                return;
-            }
+            } else {
+                const name = document.getElementById("register-name")?.value || "";
+                const username = document.getElementById("register-username")?.value || "";
+                const grade = document.getElementById("register-grade")?.value || "";
+                const password = document.getElementById("register-password")?.value || "";
+                const confirm = document.getElementById("register-confirm")?.value || "";
+                const email = document.getElementById("register-email")?.value || "";
 
-            const studentPassword = document.getElementById("student-pass")?.value || "";
-            if (!studentPassword.trim()) {
-                showError("Vui lòng nhập mật khẩu.");
-                return;
-            }
-
-            const studentId = document.getElementById("student-select-login")?.value || "emma_std_01";
-            try {
-                const response = await fetch("/api/auth/login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username: studentId, password: studentPassword, role: "student" })
-                });
-                if (!response.ok) {
-                    showError("Tài khoản hoặc mật khẩu không đúng.");
+                if (!username.trim() || !password.trim() || !name.trim() || !grade) {
+                    showError("Vui lòng điền các thông tin bắt buộc.");
                     return;
                 }
-                const auth = await response.json();
-                await handleSuccessfulStudentLogin(auth);
-            } catch (e) {
-                showError("Lỗi kết nối máy chủ.");
+                if (password !== confirm) {
+                    showError("Mật khẩu nhập lại không khớp.");
+                    return;
+                }
+                if (!validatePasswordStr(password)) {
+                    showError("Mật khẩu phải từ 8 ký tự trở lên, gồm chữ cái và chữ số.");
+                    return;
+                }
+                try {
+                    const response = await fetch("/api/auth/student/register", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username, password, name, grade: parseInt(grade), email: email || null })
+                    });
+                    if (!response.ok) {
+                        const err = await response.json();
+                        showError(err.detail || "Đăng ký thất bại.");
+                        return;
+                    }
+                    const auth = await response.json();
+                    await handleSuccessfulStudentLogin(auth);
+                } catch (e) {
+                    showError("Lỗi kết nối máy chủ.");
+                }
             }
         });
     }
@@ -5960,8 +6147,17 @@ function initAuthFlow() {
                     updateStudentRewardsUI();
                     prepareTestSetup();
                 }
+            } else if (storedRole === "parent") {
+                const studentId = sessionUser?.child_student_id || "emma_std_01";
+                const profile = getStudentLoginProfile(studentId);
+                state.baseStudentId = studentId;
+                state.studentId = studentId;
+                state.surveyCompleted = sessionUser?.initial_assessment_completed || false;
+                applyRewardState(loadRewardState(profile));
+                state.studentProgress.activeSkill = profile.skill;
+                switchPortalUI("parent");
             } else {
-                switchPortalUI("teacher");
+                switchPortalUI(storedRole);
             }
             if (loginOverlay) loginOverlay.classList.add("hidden");
         } else if (loginOverlay) {
