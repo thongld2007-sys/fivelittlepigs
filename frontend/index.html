@@ -1056,17 +1056,12 @@
                         <p class="auth-help">Mật khẩu cần ít nhất 8 ký tự, gồm chữ cái và chữ số.</p>
                     </div>
                     <div class="form-group">
-                        <label for="student-select-login"><i class="fa-solid fa-user"></i> Chọn tài khoản học sinh:</label>
-                        <select id="student-select-login" class="form-control">
-                            <option value="emma_std_01" data-name="Emma (Lớp 7A)" data-avatar="Emma" data-grade="7">Emma (Lớp 7A) - Học sinh Khá</option>
-                            <option value="an_01" data-name="Nguyễn Văn An" data-avatar="An" data-grade="6">Nguyễn Văn An (Lớp 6B) - Yếu cộng số nguyên</option>
-                            <option value="binh_02" data-name="Trần Bình" data-avatar="Binh" data-grade="5">Trần Bình (Lớp 5A) - Yếu quy đồng phân số</option>
-                            <option value="hoang_06" data-name="Lê Huy Hoàng" data-avatar="Hoang" data-grade="7">Lê Huy Hoàng (Lớp 7C) - Đang bị kẹt</option>
-                        </select>
+                        <label for="student-select-login"><i class="fa-solid fa-user"></i> Tên đăng nhập học sinh:</label>
+                        <input type="text" id="student-select-login" class="form-control" placeholder="Nhập tên đăng nhập học sinh (VD: emma_std_01)">
                     </div>
                     <div class="form-group">
                         <label for="student-pass"><i class="fa-solid fa-lock"></i> Mật khẩu:</label>
-                        <input type="password" id="student-pass" class="form-control" placeholder="Mật khẩu học sinh" value="123456">
+                        <input type="password" id="student-pass" class="form-control" placeholder="Mật khẩu học sinh">
                     </div>
                 </div>
                 
@@ -1130,27 +1125,23 @@
 
                 <div id="login-form-admin" class="login-form-panel">
                     <div class="form-group">
-                        <label for="admin-username"><i class="fa-solid fa-server"></i> Tài khoản admin:</label>
-                        <select id="admin-username" class="form-control">
-                            <option value="ops_admin">Ops Admin · PorcusAI</option>
-                        </select>
+                        <label for="admin-username"><i class="fa-solid fa-server"></i> Tên đăng nhập admin:</label>
+                        <input type="text" id="admin-username" class="form-control" placeholder="Nhập tên đăng nhập admin (VD: admin)">
                     </div>
                     <div class="form-group">
                         <label for="admin-pass"><i class="fa-solid fa-lock"></i> Mật khẩu admin:</label>
-                        <input type="password" id="admin-pass" class="form-control" placeholder="Mật khẩu admin" value="123456">
+                        <input type="password" id="admin-pass" class="form-control" placeholder="Mật khẩu admin">
                     </div>
                 </div>
 
                 <div id="login-form-investor" class="login-form-panel">
                     <div class="form-group">
-                        <label for="investor-username"><i class="fa-solid fa-briefcase"></i> Hồ sơ nhà đầu tư:</label>
-                        <select id="investor-username" class="form-control">
-                            <option value="seed_partner">Seed Partner · Demo Room</option>
-                        </select>
+                        <label for="investor-username"><i class="fa-solid fa-briefcase"></i> Tên đăng nhập nhà đầu tư:</label>
+                        <input type="text" id="investor-username" class="form-control" placeholder="Nhập tên đăng nhập nhà đầu tư (VD: partner)">
                     </div>
                     <div class="form-group">
                         <label for="investor-pass"><i class="fa-solid fa-lock"></i> Mật khẩu nhà đầu tư:</label>
-                        <input type="password" id="investor-pass" class="form-control" placeholder="Mật khẩu nhà đầu tư" value="123456">
+                        <input type="password" id="investor-pass" class="form-control" placeholder="Mật khẩu nhà đầu tư">
                     </div>
                 </div>
                 

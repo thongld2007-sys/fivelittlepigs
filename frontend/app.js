@@ -5595,12 +5595,13 @@ function initAuthFlow() {
             }
 
             if (activeRole === "admin") {
+                const username = document.getElementById("admin-username")?.value || "";
                 const password = document.getElementById("admin-pass")?.value || "";
                 try {
                     const response = await fetch("/api/auth/login", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username: "ops_admin", password, role: "admin" })
+                        body: JSON.stringify({ username, password, role: "admin" })
                     });
                     if (!response.ok) {
                         showError("Mật khẩu admin không chính xác.");
@@ -5624,12 +5625,13 @@ function initAuthFlow() {
             }
 
             if (activeRole === "investor") {
+                const username = document.getElementById("investor-username")?.value || "";
                 const password = document.getElementById("investor-pass")?.value || "";
                 try {
                     const response = await fetch("/api/auth/login", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ username: "seed_partner", password, role: "investor" })
+                        body: JSON.stringify({ username, password, role: "investor" })
                     });
                     if (!response.ok) {
                         showError("Mật khẩu nhà đầu tư không chính xác.");
