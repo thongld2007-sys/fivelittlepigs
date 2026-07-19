@@ -3917,6 +3917,24 @@ function renderPersonalPath() {
     if (!flowContainer) return;
     flowContainer.innerHTML = "";
     
+    const actionGrid = document.querySelector(".path-action-grid");
+    if (!state.surveyCompleted) {
+        flowContainer.innerHTML = `
+            <div class="assignment-empty-card" style="padding: 2rem; border: none; box-shadow: none; margin-top: 1rem;">
+                <i class="fa-solid fa-route" style="font-size: 3rem; color: var(--primary);"></i>
+                <strong style="margin-top: 1rem; font-size: 1.1rem; display: block; text-align: center;">Chưa có lộ trình học tập</strong>
+                <span style="font-size: 0.9rem; color: #64748b; text-align: center; display: block; margin-top: 0.5rem; line-height: 1.4;">Vui lòng hoàn thành khảo sát thích ứng đầu giờ để hệ thống chẩn đoán và tự động vẽ sơ đồ lộ trình cá nhân hóa riêng cho bạn.</span>
+            </div>
+        `;
+        if (actionGrid) {
+            actionGrid.style.display = "none";
+        }
+        return;
+    }
+    if (actionGrid) {
+        actionGrid.style.display = "grid";
+    }
+    
     const graph = state.knowledgeGraph;
     const activeSkillId = state.studentProgress.activeSkill;
     if (!graph || !graph[activeSkillId]) {
@@ -3933,6 +3951,20 @@ function renderPersonalPath() {
         if (skVal.prerequisites && skVal.prerequisites.includes(activeSkillId)) {
             nextSkills.push(skId);
         }
+    }
+    
+    // Update right-side path action grid dynamically
+    const doneSpan = document.querySelector(".path-action-item.done span");
+    const activeSpan = document.querySelector(".path-action-item.active span");
+    const lockedSpan = document.querySelector(".path-action-item.locked span");
+    if (doneSpan) {
+        doneSpan.textContent = prereqs.length > 0 && graph[prereqs[0]] ? graph[prereqs[0]].name : "Đã hoàn thành các bước trước";
+    }
+    if (activeSpan) {
+        activeSpan.textContent = activeSkill.name;
+    }
+    if (lockedSpan) {
+        lockedSpan.textContent = nextSkills.length > 0 && graph[nextSkills[0]] ? graph[nextSkills[0]].name : "Chưa mở khóa";
     }
     
     const svgWidth = 620;
