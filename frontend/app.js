@@ -1036,7 +1036,7 @@ async function renderInvestorTractionDashboard() {
     if (!container) return;
 
     const data = await loadEvidenceDataset("/api/evidence/traction", INVESTOR_TRACTION_DATA);
-    const maxDau = Math.max(...data.daily.map(item => item.dau), 100);
+    const maxDau = data.daily.length > 0 ? Math.max(...data.daily.map(item => item.dau), 1) : 1;
     const dailyHtml = data.daily.map(item => {
         const date = getLocalDateFromKey(getDateKey(item.date));
         const dauHeight = Math.max(8, Math.round((item.dau / maxDau) * 100));
