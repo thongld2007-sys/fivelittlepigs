@@ -9,7 +9,7 @@
 Trong suốt 48 giờ phát triển dự án PorcusAI, đội ngũ phát triển đã áp dụng mô hình **AI-Assisted Pair Programming** nhằm tối ưu hóa 80% thời gian lập trình và tập trung vào tư duy bài toán.
 
 *   **Trợ lý AI chính:** Antigravity Agentic Coding AI (DeepMind Team) & OpenAI Codex.
-*   **Mô hình ngôn ngữ (LLM Engine):** OpenAI Codex, Gemini 3.5 Flash & Claude 3.5 Sonnet.
+*   **Mô hình ngôn ngữ (LLM Engine):** OpenAI Codex & Gemini 3.5 Flash.
 *   **Dịch vụ AI tích hợp trong sản phẩm:** FPT AI Factory (LLM Chat, Speech TTS/STT, Vision OCR).
 
 ---
