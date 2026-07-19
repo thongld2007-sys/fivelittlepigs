@@ -1,16 +1,16 @@
-# Porcus AI — Hệ thống Chẩn đoán Lỗ hổng Kiến thức Toán học thích ứng
+# Porcus AI — Hệ thống Chẩn đoán Thích ứng Lỗ hổng Kiến thức đa môn học (GDPT 2018)
 
 ## 1. Mô tả bài toán và phạm vi hệ thống
 
 ### Bài toán đặt ra
-Học sinh từ lớp 5 đến lớp 9 thường gặp khó khăn khi làm các bài tập Toán học mới không phải vì kiến thức lớp hiện tại quá phức tạp, mà do bị **hổng kiến thức nền tảng (kỹ năng tiên quyết)** từ các lớp trước. Giáo viên với sĩ số lớp học đông (35-45 học sinh) rất khó để theo dõi, chẩn đoán chính xác lỗ hổng gốc của từng em bằng phương pháp chấm điểm thủ công hay phán đoán cảm tính.
+Học sinh từ tiểu học đến THCS (Lớp 1 đến Lớp 9) thường gặp khó khăn khi học các bài học mới không phải vì kiến thức lớp hiện tại quá phức tạp, mà do bị **hổng kiến thức nền tảng (kỹ năng tiên quyết)** từ các lớp trước. Giáo viên với sĩ số lớp học đông (35-45 học sinh) rất khó để theo dõi, chẩn đoán chính xác lỗ hổng gốc của từng em ở cả 6 môn học bằng phương pháp chấm điểm thủ công hay phán đoán cảm tính.
 
 ### Phạm vi hệ thống
-Hệ thống **Porcus AI** được thiết kế như một công cụ chẩn đoán thông minh hỗ trợ giáo viên và học sinh:
+Hệ thống **Porcus AI** được thiết kế như một nền tảng gia sư chẩn đoán đa môn học thông minh hỗ trợ giáo viên và học sinh:
 - **Phía Học sinh (Adaptive Test):** Cung cấp các bài kiểm tra chẩn đoán thích ứng. Khi học sinh trả lời sai một câu hỏi, hệ thống sẽ tự động hạ độ khó hoặc lùi về kiểm tra kỹ năng tiên quyết trong Đồ thị kiến thức (Knowledge Graph) thay vì chọn câu hỏi ngẫu nhiên.
 - **Phía Giáo viên (Teacher Dashboard):** Cung cấp bảng điều khiển trực quan gồm danh sách ưu tiên can thiệp (Priority List), tự động phân nhóm học sinh theo lỗ hổng kiến thức chung (Auto-Grouping), biểu đồ tiến trình và cây lập luận chẩn đoán (Reasoning Tree) cho từng học sinh.
-- **Phạm vi kiến thức:** Hệ thống bao phủ 168 câu hỏi cho 58 kỹ năng Toán học chuẩn từ lớp 1 đến lớp 9 theo chương trình GDPT mới.
-- **Mức độ tích hợp:** Hoạt động offline-first trên SQLite local để đảm bảo khả năng chạy ổn định ngay cả trong môi trường mạng yếu của nhà trường, đồng thời tích hợp FPT.AI để tự động sinh gợi ý học tập Socratic và kế hoạch bài giảng hỗ trợ giáo viên.
+- **Phạm vi 6 môn học chuẩn GDPT 2018:** Bao phủ đầy đủ **6 môn học cốt lõi**: *Toán học, Ngữ văn, Ngoại ngữ (Tiếng Anh), Khoa học tự nhiên, Lịch sử & Địa lý, Tin học* với đồ thị kỹ năng tiên quyết DAG từ Lớp 1 đến Lớp 9.
+- **Mức độ tích hợp:** Hoạt động offline-first trên SQLite/PostgreSQL local để đảm bảo khả năng chạy ổn định ngay cả trong môi trường mạng yếu của nhà trường, đồng thời tích hợp FPT.AI để tự động sinh gợi ý học tập Socratic và kế hoạch bài giảng hỗ trợ giáo viên.
 
 ---
 
