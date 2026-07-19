@@ -154,6 +154,17 @@ def _migrate_legacy_sqlite():
 
 def init_db(seed_demo=True):
     _migrate_legacy_sqlite()
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                token_hash VARCHAR(64) PRIMARY KEY,
+                user_id VARCHAR(36) NOT NULL,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                revoked_at INTEGER
+            )
+        """))
     Base.metadata.create_all(engine)
     from backend.knowledge_graph import KNOWLEDGE_GRAPH
     with db_session() as session:
@@ -178,7 +189,69 @@ def init_db(seed_demo=True):
                         "id", "skill_id", "text", "options", "correct_answer", "difficulty_level"
                     }}
                     session.add(question)
-        if seed_demo and not session.scalar(select(func.count()).select_from(Student)):
+        # Seed admin and partner/investor accounts
+        from backend.models import User
+        from argon2 import PasswordHasher
+        hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=2)
+        if not session.scalar(select(User).where(User.username == "admin")):
+            session.add(User(
+                username="admin",
+                display_name="Admin System",
+                email="admin@system.local",
+                password_hash=hasher.hash("admin"),
+                role="admin",
+                is_active=True
+            ))
+        if not session.scalar(select(User).where(User.username == "partner")):
+            session.add(User(
+                username="partner",
+                display_name="Seed Partner",
+                email="partner@system.local",
+                password_hash=hasher.hash("partner"),
+                role="investor",
+                is_active=True
+            ))
+        if not session.scalar(select(User).where(User.username == "1")):
+            user_1 = User(
+                id="user_default_1",
+                username="1",
+                display_name="Học sinh 1",
+                email="student1@system.local",
+                password_hash=hasher.hash("1"),
+                role="student",
+                is_active=True
+            )
+            session.add(user_1)
+            session.flush()
+            if not session.scalar(select(Student).where(Student.user_id == user_1.id)):
+                session.add(Student(
+                    id="std_default_1",
+                    user_id=user_1.id,
+                    name="Học sinh 1",
+                    grade=7,
+                    initial_assessment_completed=False
+                ))
+        if not session.scalar(select(User).where(User.username == "1_teacher")):
+            session.add(User(
+                id="user_default_teacher_1",
+                username="1_teacher",
+                display_name="Thầy Hùng (GV Toán)",
+                email="teacher1@system.local",
+                password_hash=hasher.hash("1"),
+                role="teacher",
+                is_active=True
+            ))
+        if not session.scalar(select(User).where(User.username == "1_parent")):
+            session.add(User(
+                id="user_default_parent_1",
+                username="1_parent",
+                display_name="Phụ huynh của Học sinh 1",
+                email="parent1@system.local",
+                password_hash=hasher.hash("1"),
+                role="parent",
+                is_active=True
+            ))
+        if seed_demo and not session.scalar(select(Student).where(Student.id == "emma_std_01")):
             demos = [
                 ("emma_std_01", "Emma", 7), ("an_01", "Nguyễn Văn An", 6),
                 ("binh_02", "Trần Bình", 5), ("chi_03", "Lê Chi", 7),

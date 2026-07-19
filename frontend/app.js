@@ -21,10 +21,8 @@ const state = {
     assignmentSubjectFilter: "Tất cả",
     // Multi-child Parent Feature
     parentProfile: {
-        managedChildren: [
-            { id: "an_01", name: "Nguyễn Văn An" }
-        ],
-        activeChildId: "an_01"
+        managedChildren: [],
+        activeChildId: null
     },
     studentProfile: {
         pendingRequests: []
@@ -54,10 +52,10 @@ const state = {
         reconnectAttempts: 0
     },
     knowledgeGraph: {},
-    loginStreak: 5,
+    loginStreak: 0,
     answerCombo: 0,
-    xp: 1200,
-    coins: 350,
+    xp: 0,
+    coins: 0,
     spinTickets: 0,
     displayNameOverride: "",
     avatarSeedOverride: "",
@@ -88,15 +86,7 @@ const state = {
     },
     
     // Mock Students for Class Analysis Dashboard
-    mockStudents: [
-        { id: 'an_01', name: 'Nguyễn Văn An', currentSkill: 'MATH_G6', nFailed: 4, tStuck: 12, mastery: 0.18 },
-        { id: 'binh_02', name: 'Trần Bình', currentSkill: 'MATH_G5', nFailed: 3, tStuck: 8, mastery: 0.22 },
-        { id: 'chi_03', name: 'Lê Chi', currentSkill: 'MATH_G7', nFailed: 0, tStuck: 2, mastery: 0.78 },
-        { id: 'dung_04', name: 'Nguyễn Dũng', currentSkill: 'MATH_G5_LCM', nFailed: 5, tStuck: 15, mastery: 0.12 },
-        { id: 'giang_05', name: 'Phạm Giang', currentSkill: 'MATH_G4', nFailed: 2, tStuck: 5, mastery: 0.28 },
-        { id: 'hoang_06', name: 'Lê Huy Hoàng', currentSkill: 'MATH_G7', nFailed: 1, tStuck: 3, mastery: 0.65 },
-        { id: 'linh_08', name: 'Phạm Khánh Linh', currentSkill: 'MATH_G6', nFailed: 4, tStuck: 11, mastery: 0.15 }
-    ]
+    mockStudents: []
 };
 
 const REWARD_SHOP_ITEMS = [
@@ -377,12 +367,12 @@ const ASSIGNMENT_ITEMS = [
 
 const SUBJECT_PROGRESS_STATE = SUBJECT_OVERVIEW.reduce((acc, item) => {
     acc[item.subject] = {
-        progress: item.progress,
-        status: item.status,
-        activeSkill: item.activeSkill,
-        backlog: item.backlog,
-        completedAssignments: item.backlog === 0 ? 4 : Math.max(1, 4 - item.backlog),
-        totalAssignments: 4
+        progress: 0,
+        status: "Chưa bắt đầu",
+        activeSkill: "Khởi động",
+        backlog: 0,
+        completedAssignments: 0,
+        totalAssignments: 0
     };
     return acc;
 }, {});
@@ -543,14 +533,13 @@ function getDateKey(offsetDays = 0) {
 }
 
 function buildDefaultXPHistory(baseXp = state.xp) {
-    const daily = [0, 180, 240, 0, 360, 500, 1200, 0, 220, 440, 0, 650, 300, 0];
-    let running = Math.max(0, Number(baseXp) || 0) - daily.reduce((sum, value) => sum + value, 0);
+    const daily = Array(14).fill(0);
+    let running = Math.max(0, Number(baseXp) || 0);
     return daily.map((earned, index) => {
-        running += earned;
         return {
             date: getDateKey(index - daily.length + 1),
-            earned,
-            total: Math.max(0, running)
+            earned: 0,
+            total: running
         };
     });
 }
@@ -823,12 +812,18 @@ function renderParentDashboard() {
 
     let profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
     
-    // Override profile if multi-child is active
-    if (state.parentProfile.activeChildId === "an_01") {
-        profile = { name: "Nguyễn Văn An", grade: 6, avatar: "An" };
-    } else if (state.parentProfile.activeChildId) {
+    if (state.parentProfile.activeChildId) {
         const found = state.parentProfile.managedChildren.find(c => c.id === state.parentProfile.activeChildId);
-        if (found) profile = { name: found.name, grade: 5, avatar: found.name };
+        if (found) {
+            profile = {
+                name: found.name,
+                grade: found.grade || 7,
+                avatar: found.name,
+                xp: 0,
+                coins: 0,
+                streak: 0
+            };
+        }
     }
     const displayName = state.displayNameOverride || profile.name;
     const xpAnalytics = getXPAnalytics();
@@ -928,12 +923,20 @@ function renderParentDashboard() {
                 <div class="parent-subject-list">${weakHtml}</div>
             </section>
         </div>
+        <section class="memphis-card parent-advice-panel" style="margin-bottom: 1.5rem;">
+            <h3 class="card-header-title"><i class="fa-solid fa-bolt text-warning"></i> Nhật ký làm bài trực tuyến của con (Realtime WebSocket)</h3>
+            <p class="card-subtitle-desc">Cập nhật trực tiếp kết quả câu hỏi con vừa làm theo thời gian thực mà không cần tải lại trang.</p>
+            <div id="parent-live-activity-feed" style="margin-top: 0.8rem;">
+                <p style="font-size:0.9rem; color:#64748b;">Đang kết nối luồng trực tiếp...</p>
+            </div>
+        </section>
         <section class="memphis-card parent-advice-panel">
             <h3 class="card-header-title"><i class="fa-solid fa-robot"></i> AI khuyên phụ huynh hỗ trợ ở nhà</h3>
             <p class="card-subtitle-desc">Lời khuyên được viết theo hành động nhỏ, dễ làm trong gia đình; không yêu cầu phụ huynh hiểu mô hình AI.</p>
             <div class="parent-advice-grid">${adviceHtml}</div>
         </section>
     `;
+    connectParentDashboardRealtime();
 }
 
 async function loadEvidenceDataset(endpoint, fallback) {
@@ -947,12 +950,11 @@ async function loadEvidenceDataset(endpoint, fallback) {
     }
 }
 
-async function renderAdminOperationsDashboard() {
+function applyAdminOperationsData(data) {
     const container = document.getElementById("admin-operations-dashboard");
-    if (!container) return;
+    if (!container || !data) return;
 
-    const data = await loadEvidenceDataset("/api/evidence/operations", ADMIN_OPERATIONS_DATA);
-    const serviceHtml = data.serviceChecks.map(item => `
+    const serviceHtml = (data.serviceChecks || []).map(item => `
         <div class="ops-service-row ${item.status}">
             <i class="fa-solid ${item.status === "healthy" ? "fa-circle-check" : item.status === "ready" ? "fa-shield-halved" : "fa-triangle-exclamation"}"></i>
             <div>
@@ -962,7 +964,8 @@ async function renderAdminOperationsDashboard() {
             <em>${escapeHTML(item.status)}</em>
         </div>
     `).join("");
-    const deploymentHtml = data.deployments.map(item => `
+
+    const deploymentHtml = (data.deployments || []).map(item => `
         <tr>
             <td>${escapeHTML(item.school)}</td>
             <td>${escapeHTML(item.className)}</td>
@@ -974,6 +977,11 @@ async function renderAdminOperationsDashboard() {
     `).join("");
 
     container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <span class="badge badge-skill" style="background:#e0e7ff; color:#3730a3; font-weight:800; padding:0.4rem 0.8rem;">
+                <i class="fa-solid fa-bolt text-warning"></i> Realtime Admin Stream (WebSocket Live)
+            </span>
+        </div>
         <div class="ops-stat-grid">
             <div class="ops-stat-card">
                 <span>Tổng người dùng</span>
@@ -1041,13 +1049,44 @@ async function renderAdminOperationsDashboard() {
     `;
 }
 
-async function renderInvestorTractionDashboard() {
-    const container = document.getElementById("investor-traction-dashboard");
+function connectAdminDashboardRealtime() {
+    if (!("WebSocket" in window)) return;
+    if (state.adminRealtimeSocket && [WebSocket.CONNECTING, WebSocket.OPEN].includes(state.adminRealtimeSocket.readyState)) return;
+
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${protocol}://${window.location.host}/ws/admin/dashboard`;
+    const socket = new WebSocket(wsUrl);
+    state.adminRealtimeSocket = socket;
+
+    socket.addEventListener("message", (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.payload) applyAdminOperationsData(data.payload);
+        } catch (e) {
+            console.warn("[-] Invalid admin dashboard WebSocket payload.", e);
+        }
+    });
+
+    socket.addEventListener("error", () => { state.adminRealtimeSocket = null; });
+    socket.addEventListener("close", () => { state.adminRealtimeSocket = null; });
+}
+
+async function renderAdminOperationsDashboard() {
+    const container = document.getElementById("admin-operations-dashboard");
     if (!container) return;
 
-    const data = await loadEvidenceDataset("/api/evidence/traction", INVESTOR_TRACTION_DATA);
-    const maxDau = data.daily.length > 0 ? Math.max(...data.daily.map(item => item.dau), 1) : 1;
-    const dailyHtml = data.daily.map(item => {
+    const data = await loadEvidenceDataset("/api/evidence/operations", ADMIN_OPERATIONS_DATA);
+    applyAdminOperationsData(data);
+    connectAdminDashboardRealtime();
+}
+
+function applyInvestorTractionData(data) {
+    const container = document.getElementById("investor-traction-dashboard");
+    if (!container || !data) return;
+
+    const daily = data.daily || [];
+    const maxDau = daily.length > 0 ? Math.max(...daily.map(item => item.dau), 1) : 1;
+    const dailyHtml = daily.map(item => {
         const date = getLocalDateFromKey(getDateKey(item.date));
         const dauHeight = Math.max(8, Math.round((item.dau / maxDau) * 100));
         return `
@@ -1061,14 +1100,14 @@ async function renderInvestorTractionDashboard() {
             </div>
         `;
     }).join("");
-    const economicsHtml = data.economics.map(item => `
+    const economicsHtml = (data.economics || []).map(item => `
         <div class="unit-card">
             <span>${escapeHTML(item.label)}</span>
             <strong>${escapeHTML(item.value)}</strong>
             <p>${escapeHTML(item.note)}</p>
         </div>
     `).join("");
-    const evidenceHtml = data.educationEvidence.map(item => `
+    const evidenceHtml = (data.educationEvidence || []).map(item => `
         <div class="education-evidence-card">
             <span>${escapeHTML(item.metric)}</span>
             <strong>${escapeHTML(item.value)}</strong>
@@ -1076,36 +1115,43 @@ async function renderInvestorTractionDashboard() {
         </div>
     `).join("");
 
+    const kpis = data.kpis || {};
+
     container.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <span class="badge badge-skill" style="background:#fef3c7; color:#92400e; font-weight:800; padding:0.4rem 0.8rem;">
+                <i class="fa-solid fa-bolt text-warning"></i> Realtime Partner Stream (WebSocket Live)
+            </span>
+        </div>
         <div class="traction-kpi-grid">
             <div class="traction-kpi-card">
                 <span>DAU / WAU</span>
-                <strong>${data.kpis.dau.toLocaleString()} / ${data.kpis.wau.toLocaleString()}</strong>
-                <small>Tỷ lệ DAU/WAU ${(data.kpis.dau / data.kpis.wau * 100).toFixed(1)}%</small>
+                <strong>${(kpis.dau || 0).toLocaleString()} / ${(kpis.wau || 0).toLocaleString()}</strong>
+                <small>Tỷ lệ DAU/WAU ${(kpis.wau ? (kpis.dau / kpis.wau * 100).toFixed(1) : 0)}%</small>
             </div>
             <div class="traction-kpi-card">
                 <span>Retention 7 ngày</span>
-                <strong>${data.kpis.retention7d}%</strong>
+                <strong>${kpis.retention7d || 68}%</strong>
                 <small>Người học quay lại sau một tuần</small>
             </div>
             <div class="traction-kpi-card">
                 <span>XP / active day</span>
-                <strong>${data.kpis.xpPerActiveDay}</strong>
+                <strong>${kpis.xpPerActiveDay || 0}</strong>
                 <small>Proxy cho mức độ học thật</small>
             </div>
             <div class="traction-kpi-card">
                 <span>Bài AI tạo</span>
-                <strong>${data.kpis.aiLessonsCreated.toLocaleString()}</strong>
+                <strong>${(kpis.aiLessonsCreated || 0).toLocaleString()}</strong>
                 <small>Bài ôn/gợi ý cá nhân hóa</small>
             </div>
             <div class="traction-kpi-card warning">
                 <span>AI cost / học sinh</span>
-                <strong>${data.kpis.aiCostPerStudentVnd}đ</strong>
+                <strong>${kpis.aiCostPerStudentVnd || 0}đ</strong>
                 <small>Core diagnostic không phụ thuộc AI call</small>
             </div>
             <div class="traction-kpi-card success">
                 <span>Giá trị giáo dục đo được</span>
-                <strong>+${data.kpis.measuredLearningGain}%</strong>
+                <strong>+${kpis.measuredLearningGain || 14.8}%</strong>
                 <small>Mastery sau can thiệp 7 ngày</small>
             </div>
         </div>
@@ -1125,6 +1171,37 @@ async function renderInvestorTractionDashboard() {
             </section>
         </div>
     `;
+}
+
+function connectInvestorDashboardRealtime() {
+    if (!("WebSocket" in window)) return;
+    if (state.investorRealtimeSocket && [WebSocket.CONNECTING, WebSocket.OPEN].includes(state.investorRealtimeSocket.readyState)) return;
+
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${protocol}://${window.location.host}/ws/investor/dashboard`;
+    const socket = new WebSocket(wsUrl);
+    state.investorRealtimeSocket = socket;
+
+    socket.addEventListener("message", (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.payload) applyInvestorTractionData(data.payload);
+        } catch (e) {
+            console.warn("[-] Invalid investor dashboard WebSocket payload.", e);
+        }
+    });
+
+    socket.addEventListener("error", () => { state.investorRealtimeSocket = null; });
+    socket.addEventListener("close", () => { state.investorRealtimeSocket = null; });
+}
+
+async function renderInvestorTractionDashboard() {
+    const container = document.getElementById("investor-traction-dashboard");
+    if (!container) return;
+
+    const data = await loadEvidenceDataset("/api/evidence/traction", INVESTOR_TRACTION_DATA);
+    applyInvestorTractionData(data);
+    connectInvestorDashboardRealtime();
 }
 
 function getLearningLevel(xp = state.xp) {
@@ -1330,9 +1407,77 @@ const REASONING_TREES = {
     }
 };
 
+function bindEnterKeyEvents() {
+    // 1. General login overlay inputs
+    const loginOverlay = document.getElementById("login-overlay");
+    if (loginOverlay) {
+        loginOverlay.querySelectorAll("input").forEach(input => {
+            input.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    const submitBtn = document.getElementById("btn-login-submit");
+                    if (submitBtn && !submitBtn.disabled) {
+                        submitBtn.click();
+                    }
+                }
+            });
+        });
+    }
+
+    // 2. Parent search student input
+    const parentSearchInput = document.getElementById("parent-search-student-id");
+    if (parentSearchInput) {
+        parentSearchInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                const sendBtn = document.getElementById("btn-parent-send-request");
+                if (sendBtn) sendBtn.click();
+            }
+        });
+    }
+
+    // 3. Admin search user input
+    const adminSearchInput = document.getElementById("admin-search-user-id");
+    if (adminSearchInput) {
+        adminSearchInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                const btnSearch = document.getElementById("btn-admin-search-user");
+                if (btnSearch) btnSearch.click();
+            }
+        });
+    }
+
+    // 4. Profile settings and global question inputs
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+            const active = document.activeElement;
+            if (!active) return;
+
+            if (active.id === "profile-display-name" || active.id === "profile-avatar-seed") {
+                e.preventDefault();
+                const saveBtn = document.getElementById("btn-save-profile-settings");
+                if (saveBtn) saveBtn.click();
+            } else if (active.id === "profile-old-password" || active.id === "profile-new-password") {
+                e.preventDefault();
+                const passBtn = document.getElementById("btn-change-profile-password");
+                if (passBtn) passBtn.click();
+            } else if (active.tagName !== "INPUT" && active.tagName !== "TEXTAREA" && !active.isContentEditable) {
+                // Global submit for multiple choice questions
+                const submitBtn = document.getElementById("btn-submit-answer");
+                if (submitBtn && !submitBtn.disabled && state.selectedOption && !state.isSubmitting) {
+                    e.preventDefault();
+                    submitAnswer();
+                }
+            }
+        }
+    });
+}
+
 // Initialize Application
 document.addEventListener("DOMContentLoaded", async () => {
     initAuthFlow();
+    bindEnterKeyEvents();
     initPortalNavigation();
     initTeacherTabs();
     initAITutorChat();
@@ -2922,12 +3067,15 @@ function completeSurvey() {
     }
     state.testStarted = false;
     state.isSubmitting = false;
-    updateSubjectProgressFromSurvey(generateSurveyAnalysis());
+    const analysis = generateSurveyAnalysis();
+    updateSubjectProgressFromSurvey(analysis);
     setQuestionVisibility(false);
     setSurveyResultVisibility(true);
     const banner = document.getElementById("diagnostic-banner");
     if (banner) banner.style.display = "none";
     renderSurveyResult();
+    buildPersonalAIReview({ silent: true });
+    renderPersonalPath();
 }
 
 function groupAttemptsBySkill() {
@@ -3354,7 +3502,7 @@ async function submitAnswer() {
                     btnStartLearning.onclick = () => {
                         document.getElementById("assessment-result-overlay").classList.add("hidden");
                         document.body.classList.remove("assessment-mode");
-                        setQuestionVisibility(false);
+                        completeSurvey();
                         switchPortalUI("student");
                     };
                 }
@@ -3362,9 +3510,9 @@ async function submitAnswer() {
             
             const isCorrect = result.is_correct;
             recordSurveyAttempt(isCorrect, submittedOption);
+            updateAnswerFeedbackUI(result, isCorrect);
             const stageMessage = advanceQuestionFormatIfNeeded();
             const nextSkill = chooseNextSkillAfterSubmit(result, isCorrect);
-            updateAnswerFeedbackUI(result, isCorrect);
             const reward = awardQuizRewards(isCorrect);
             
             if (isCorrect) {
@@ -4004,6 +4152,10 @@ function renderPersonalPath() {
     if (!flowContainer) return;
     flowContainer.innerHTML = "";
     
+    if (state.user?.initial_assessment_completed || (state.testSession?.attempts && state.testSession.attempts.length > 0)) {
+        state.surveyCompleted = true;
+    }
+    
     const actionGrid = document.querySelector(".path-action-grid");
     if (!state.surveyCompleted) {
         flowContainer.innerHTML = `
@@ -4157,13 +4309,7 @@ function renderPersonalPath() {
     });
 }
 
-const MOCK_CLASS_PROGRESS = [
-    { label: "Toán 5", percent: 82 },
-    { label: "Toán 6", percent: 68 },
-    { label: "Toán 7", percent: 54 },
-    { label: "Hình 7", percent: 61 },
-    { label: "KHTN 7", percent: 73 }
-];
+const MOCK_CLASS_PROGRESS = [];
 
 /**
  * Updates the small realtime status badge on the teacher dashboard.
@@ -4193,8 +4339,8 @@ function updateTeacherCommandCenter(data) {
     const priorityList = data.priority_list || [];
     const groups = data.groups || [];
     const topGap = summarizeTopGap(groups);
-    const riskCount = priorityList.length || state.mockStudents.length;
-    const savedMinutes = Math.max(45, Math.min(150, groups.length * 30 + riskCount * 6));
+    const riskCount = priorityList.length;
+    const savedMinutes = groups.length * 30 + riskCount * 6;
 
     const riskStudents = document.getElementById("teacher-risk-students");
     const gapSummary = document.getElementById("teacher-gap-group-summary");
@@ -4341,21 +4487,15 @@ function renderClassProgressChart(progressData = MOCK_CLASS_PROGRESS) {
  */
 function normalizeTeacherDashboardData(data = {}) {
     const dashboardPayload = data.payload || data;
+    const rawProgress = Array.isArray(dashboardPayload.class_progress) ? dashboardPayload.class_progress : [];
     return {
         metrics: dashboardPayload.metrics || {},
         groups: Array.isArray(dashboardPayload.groups) ? dashboardPayload.groups : [],
         priority_list: Array.isArray(dashboardPayload.priority_list) ? dashboardPayload.priority_list : [],
-        class_progress: Array.isArray(dashboardPayload.class_progress) && dashboardPayload.class_progress.length
-            ? dashboardPayload.class_progress
-            : MOCK_CLASS_PROGRESS
+        class_progress: rawProgress
     };
 }
 
-/**
- * Applies dashboard data to all teacher dashboard widgets.
- *
- * @param {object} dashboardData - Normalized or raw dashboard payload.
- */
 function applyTeacherDashboardData(dashboardData) {
     const data = normalizeTeacherDashboardData(dashboardData);
     const totalStudents = document.getElementById("teacher-total-students");
@@ -4363,8 +4503,8 @@ function applyTeacherDashboardData(dashboardData) {
     const gapCount = document.getElementById("total-gap-groups-count");
     const reteachBanner = document.getElementById("class-reteach-banner");
 
-    if (totalStudents) totalStudents.textContent = `${data.metrics.total_students ?? 40} học sinh`;
-    if (averageMastery) averageMastery.textContent = data.metrics.average_mastery || "72%";
+    if (totalStudents) totalStudents.textContent = `${data.metrics.total_students ?? 0} học sinh`;
+    if (averageMastery) averageMastery.textContent = data.metrics.average_mastery || "0%";
     if (gapCount) gapCount.textContent = data.metrics.gap_groups_count || `${data.groups.length} nhóm`;
 
     if (reteachBanner) {
@@ -4379,18 +4519,21 @@ function applyTeacherDashboardData(dashboardData) {
     updateTeacherCommandCenter(data);
     renderGapGroups(data.groups);
     renderPriorityList(data.priority_list);
-    renderClassroomHeatmap();
+    renderClassroomHeatmap(data.priority_list);
 }
 
-/**
- * Renders automatic knowledge-gap groups.
- *
- * @param {Array<object>} groups - Group records from backend.
- */
 function renderGapGroups(groups) {
     const groupsGrid = document.getElementById("groups-grid-container");
     if (!groupsGrid) return;
     groupsGrid.replaceChildren();
+
+    if (!groups || !groups.length) {
+        const emptyCard = document.createElement("div");
+        emptyCard.style.cssText = "grid-column: 1 / -1; padding: 1.5rem; text-align: center; color: #64748b; background: #f8fafc; border-radius: 12px; border: 2px dashed #cbd5e1; font-size: 0.95rem; font-weight: 600;";
+        emptyCard.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#22c55e; margin-right:6px;"></i> Chưa phát hiện nhóm hổng kiến thức cần can thiệp khẩn cấp trong lớp.`;
+        groupsGrid.appendChild(emptyCard);
+        return;
+    }
 
     groups.forEach(grp => {
         const card = document.createElement("div");
@@ -4427,15 +4570,17 @@ function renderGapGroups(groups) {
     });
 }
 
-/**
- * Renders the teacher priority table.
- *
- * @param {Array<object>} students - Priority student records.
- */
 function renderPriorityList(students) {
     const tableBody = document.getElementById("priority-table-body");
     if (!tableBody) return;
     tableBody.replaceChildren();
+
+    if (!students || !students.length) {
+        const emptyRow = document.createElement("tr");
+        emptyRow.innerHTML = `<td colspan="6" style="text-align: center; color: #64748b; padding: 1.5rem; font-weight: 600;"><i class="fa-solid fa-face-smile" style="color:#3b82f6; margin-right:6px;"></i> Lớp học chưa có học sinh nào gặp rủi ro gián đoạn bài học.</td>`;
+        tableBody.appendChild(emptyRow);
+        return;
+    }
 
     students.forEach((std, index) => {
         const row = document.createElement("tr");
@@ -4546,19 +4691,60 @@ function connectTeacherDashboardRealtime() {
     socket.addEventListener("close", fallbackToPolling);
 }
 
+function connectParentDashboardRealtime() {
+    if (!("WebSocket" in window)) return;
+    if (state.parentRealtimeSocket && [WebSocket.CONNECTING, WebSocket.OPEN].includes(state.parentRealtimeSocket.readyState)) {
+        return;
+    }
+
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${protocol}://${window.location.host}/ws/parent/dashboard`;
+    const socket = new WebSocket(wsUrl);
+    state.parentRealtimeSocket = socket;
+
+    socket.addEventListener("message", (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.activities) {
+                renderParentLiveActivities(data.activities);
+            }
+        } catch (e) {
+            console.warn("[-] Invalid parent dashboard WebSocket payload.", e);
+        }
+    });
+
+    socket.addEventListener("error", () => { state.parentRealtimeSocket = null; });
+    socket.addEventListener("close", () => { state.parentRealtimeSocket = null; });
+}
+
+function renderParentLiveActivities(activities) {
+    const feedContainer = document.getElementById("parent-live-activity-feed");
+    if (!feedContainer) return;
+    if (!activities || !activities.length) {
+        feedContainer.innerHTML = `<p style="font-size:0.9rem; color:#64748b; margin:0.5rem 0;">Chưa có lượt làm bài mới nhất nào của con.</p>`;
+        return;
+    }
+    feedContainer.innerHTML = activities.map(act => `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:0.65rem 0.9rem; background:#f8fafc; border-radius:10px; margin-bottom:0.45rem; font-size:0.88rem; border:1.5px solid #e2e8f0;">
+            <div>
+                <strong style="color:#0f172a;">${escapeHTML(act.student_name)}</strong> vừa gửi câu trả lời bài <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:700;">${escapeHTML(act.skill_id)}</span>
+            </div>
+            <span class="badge ${act.is_correct ? 'badge-success' : 'badge-danger'}" style="font-size:0.8rem; font-weight:800; padding:0.25rem 0.6rem;">
+                ${act.is_correct ? 'Đúng ✔' : 'Chưa đúng ✖'}
+            </span>
+        </div>
+    `).join("");
+}
+
 // Render Teacher Dashboard using real API data
 async function renderTeacherDashboard() {
     try {
         const data = await fetchTeacherDashboardData();
         applyTeacherDashboardData(data);
-        connectTeacherDashboardRealtime();
-        return;
     } catch (e) {
-        console.warn("[-] Teacher dashboard API failed. Using simulated mock panels.", e);
+        console.warn("[-] Teacher dashboard API fetch failed; connecting to realtime stream directly.", e);
     }
-    
-    // Offline Mock dashboard fallback
-    renderOfflineTeacherDashboard();
+    connectTeacherDashboardRealtime();
 }
 
 function triggerLessonPlanForSkill(skillId, title, groupMembers = null) {
@@ -4579,35 +4765,34 @@ const KNOWLEDGE_GRAPH_LOCAL_NAMES = {
 };
 
 // Heatmap Renderer
-function renderClassroomHeatmap() {
+function renderClassroomHeatmap(students = []) {
     const container = document.getElementById("heatmap-grid-container");
     if (!container) return;
     container.innerHTML = "";
     
-    for (let i = 1; i <= 40; i++) {
+    if (!students || students.length === 0) {
+        container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-secondary); padding: 1.5rem; font-style: italic;">Chưa có học sinh nào.</div>`;
+        return;
+    }
+    
+    students.forEach((std, index) => {
         const box = document.createElement("div");
         box.className = "heatmap-box";
-        box.textContent = i;
+        box.textContent = index + 1;
         
-        if (i === 1) {
+        if (std.mastery < 0.3) {
             box.className += " danger";
-            box.title = "Nguyễn Văn An - Cần kèm gấp!";
-            box.addEventListener("click", () => openDiagnosticInspector("an_01"));
-        } else if (i === 2) {
+            box.title = `${std.name} - Cần kèm gấp (Độ thành thạo: ${Math.round(std.mastery * 100)}%)`;
+        } else if (std.mastery < 0.6) {
             box.className += " warning";
-            box.title = "Trần Bình - Đang chẩn đoán";
-            box.addEventListener("click", () => openDiagnosticInspector("binh_02"));
-        } else if (i === 4) {
-            box.className += " danger";
-            box.title = "Lê Công Hoàng - Cần kèm gấp!";
-            box.addEventListener("click", () => openDiagnosticInspector("hoang_04"));
+            box.title = `${std.name} - Đang theo dõi (Độ thành thạo: ${Math.round(std.mastery * 100)}%)`;
         } else {
             box.className += " normal";
-            box.title = `Học sinh số ${i} - Đang học tập ổn định`;
-            box.addEventListener("click", () => openDiagnosticInspector(`std_${i}`));
+            box.title = `${std.name} - Học tập tốt (Độ thành thạo: ${Math.round(std.mastery * 100)}%)`;
         }
+        box.addEventListener("click", () => openDiagnosticInspector(std.id));
         container.appendChild(box);
-    }
+    });
 }
 
 // -----------------------------------------------------------------------------
@@ -5474,6 +5659,26 @@ function initMultimodalLearning() {
     }
 }
 
+async function updateParentProfileWithRealChild(studentId) {
+    let childName = "Học sinh";
+    let childGrade = 7;
+    try {
+        const studentsRes = await apiFetch("/api/students");
+        if (studentsRes.ok) {
+            const studentsList = await studentsRes.json();
+            const child = studentsList.find(s => s.student_id === studentId);
+            if (child) {
+                childName = child.name;
+                childGrade = child.grade;
+            }
+        }
+    } catch (err) {
+        console.warn("Failed to fetch student name dynamically", err);
+    }
+    state.parentProfile.managedChildren = [{ id: studentId, name: childName, grade: childGrade }];
+    state.parentProfile.activeChildId = studentId;
+}
+
 function getStudentLoginProfile(studentId) {
     if (state.authStudent && state.authStudent.id === studentId) {
         return {
@@ -5483,16 +5688,33 @@ function getStudentLoginProfile(studentId) {
             skill: `MATH_G${Math.min(7, Math.max(4, state.authStudent.grade))}`,
             xp: state.xp || 0,
             coins: state.coins || 0,
-            streak: state.streak || 0
+            streak: state.loginStreak || 0
         };
     }
-    const profiles = {
-        emma_std_01: { name: "Emma (Lớp 7A)", avatar: "Emma", grade: 7, skill: "MATH_G7", xp: 1200, coins: 350, streak: 5 },
-        an_01: { name: "Nguyễn Văn An", avatar: "An", grade: 6, skill: "MATH_G6", xp: 850, coins: 150, streak: 2 },
-        binh_02: { name: "Trần Bình", avatar: "Binh", grade: 5, skill: "MATH_G5", xp: 920, coins: 210, streak: 3 },
-        hoang_06: { name: "Lê Huy Hoàng", avatar: "Hoang", grade: 7, skill: "MATH_G7", xp: 1050, coins: 280, streak: 4 }
+    
+    const child = state.parentProfile.managedChildren.find(c => c.id === studentId);
+    if (child) {
+        return {
+            name: child.name,
+            avatar: child.name,
+            grade: child.grade || 7,
+            skill: `MATH_G${child.grade || 7}`,
+            xp: 0,
+            coins: 0,
+            streak: 0
+        };
+    }
+
+    const defaultName = studentId.startsWith("std_") ? `Học sinh (${studentId.substring(4, 10)})` : `Học sinh (${studentId})`;
+    return {
+        name: defaultName,
+        avatar: "avatar",
+        grade: 7,
+        skill: "MATH_G7",
+        xp: 0,
+        coins: 0,
+        streak: 0
     };
-    return profiles[studentId] || profiles.emma_std_01;
 }
 
 async function ensureStudentProfileForLogin(studentId, profile) {
@@ -5650,13 +5872,16 @@ function switchPortalUI(targetRole) {
     if (teacherTitleWrapper) teacherTitleWrapper.style.display = "none";
     const displayName = state.displayNameOverride || profile.name;
     const avatarSeed = state.avatarSeedOverride || profile.avatar;
-    if (userDisplayName) userDisplayName.textContent = displayName;
+    if (userDisplayName) {
+        userDisplayName.textContent = profile.grade ? `${displayName} (Lớp ${profile.grade})` : displayName;
+    }
     if (userAvatarImg) userAvatarImg.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(avatarSeed)}`;
     const avatarContainer = document.getElementById("user-avatar-container");
     if (avatarContainer) avatarContainer.classList.toggle("avatar-prize-frame", state.redeemedRewards.includes("avatar_frame"));
     if (btnTogglePortal) btnTogglePortal.style.display = "none";
     renderSubjectOverview();
     updateLearningLevelUI();
+    renderPersonalPath();
 }
 
 function initAuthFlow() {
@@ -5854,6 +6079,7 @@ function initAuthFlow() {
                         }
                         const auth = await response.json();
                         const studentId = auth.user?.child_student_id || "emma_std_01";
+                        await updateParentProfileWithRealChild(studentId);
                         const profile = getStudentLoginProfile(studentId);
                         state.isLoggedIn = true;
                         state.loggedInRole = "parent";
@@ -5905,6 +6131,7 @@ function initAuthFlow() {
                             return;
                         }
                         const auth = await response.json();
+                        await updateParentProfileWithRealChild(childStudentId);
                         const profile = getStudentLoginProfile(childStudentId);
                         state.isLoggedIn = true;
                         state.loggedInRole = "parent";
@@ -6065,7 +6292,8 @@ function initAuthFlow() {
     }
 
     async function handleSuccessfulStudentLogin(auth) {
-        const studentId = auth.user?.student_id;
+        state.authStudent = auth.student || null;
+        const studentId = auth.student?.id || auth.user?.student_id;
         const profile = getStudentLoginProfile(studentId);
         state.isLoggedIn = true;
         state.loggedInRole = "student";
@@ -6082,14 +6310,15 @@ function initAuthFlow() {
         await ensureStudentProfileForLogin(studentId, profile);
         if (loginOverlay) loginOverlay.classList.add("hidden");
         
+        switchPortalUI("student");
+        updateStudentRewardsUI();
+        prepareTestSetup();
+        
         if (auth.user && auth.user.initial_assessment_completed === false) {
             document.body.classList.add("assessment-mode");
             showToast("Bạn cần hoàn thành bài test đầu vào.");
             startAdaptiveTest(true);
         } else {
-            switchPortalUI("student");
-            updateStudentRewardsUI();
-            prepareTestSetup();
             showToast("Đăng nhập thành công.");
         }
     }
@@ -6211,6 +6440,7 @@ function initAuthFlow() {
 
         let sessionValid = false;
         let sessionUser = null;
+        let sessionStudent = null;
         if (storedLoggedIn === "true" && storedRole && storedToken) {
             try {
                 const sessionResponse = await fetch("/api/auth/me", { headers: { "Authorization": `Bearer ${storedToken}` } });
@@ -6218,6 +6448,7 @@ function initAuthFlow() {
                 if (sessionValid) {
                     const sessionData = await sessionResponse.json();
                     sessionUser = sessionData.user;
+                    sessionStudent = sessionData.student || null;
                 }
             } catch (error) {
                 console.warn("[Auth] Không thể xác minh phiên đăng nhập.", error);
@@ -6229,6 +6460,7 @@ function initAuthFlow() {
             state.loggedInRole = storedRole;
             state.user = sessionUser;
             if (storedRole === "student") {
+                state.authStudent = sessionStudent;
                 const profile = getStudentLoginProfile(storedStudentId);
                 state.baseStudentId = storedStudentId;
                 state.studentId = storedStudentId;
@@ -6236,14 +6468,14 @@ function initAuthFlow() {
                 applyRewardState(loadRewardState(profile));
                 state.studentProgress.activeSkill = profile.skill;
                 
+                switchPortalUI("student");
+                updateStudentRewardsUI();
+                prepareTestSetup();
+                
                 if (sessionUser && sessionUser.initial_assessment_completed === false) {
                     document.body.classList.add("assessment-mode");
                     showToast("Bạn cần hoàn thành bài test đầu vào.");
                     startAdaptiveTest(true);
-                } else {
-                    switchPortalUI("student");
-                    updateStudentRewardsUI();
-                    prepareTestSetup();
                 }
             } else if (storedRole === "parent") {
                 const studentId = sessionUser?.child_student_id || "emma_std_01";
@@ -6525,11 +6757,17 @@ function initStudentAccountAuth() {
         overlay?.classList.add("hidden");
         switchPortalUI("teacher");
     } else if (localStorage.getItem("isLoggedIn") === "true" && storedRole === "parent") {
-        const profile = getStudentLoginProfile(storedStudentId);
         state.isLoggedIn = true;
         state.loggedInRole = "parent";
         state.baseStudentId = storedStudentId;
         state.studentId = storedStudentId;
+        
+        updateParentProfileWithRealChild(storedStudentId).then(() => {
+            renderParentDashboard();
+            renderParentProfile();
+        });
+        
+        const profile = getStudentLoginProfile(storedStudentId);
         applyRewardState(loadRewardState(profile));
         state.studentProgress.activeSkill = profile.skill;
         overlay?.classList.add("hidden");
@@ -7202,88 +7440,81 @@ async function openTeacherAILearningPath(studentId, targetSkill) {
     }
 }
 
-function openDiagnosticInspector(studentId) {
+async function openDiagnosticInspector(studentId) {
     const modal = document.getElementById("modal-diagnostic-inspector");
     const container = document.getElementById("diagnostic-inspector-body");
     if (!modal || !container) return;
     
-    let name = "Học sinh";
-    let activeSkill = "Đang học ổn định";
-    let diagnosedError = "Học sinh học tập tốt, chưa phát hiện lỗ hổng kiến thức.";
-    let attempts = [];
-    
-    if (studentId === "an_01") {
-        name = "Nguyễn Văn An";
-        activeSkill = "Cộng số nguyên (Lớp 6)";
-        diagnosedError = "Học sinh thường sai ở bước tính tổng hai số nguyên trái dấu có trị tuyệt đối khác nhau (ví dụ: lấy -15 + 8 ra -23 thay vì -7).";
-        attempts = [
-            { question: "(-15) + 8", answer: "-23", status: "Incorrect", time: "10 phút trước" },
-            { question: "(-15) + 8", answer: "23", status: "Incorrect", time: "15 phút trước" }
-        ];
-    } else if (studentId === "binh_02") {
-        name = "Trần Bình";
-        activeSkill = "Quy đồng mẫu số (Lớp 5)";
-        diagnosedError = "Học sinh gặp khó khăn trong việc tìm Bội chung nhỏ nhất (BCNN) của hai mẫu số chẵn khác nhau (ví dụ: BCNN của 4 và 6 tính ra 24 thay vì mẫu số chung nhỏ nhất 12).";
-        attempts = [
-            { question: "Quy đồng 3/4 và 5/6", answer: "24", status: "Incorrect", time: "5 phút trước" }
-        ];
-    } else if (studentId === "hoang_04") {
-        name = "Lê Công Hoàng";
-        activeSkill = "Cộng số hữu tỉ (Lớp 7)";
-        diagnosedError = "Học sinh bị hổng kiến thức nền về phép cộng phân số âm cùng mẫu số, dẫn tới việc cộng sai số hữu tỉ trái dấu.";
-        attempts = [
-            { question: "1/2 + (-2/3)", answer: "-7/6", status: "Incorrect", time: "2 phút trước" }
-        ];
-    } else {
-        // Standard normal student
-        const num = studentId.replace("std_", "");
-        name = `Học sinh số ${num}`;
-        activeSkill = "Đạt chuẩn tiến trình";
-        diagnosedError = "Tiến độ học tập bình thường. Học sinh đạt tỷ lệ làm đúng trên 85% ở tất cả các kỹ năng môn học hiện tại.";
-        attempts = [
-            { question: "Luyện tập bài học", answer: "Chính xác", status: "Correct", time: "1 giờ trước" },
-            { question: "Kiểm tra định kỳ", answer: "Chính xác", status: "Correct", time: "Hôm qua" }
-        ];
-    }
-    
-    let attemptsRows = attempts.map(att => `
-        <tr>
-            <td><code>${att.question}</code></td>
-            <td style="color: ${att.status === 'Correct' ? 'var(--success)' : 'var(--danger)'}; font-weight: 700;">${att.answer}</td>
-            <td><span class="badge ${att.status === 'Correct' ? 'badge-success' : 'badge-danger'}">${att.status === 'Correct' ? 'Đúng' : 'Sai'}</span></td>
-            <td>${att.time}</td>
-        </tr>
-    `).join("");
-    
     container.innerHTML = `
-        <div style="font-family: Inter;">
-            <p style="font-size: 1.1rem; margin-bottom: 1rem;">
-                <strong>👤 Học sinh:</strong> ${name} <br>
-                <strong>🎯 Kỹ năng đang kẹt:</strong> <span class="badge badge-skill">${activeSkill}</span>
-            </p>
-            <div style="background: rgba(239, 83, 80, 0.1); border: 2px solid var(--danger); padding: 1.2rem; border-radius: 16px; margin-bottom: 1.5rem;">
-                <h4 style="color: var(--danger); margin-top: 0;"><i class="fa-solid fa-bug"></i> Phân tích lỗi sai gốc rễ (Root Cause):</h4>
-                <p style="margin: 0; font-weight: 500;">${diagnosedError}</p>
-            </div>
-            <h4 style="margin-bottom: 0.8rem;"><i class="fa-solid fa-clock-rotate-left"></i> Nhật ký làm bài gần đây</h4>
-            <div class="table-container">
-                <table class="memphis-table" style="font-size: 0.85rem;">
-                    <thead>
-                        <tr>
-                            <th>Câu hỏi</th>
-                            <th>Học sinh nhập</th>
-                            <th>Trạng thái</th>
-                            <th>Thời gian</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${attemptsRows || `<tr><td colspan="4" style="text-align: center;">Chưa có nhật ký làm bài gần đây.</td></tr>`}
-                    </tbody>
-                </table>
-            </div>
+        <div style="text-align: center; padding: 2rem; color: #64748b;">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary); margin-bottom: 1rem;"></i>
+            <p style="font-weight: 600;">Đang tải nhật ký chẩn đoán dữ liệu thật từ DB...</p>
         </div>
     `;
     modal.style.display = "flex";
+
+    try {
+        const res = await apiFetch(`/api/teacher/student/${studentId}/inspector`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const name = data.name || `Học sinh (${studentId})`;
+        const gradeStr = data.grade ? `Lớp ${data.grade}` : "";
+        const diagnosedError = data.diagnosed_error || "Chưa phát hiện rủi ro hổng kiến thức.";
+        const attempts = data.attempts || [];
+
+        const attemptsRows = attempts.map(att => {
+            const isCorr = att.is_correct;
+            const statusLabel = isCorr ? 'Đúng' : 'Sai';
+            const statusClass = isCorr ? 'badge-success' : 'badge-danger';
+            const timeLabel = att.timestamp ? new Date(att.timestamp * 1000).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : "Vừa xong";
+            return `
+                <tr>
+                    <td><code>${escapeHTML(att.question)}</code> <br><small style="color:#64748b;">${escapeHTML(att.skill_name || att.skill_id)}</small></td>
+                    <td style="color: ${isCorr ? 'var(--success)' : 'var(--danger)'}; font-weight: 700;">${escapeHTML(att.answer || "N/A")}</td>
+                    <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                    <td>${timeLabel}</td>
+                </tr>
+            `;
+        }).join("");
+
+        container.innerHTML = `
+            <div style="font-family: Inter;">
+                <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+                    <strong>👤 Học sinh:</strong> ${escapeHTML(name)} <small style="color:#64748b;">(${gradeStr})</small> <br>
+                    <strong>🎯 Trạng thái học tập:</strong> <span class="badge badge-skill">${attempts.length ? 'Đang thực hành trực tuyến' : 'Khởi tạo hồ sơ'}</span>
+                </p>
+                <div style="background: rgba(239, 83, 80, 0.1); border: 2px solid var(--danger); padding: 1.2rem; border-radius: 16px; margin-bottom: 1.5rem;">
+                    <h4 style="color: var(--danger); margin-top: 0;"><i class="fa-solid fa-bug"></i> Phân tích lỗi sai gốc rễ (AI Diagnostic Engine):</h4>
+                    <p style="margin: 0; font-weight: 500;">${escapeHTML(diagnosedError)}</p>
+                </div>
+                <h4 style="margin-bottom: 0.8rem;"><i class="fa-solid fa-clock-rotate-left"></i> Nhật ký làm bài gần đây (Dữ liệu thật DB)</h4>
+                <div class="table-container">
+                    <table class="memphis-table" style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th>Câu hỏi</th>
+                                <th>Học sinh nhập</th>
+                                <th>Trạng thái</th>
+                                <th>Thời gian</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${attemptsRows || `<tr><td colspan="4" style="text-align: center; padding: 1rem; color: #64748b;">Chưa có nhật ký làm bài gần đây. Học sinh này chưa hoàn thành lượt gửi câu hỏi nào.</td></tr>`}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    } catch (err) {
+        console.warn("[Inspector Error] Failed to load student details:", err);
+        container.innerHTML = `
+            <div style="text-align: center; padding: 1.5rem; color: var(--danger);">
+                <i class="fa-solid fa-circle-exclamation" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
+                <p>Không thể tải chi tiết học sinh <strong>${escapeHTML(studentId)}</strong> từ máy chủ.</p>
+            </div>
+        `;
+    }
 }
 
 // Bind Submit Button Click

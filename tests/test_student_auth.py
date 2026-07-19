@@ -76,6 +76,14 @@ def test_duplicate_username_is_rejected():
 def test_activate_existing_student_preserves_mastery():
     client = TestClient(app)
     student_id = "an_01"
+    with SessionLocal() as session:
+        student = session.get(Student, student_id)
+        if student and student.user_id:
+            user = session.get(User, student.user_id)
+            student.user_id = None
+            if user:
+                session.delete(user)
+            session.commit()
     before = get_student_mastery(student_id, "MATH_G7")
     code_response = client.post("/api/auth/student/activation-code", json={"student_id": student_id})
     assert code_response.status_code == 200, code_response.text

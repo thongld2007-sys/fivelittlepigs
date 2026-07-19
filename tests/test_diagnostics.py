@@ -14,11 +14,12 @@ from backend.diagnostic_engine import BKTProcessor, get_next_question_difficulty
 class TestAdaptiveDiagnostics(unittest.TestCase):
     def setUp(self):
         # Re-initialize database
-        if os.path.exists(Config.DB_PATH):
-            try:
-                os.remove(Config.DB_PATH)
-            except PermissionError:
-                pass
+        from backend.database import SessionLocal
+        from backend.models import Base
+        with SessionLocal() as session:
+            for table in reversed(Base.metadata.sorted_tables):
+                session.execute(table.delete())
+            session.commit()
         init_db()
         
     def test_bkt_updating_correct(self):

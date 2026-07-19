@@ -10,6 +10,7 @@ import os
 import json
 import re
 import math
+import asyncio
 from sqlalchemy import select, delete
 
 from backend.config import APP_AUTH_REQUIRED, AUTH_COOKIE_SECURE, Config, FPT_AI_MAX_IMAGE_BYTES
@@ -894,7 +895,7 @@ def auth_me(authorization: Optional[str] = Header(default=None)):
             import hashlib, time
             token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
             conn = get_db_connection()
-            row = conn.execute("""SELECT u.id,u.display_name,u.role,s.id AS student_id,s.initial_assessment_completed
+            row = conn.execute("""SELECT u.id,u.username,u.display_name,u.role,s.id AS student_id,s.name AS student_name,s.grade AS student_grade,s.initial_assessment_completed
                                   FROM auth_sessions a JOIN users u ON u.id=a.user_id
                                   LEFT JOIN students s ON s.user_id=u.id
                                   WHERE a.token_hash=? AND a.revoked_at IS NULL AND a.expires_at>?""",
@@ -902,12 +903,26 @@ def auth_me(authorization: Optional[str] = Header(default=None)):
             conn.close()
             if not row:
                 raise HTTPException(status_code=401, detail="Session expired or invalid")
-            user_data = dict(row)
-            if user_data.get("initial_assessment_completed") is not None:
-                user_data["initial_assessment_completed"] = bool(user_data["initial_assessment_completed"])
-            else:
-                user_data["initial_assessment_completed"] = True
-            return {"user": user_data}
+            
+            user_data = {
+                "id": row["id"],
+                "display_name": row["display_name"],
+                "role": row["role"],
+                "student_id": row["student_id"],
+                "initial_assessment_completed": bool(row["initial_assessment_completed"]) if row["initial_assessment_completed"] is not None else True
+            }
+            
+            response_data = {"user": user_data}
+            if row["role"] == "student" and row["student_id"]:
+                response_data["student"] = {
+                    "id": row["student_id"],
+                    "name": row["student_name"] or row["display_name"],
+                    "grade": row["student_grade"] or 7,
+                    "username": row["username"],
+                    "initial_assessment_completed": bool(row["initial_assessment_completed"]) if row["initial_assessment_completed"] is not None else False
+                }
+                response_data["role"] = "student"
+            return response_data
     raise HTTPException(status_code=401, detail="Missing bearer token")
 
 def verify_password(password: str, encoded: str) -> bool:
@@ -932,15 +947,24 @@ def verify_password(password: str, encoded: str) -> bool:
 def login(payload: LoginRequest):
     import secrets, time, hashlib
     username = payload.username.strip()
+    role = payload.role.strip() if payload.role else None
     conn = get_db_connection()
-    row = conn.execute("""SELECT id,display_name,role,password_hash,status FROM users
-                          WHERE username=? OR email=? OR id=?""", (username, username, username)).fetchone()
+    
+    if username == "1":
+        target_username = "1"
+        if role == "teacher":
+            target_username = "1_teacher"
+        elif role == "parent":
+            target_username = "1_parent"
+        row = conn.execute("""SELECT id,username,display_name,role,password_hash,status FROM users
+                              WHERE username=? OR (role=? AND username LIKE '1%')""", (target_username, role)).fetchone()
+    else:
+        row = conn.execute("""SELECT id,username,display_name,role,password_hash,status FROM users
+                              WHERE username=? OR email=? OR id=?""", (username, username, username)).fetchone()
+
     if not row or row["status"] != "active" or not verify_password(payload.password, row["password_hash"] or ""):
         conn.close()
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    if payload.role and payload.role != row["role"]:
-        conn.close()
-        raise HTTPException(status_code=403, detail="Account role does not match")
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     now = int(time.time())
@@ -948,9 +972,39 @@ def login(payload: LoginRequest):
                  (token_hash, row["id"], now, now + 12 * 3600))
     conn.execute("UPDATE users SET last_login_at=? WHERE id=?", (now, row["id"]))
     conn.commit()
+    
+    student_row = None
+    if row["role"] == "student":
+        student_row = conn.execute("SELECT id, name, grade, initial_assessment_completed FROM students WHERE user_id=?", (row["id"],)).fetchone()
     conn.close()
-    return {"access_token": token, "token_type": "bearer", "expires_in": 12 * 3600,
-            "user": {"id": row["id"], "display_name": row["display_name"], "role": row["role"]}}
+    
+    user_data = {
+        "id": row["id"],
+        "display_name": row["display_name"],
+        "role": row["role"],
+        "username": row["username"]
+    }
+    if student_row:
+        user_data["student_id"] = student_row["id"]
+        user_data["initial_assessment_completed"] = bool(student_row["initial_assessment_completed"])
+        
+    response_data = {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": 12 * 3600,
+        "user": user_data
+    }
+    
+    if student_row:
+        response_data["student"] = {
+            "id": student_row["id"],
+            "name": student_row["name"],
+            "grade": student_row["grade"],
+            "username": row["username"],
+            "initial_assessment_completed": bool(student_row["initial_assessment_completed"])
+        }
+        
+    return response_data
 
 @app.post("/api/ai/student/{student_id}/tutor", dependencies=[Depends(require_auth)])
 def ai_tutor(student_id: str, payload: AITutorRequest):
@@ -1149,6 +1203,100 @@ def create_survey_session(payload: SurveySessionRequest):
         "session_id": session_id,
     }
 
+def generate_dynamic_question(skill_id: str, difficulty_level: int) -> dict | None:
+    from backend.fpt_ai import fpt_ai_client
+    from backend.knowledge_graph import KNOWLEDGE_GRAPH
+    from backend.database import db_session
+    from backend.models import Question
+    import json
+    import uuid
+
+    if not fpt_ai_client.configured:
+        return None
+
+    skill_info = KNOWLEDGE_GRAPH.get(skill_id, {})
+    skill_name = skill_info.get("name", skill_id)
+    grade = skill_info.get("grade", 7)
+    subject = skill_info.get("subject", "Toán")
+    level_str = "Dễ" if difficulty_level == 1 else "Vừa" if difficulty_level == 2 else "Khó"
+
+    system_prompt = (
+        "Bạn là chuyên gia thiết kế câu hỏi trắc nghiệm chuẩn theo chương trình GDPT 2018 của Việt Nam. "
+        "Hãy tạo ra đúng MỘT câu hỏi trắc nghiệm (gồm 4 lựa chọn A, B, C, D) mới hoàn toàn, "
+        "chính xác 100% về mặt kiến thức toán học/ngữ văn/tiếng anh/khoa học tự nhiên. "
+        "Trả về định dạng JSON thuần túy, tuyệt đối không có ký tự markdown, không có ```json hay ```. "
+        "JSON phải tuân thủ chính xác cấu trúc sau:\n"
+        "{\n"
+        '  "text": "Câu hỏi...",\n'
+        '  "options": [\n'
+        '    {"key": "A", "text": "Lựa chọn A..."},\n'
+        '    {"key": "B", "text": "Lựa chọn B..."},\n'
+        '    {"key": "C", "text": "Lựa chọn C..."},\n'
+        '    {"key": "D", "text": "Lựa chọn D..."}\n'
+        '  ],\n'
+        '  "correct_answer": "Dấu A/B/C/D tương ứng đáp án đúng",\n'
+        '  "hint": "Giải thích ngắn gọn vì sao đáp án đó đúng"\n'
+        "}"
+    )
+
+    user_prompt = (
+        f"Hãy tạo 1 câu hỏi môn {subject}, lớp {grade}, thuộc chủ đề '{skill_name}' (mã kỹ năng: {skill_id}) "
+        f"với độ khó {difficulty_level} ({level_str}). "
+        f"Chú ý: Tránh trùng lặp với các câu hỏi phổ biến, đảm bảo tính khoa học và thực tế."
+    )
+
+    try:
+        result = fpt_ai_client.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+        content = result.content.strip()
+        if content.startswith("```"):
+            lines = content.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines[-1].startswith("```"):
+                lines = lines[:-1]
+            content = "\n".join(lines).strip()
+
+        data = json.loads(content)
+        if "text" in data and "options" in data and "correct_answer" in data:
+            if len(data["options"]) == 4 and data["correct_answer"] in ["A", "B", "C", "D"]:
+                q_id = f"q_{skill_id.lower()}_dyn_{uuid.uuid4().hex[:8]}"
+                question = {
+                    "id": q_id,
+                    "skill_id": skill_id,
+                    "difficulty_level": difficulty_level,
+                    "difficulty": level_str,
+                    "text": data["text"],
+                    "options": data["options"],
+                    "correct_answer": data["correct_answer"],
+                    "hint": data.get("hint", "Xem lại kiến thức nền."),
+                    "visual_hint": skill_id
+                }
+                
+                # Append to questions.json
+                with open(Config.QUESTIONS_JSON_PATH, "r", encoding="utf-8") as f:
+                    questions = json.load(f)
+                questions.append(question)
+                with open(Config.QUESTIONS_JSON_PATH, "w", encoding="utf-8") as f:
+                    json.dump(questions, f, ensure_ascii=False, indent=2)
+
+                # Save to database
+                with db_session() as session:
+                    db_q = Question(
+                        id=q_id,
+                        skill_id=skill_id,
+                        text=data["text"],
+                        options=data["options"],
+                        correct_answer=data["correct_answer"],
+                        difficulty_level=difficulty_level,
+                        metadata_json={"hint": data.get("hint", "")}
+                    )
+                    session.add(db_q)
+                    session.commit()
+                return question
+    except Exception as e:
+        print(f"[Dynamic Question Generator] Failed to generate dynamic question: {e}")
+    return None
+
 @app.get("/api/student/{student_id}/next-question", dependencies=[Depends(require_auth)])
 def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_format: str = "choice"):
     student = get_student(student_id)
@@ -1202,6 +1350,11 @@ def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_fo
     fresh_questions = [q for q in skill_questions if q["id"] not in answered_ids]
     if fresh_questions:
         skill_questions = fresh_questions
+    else:
+        # No fresh questions available! Try to generate a new one using AI.
+        new_q = generate_dynamic_question(recommended_skill, target_difficulty)
+        if new_q:
+            skill_questions = [new_q]
         
     # Pick a random question from matching ones to make it dynamic
     import random
@@ -1224,6 +1377,16 @@ def get_next_question(student_id: str, current_skill: str = "MATH_G7", answer_fo
         "active_skill": recommended_skill,
         "target_difficulty": target_difficulty
     }
+
+def normalize_option_key(key: str) -> str:
+    if not key:
+        return ""
+    clean = str(key).strip().upper()
+    if clean.startswith("ĐÁP ÁN"):
+        clean = clean.replace("ĐÁP ÁN", "").strip()
+    if len(clean) > 1 and clean[1] in [".", ":", ")"]:
+        clean = clean[0]
+    return clean
 
 @app.post("/api/student/{student_id}/submit", dependencies=[Depends(require_auth)])
 def submit_answer(student_id: str, submission: AnswerSubmission):
@@ -1259,7 +1422,7 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
         
-    is_correct = (submission.selected_option == question["correct_answer"])
+    is_correct = (normalize_option_key(submission.selected_option) == normalize_option_key(question["correct_answer"]))
     distractor_explanations = build_distractor_explanations(question)
     anomaly = evaluate_response_anomaly(question, is_correct, submission.time_spent_ms)
 
@@ -1518,7 +1681,6 @@ def get_teacher_dashboard():
         t_stuck = get_stuck_time_minutes(std_id, active_skill)
         
         # Priority Score formula: PS = (1.0 - mastery) * (1.0 + n_failed) * ln(t_stuck + 2)
-        import math
         ps_score = (1.0 - mastery) * (1.0 + n_failed) * math.log(t_stuck + 2)
         
         priority_list.append({
@@ -1576,6 +1738,75 @@ def get_teacher_dashboard():
         "priority_list": priority_list,
         "class_progress": class_progress,
         "realtime_events": realtime_events
+    }
+
+@app.get("/api/teacher/student/{student_id}/inspector", dependencies=[Depends(require_auth)])
+def get_student_diagnostic_inspector(student_id: str):
+    conn = get_db_connection()
+    try:
+        student = conn.execute("SELECT id, name, grade, user_id FROM students WHERE id=?", (student_id,)).fetchone()
+        if not student:
+            student = conn.execute(
+                """SELECT s.id, s.name, s.grade, s.user_id 
+                   FROM students s JOIN users u ON s.user_id = u.id 
+                   WHERE u.username=? OR u.id=?""",
+                (student_id, student_id)
+            ).fetchone()
+        if not student:
+            # Fallback for dynamic ID
+            student = {"id": student_id, "name": f"Học sinh ({student_id[:8]})", "grade": 7}
+        
+        sid = student["id"]
+        rows = conn.execute("""
+            SELECT r.question_id, r.skill_id, r.selected_option, r.is_correct, r.timestamp, q.text as question_text
+            FROM responses r
+            LEFT JOIN questions q ON r.question_id = q.id
+            WHERE r.student_id=?
+            ORDER BY r.id DESC LIMIT 15
+        """, (sid,)).fetchall()
+        
+        masteries = conn.execute("""
+            SELECT m.skill_id, m.mastery_probability
+            FROM student_mastery m
+            WHERE m.student_id=?
+        """, (sid,)).fetchall()
+    finally:
+        conn.close()
+        
+    attempts = []
+    for r in rows:
+        attempts.append({
+            "question": r["question_text"] or f"Câu hỏi {r['question_id']}",
+            "skill_id": r["skill_id"],
+            "skill_name": KNOWLEDGE_GRAPH.get(r["skill_id"], {}).get("name", r["skill_id"]),
+            "answer": r["selected_option"],
+            "status": "Correct" if r["is_correct"] else "Incorrect",
+            "is_correct": bool(r["is_correct"]),
+            "timestamp": r["timestamp"]
+        })
+        
+    mastery_map = {m["skill_id"]: round(m["mastery_probability"], 2) for m in masteries}
+    
+    weak_skills = [s for s, p in mastery_map.items() if p < 0.50]
+    if weak_skills:
+        weak_name = KNOWLEDGE_GRAPH.get(weak_skills[0], {}).get("name", weak_skills[0])
+        diagnosed_error = f"Học sinh đang gặp rủi ro hổng kiến thức ở bài '{weak_name}' (xác suất thành thạo < 50%)."
+    elif attempts:
+        wrong_count = sum(1 for a in attempts if not a["is_correct"])
+        if wrong_count > 0:
+            diagnosed_error = f"Học sinh làm chưa đúng {wrong_count}/{len(attempts)} câu gần nhất. Cần luyện thêm để củng cố kỹ năng."
+        else:
+            diagnosed_error = "Học sinh học tập rất tốt! Đạt tỷ lệ làm đúng 100% trong các lượt trả lời vừa qua."
+    else:
+        diagnosed_error = "Học sinh vừa khởi tạo hồ sơ, chưa có lịch sử gửi đáp án."
+
+    return {
+        "student_id": sid,
+        "name": student["name"],
+        "grade": student["grade"],
+        "mastery_map": mastery_map,
+        "diagnosed_error": diagnosed_error,
+        "attempts": attempts
     }
 
 @app.get("/api/evidence/fpt-ai-coverage")
@@ -1883,6 +2114,67 @@ async def teacher_dashboard_websocket(websocket: WebSocket):
             await websocket.send_json({
                 "event": "teacher_dashboard_snapshot",
                 "payload": get_teacher_dashboard(),
+                "server_time": int(time.time()),
+            })
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        return
+
+@app.websocket("/ws/parent/dashboard")
+async def parent_dashboard_websocket(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            conn = get_db_connection()
+            responses = conn.execute("""
+                SELECT sr.question_id, sr.skill_id, sr.is_correct, sr.timestamp, s.name as student_name
+                FROM responses sr
+                LEFT JOIN students s ON sr.student_id = s.id
+                ORDER BY sr.id DESC LIMIT 5
+            """).fetchall()
+            conn.close()
+            
+            recent_activities = [
+                {
+                    "student_name": r["student_name"] or "Học sinh 1",
+                    "skill_id": r["skill_id"],
+                    "is_correct": bool(r["is_correct"]),
+                    "created_at": r["timestamp"]
+                }
+                for r in responses
+            ]
+            
+            await websocket.send_json({
+                "event": "parent_dashboard_snapshot",
+                "activities": recent_activities,
+                "server_time": int(time.time()),
+            })
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        return
+
+@app.websocket("/ws/admin/dashboard")
+async def admin_dashboard_websocket(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            await websocket.send_json({
+                "event": "admin_dashboard_snapshot",
+                "payload": get_operations_evidence(),
+                "server_time": int(time.time()),
+            })
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        return
+
+@app.websocket("/ws/investor/dashboard")
+async def investor_dashboard_websocket(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            await websocket.send_json({
+                "event": "investor_dashboard_snapshot",
+                "payload": get_traction_evidence(),
                 "server_time": int(time.time()),
             })
             await asyncio.sleep(2)
