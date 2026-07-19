@@ -18,7 +18,8 @@ from backend.database import (
     get_consecutive_failed_count, get_stuck_time_minutes, get_answered_question_ids,
     add_student, get_ai_usage_summary, list_students, reset_student_session,
     get_dashboard_snapshot, record_ai_usage, record_uploaded_work,
-    get_response_event, get_db_connection, db_session, delete_students,
+    get_response_event, get_db_connection, db_session, delete_students, get_response_by_event_id,
+    add_pedagogical_explanation, upsert_sync_event, get_student_rewards,
 )
 from backend.models import ChatMessage, User, Student
 from backend.diagnostic_engine import update_student_skill, get_next_recommended_skill, get_next_question_difficulty_and_skill
@@ -307,8 +308,8 @@ def build_response_event_payload(student_id, question, submission, is_correct, m
         "difficulty_level": question.get("difficulty_level", 2),
         "selected_option": submission.selected_option,
         "is_correct": is_correct,
-        "response_time_ms": submission.response_time_ms,
-        "client_timestamp": submission.client_timestamp,
+        "response_time_ms": submission.response_time_ms or getattr(submission, "time_spent_ms", 0) or 0,
+        "client_timestamp": submission.client_timestamp or int(time.time()),
         "mastery_before": round(mastery_before, 4),
         "mastery_after": round(mastery_after, 4),
         "next_skill_id": next_skill,
@@ -623,6 +624,8 @@ class AnswerSubmission(BaseModel):
     selected_option: str
     event_id: Optional[str] = Field(default=None, max_length=36)
     time_spent_ms: int = Field(default=0, ge=0, le=86_400_000)
+    response_time_ms: Optional[int] = None
+    client_timestamp: Optional[int] = None
 
 class CheckAnswerRequest(BaseModel):
     question_id: str
@@ -1258,6 +1261,7 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
         
     is_correct = (submission.selected_option == question["correct_answer"])
     distractor_explanations = build_distractor_explanations(question)
+    anomaly = evaluate_response_anomaly(question, is_correct, submission.time_spent_ms)
 
     existing_event = get_response_event(submission.event_id)
     if existing_event:
@@ -1275,6 +1279,10 @@ def submit_answer(student_id: str, submission: AnswerSubmission):
             "next_recommended_difficulty": next_diff,
             "idempotent_replay": True,
         }
+
+    import uuid
+    response_event_id = submission.event_id or str(uuid.uuid4())
+    mastery_before = get_student_mastery(student_id, question["skill_id"])
     
     # Record response in DB (with difficulty_level)
     record_response(

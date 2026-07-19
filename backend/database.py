@@ -15,6 +15,7 @@ from backend.config import Config
 from backend.models import (
     AIUsage, AgentRun, Base, DiagnosticSession, MasteryHistory, Question, Response,
     Skill, Student, StudentMastery, UploadedWork, ChatMessage,
+    SyncEvent, PedagogicalExplanation,
 )
 
 
@@ -283,6 +284,16 @@ def get_response_event(event_id):
         }
 
 
+def get_response_by_event_id(event_id):
+    if not event_id:
+        return None
+    with db_session() as session:
+        row = session.scalar(select(Response).where(Response.event_id == event_id))
+        if not row:
+            return None
+        return {col.name: getattr(row, col.name) for col in row.__table__.columns}
+
+
 def get_response_history(student_id, skill_id, limit=None):
     statement = select(Response).where(Response.student_id == student_id, Response.skill_id == skill_id).order_by(desc(Response.id))
     if limit:
@@ -413,3 +424,47 @@ def delete_students(student_ids):
         session.execute(delete(StudentMastery).where(StudentMastery.student_id.in_(student_ids)))
         session.execute(delete(DiagnosticSession).where(DiagnosticSession.student_id.in_(student_ids)))
         session.execute(delete(Student).where(Student.id.in_(student_ids)))
+
+
+def add_pedagogical_explanation(
+    student_id,
+    response_event_id,
+    skill_id,
+    next_skill_id,
+    explanation_text,
+    mastery_before,
+    mastery_after,
+):
+    with db_session() as session:
+        explanation = PedagogicalExplanation(
+            student_id=student_id,
+            response_event_id=response_event_id,
+            skill_id=skill_id,
+            next_skill_id=next_skill_id,
+            explanation_text=explanation_text,
+            mastery_before=mastery_before,
+            mastery_after=mastery_after,
+            created_at=int(time.time()),
+        )
+        session.add(explanation)
+
+
+def upsert_sync_event(event_id, event_type, aggregate_id, payload, vector_clock):
+    with db_session() as session:
+        existing = session.scalar(select(SyncEvent).where(SyncEvent.event_id == event_id))
+        if existing:
+            return
+        event = SyncEvent(
+            event_id=event_id,
+            event_type=event_type,
+            aggregate_id=aggregate_id,
+            payload_json=json.dumps(payload, ensure_ascii=False),
+            vector_clock=vector_clock,
+            created_at=int(time.time()),
+        )
+        session.add(event)
+
+
+def get_student_rewards(student_id):
+    # Returns default rewards since they are tracked client-side in frontend
+    return {"xp": 0, "coins": 0, "current_streak": 0, "last_activity_date": None}

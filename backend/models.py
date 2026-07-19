@@ -251,3 +251,27 @@ class ChatMessage(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     mode: Mapped[Optional[str]] = mapped_column(String(50))  # e.g., "explain", "find_error"
     created_at: Mapped[datetime] = mapped_column(MixedDateTime, default=utcnow, index=True)
+
+
+class SyncEvent(Base):
+    __tablename__ = "sync_events"
+    event_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    aggregate_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    vector_clock: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[int] = mapped_column(Integer, nullable=False)
+    synced_at: Mapped[Optional[int]] = mapped_column(Integer)
+
+
+class PedagogicalExplanation(Base):
+    __tablename__ = "pedagogical_explanations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    student_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    response_event_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    skill_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    next_skill_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    explanation_text: Mapped[str] = mapped_column(Text, nullable=False)
+    mastery_before: Mapped[float] = mapped_column(Float, nullable=False)
+    mastery_after: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[int] = mapped_column(Integer, nullable=False)
