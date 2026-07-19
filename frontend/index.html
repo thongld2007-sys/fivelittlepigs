@@ -36,10 +36,11 @@
                 <a href="#" class="menu-item" data-teacher-nav="contribution"><i class="fa-solid fa-chart-line"></i><span>Đóng góp hôm nay</span></a>
             </nav>
             <nav class="sidebar-menu parent-sidebar-menu" id="parent-sidebar-menu" style="display: none;">
-                <a href="#" class="menu-item active" data-parent-nav="overview"><i class="fa-solid fa-people-roof"></i><span>Theo dõi con</span></a>
+                <!-- Dynamically populated via JS -->
             </nav>
             <nav class="sidebar-menu admin-sidebar-menu" id="admin-sidebar-menu" style="display: none;">
                 <a href="#" class="menu-item active" data-admin-nav="operations"><i class="fa-solid fa-server"></i><span>Vận hành</span></a>
+                <a href="#" class="menu-item" data-admin-nav="users"><i class="fa-solid fa-users-gear"></i><span>Quản lý tài khoản</span></a>
             </nav>
             <nav class="sidebar-menu investor-sidebar-menu" id="investor-sidebar-menu" style="display: none;">
                 <a href="#" class="menu-item active" data-investor-nav="traction"><i class="fa-solid fa-arrow-trend-up"></i><span>Traction</span></a>
@@ -71,20 +72,6 @@
                             <span class="reward-tag streak-tag"><i class="fa-solid fa-calendar-check"></i> 5 ngày liên tiếp</span>
                         <span class="reward-tag xp-tag"><i class="fa-solid fa-gem"></i> 1,200 XP</span>
                         <span class="reward-tag coin-tag"><i class="fa-solid fa-coins"></i> 350 Xu</span>
-                    </div>
-                    <div id="quest-notification" class="quest-notification">
-                        <button id="btn-quest-toggle" class="quest-toggle-btn" type="button" aria-expanded="false" aria-controls="quest-dropdown-panel" title="Nhiệm vụ hôm nay">
-                            <i class="fa-solid fa-bell"></i>
-                            <span id="quest-notification-count">0</span>
-                        </button>
-                        <div id="quest-dropdown-panel" class="quest-dropdown-panel" aria-label="Nhiệm vụ hôm nay">
-                            <div class="quest-panel-header">
-                                <span class="badge badge-skill"><i class="fa-solid fa-gamepad"></i> Quiz Quest</span>
-                                <strong id="quest-combo-label">Nhiệm vụ hôm nay</strong>
-                            </div>
-                            <div id="daily-quest-list" class="daily-quest-list"></div>
-                            <p id="reward-feedback" class="reward-feedback">Làm đúng quiz để gom xu mở bài ôn cá nhân.</p>
-                        </div>
                     </div>
                     <div class="user-profile">
                         <span class="user-name" id="user-display-name">Emma (Lớp 7A)</span>
@@ -669,6 +656,23 @@
 
                     <!-- 6. STUDENT PROFILE VIEW -->
                     <div id="student-view-profile" class="student-view-panel" style="display: none;">
+                        <div class="memphis-card">
+                            <h3><i class="fa-solid fa-user"></i> Thông tin cá nhân</h3>
+                            <p style="margin-bottom: 0.5rem;">Mã học sinh của bạn là chìa khóa để phụ huynh có thể liên kết tài khoản.</p>
+                            <div style="display: flex; align-items: center; gap: 0.5rem; background: var(--bg-color); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); max-width: max-content;">
+                                <i class="fa-solid fa-fingerprint" style="color: var(--primary);"></i>
+                                <strong>ID của bạn:</strong>
+                                <span id="student-id-display" style="font-family: monospace; font-size: 1.1rem; color: var(--text-color); font-weight: bold;">Đang tải...</span>
+                                <button class="btn btn-sm btn-hint-outline" style="padding: 0.2rem 0.5rem;" onclick="navigator.clipboard.writeText(document.getElementById('student-id-display').textContent); showToast('Đã copy ID!');" title="Copy"><i class="fa-regular fa-copy"></i></button>
+                            </div>
+                        </div>
+                        <div class="memphis-card" style="margin-top: 1rem;">
+                            <h3><i class="fa-solid fa-link"></i> Yêu cầu liên kết tài khoản từ Phụ huynh</h3>
+                            <div id="student-pending-requests" class="pending-requests-list">
+                                <!-- Requests will be rendered here -->
+                                <p style="color: var(--text-muted); font-size: 0.9rem;">Không có yêu cầu nào.</p>
+                            </div>
+                        </div>
                         <div class="profile-page-header mb-4">
                             <h2><i class="fa-solid fa-id-card"></i> Hồ sơ học tập</h2>
                             <p class="card-subtitle-desc">Theo dõi XP theo ngày, tiến trình từng môn, huy hiệu và thông tin cá nhân của học sinh.</p>
@@ -686,10 +690,11 @@
                             <span class="teacher-command-kicker"><i class="fa-solid fa-satellite-dish"></i> Teacher Command Center</span>
                             <h1>Bảng quản lý lớp học theo dữ liệu</h1>
                             <p>PorcusAI giúp giáo viên nhìn nhanh tình trạng lớp, phát hiện lỗ hổng gốc, gom nhóm học sinh và chọn hành động dạy lại hoặc giao bài luyện phù hợp.</p>
+                            <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <strong>ID Giáo viên:</strong> <span id="teacher-id-display" style="font-family: monospace;">teacher_01</span>
+                            </div>
                         </div>
-                        <div class="teacher-command-actions">
-                            <button class="btn btn-primary-memphis" id="btn-command-lesson-plan"><i class="fa-solid fa-wand-magic-sparkles"></i> Tạo kế hoạch 15 phút</button>
-                            <button class="btn btn-hint-outline" id="btn-open-final-report"><i class="fa-solid fa-file-shield"></i> Báo cáo final</button>
+                        <div class="teacher-command-actions" style="display: none;">
                         </div>
                     </div>
 
@@ -875,6 +880,29 @@
                     <div id="parent-overview-dashboard" class="parent-overview-dashboard">
                         <!-- Rendered by app.js -->
                     </div>
+                    
+                    <div id="parent-view-profile" class="parent-view-panel" style="display: none;">
+                        <div class="memphis-card">
+                            <h3><i class="fa-solid fa-id-card"></i> Hồ sơ Phụ huynh</h3>
+                            <p>Quản lý tài khoản phụ huynh và các tài khoản học sinh đã liên kết.</p>
+                            <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <strong>ID Phụ huynh:</strong> <span id="parent-id-display" style="font-family: monospace;">parent_01</span>
+                            </div>
+                            <hr style="margin: 1rem 0; border: none; border-top: 1px dashed var(--border-color);">
+                            
+                            <h4><i class="fa-solid fa-user-plus"></i> Tìm & Liên kết học sinh</h4>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; max-width: 400px;">
+                                <input type="text" id="parent-search-student-id" class="form-control" placeholder="Nhập ID Học sinh (VD: emma_std_01)">
+                                <button type="button" id="btn-parent-send-request" class="btn btn-primary-memphis">Gửi yêu cầu</button>
+                            </div>
+                            <p id="parent-request-status" style="margin-top: 0.5rem; font-size: 0.85rem; font-weight: 500;"></p>
+                            
+                            <h4 style="margin-top: 1.5rem;"><i class="fa-solid fa-children"></i> Các con đang theo dõi</h4>
+                            <div id="parent-managed-children" class="managed-children-list" style="margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                                <!-- Rendered via JS -->
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- ================= KHU VỰC D: ADMIN ================= -->
@@ -889,6 +917,20 @@
                     <div id="admin-operations-dashboard" class="admin-operations-dashboard">
                         <!-- Rendered by app.js -->
                     </div>
+                    
+                    <div id="admin-users-dashboard" class="admin-users-dashboard" style="display: none;">
+                        <div class="memphis-card">
+                            <h3><i class="fa-solid fa-user-shield"></i> Tìm kiếm & Xử lý tài khoản</h3>
+                            <p>Tìm kiếm người dùng theo ID, tên đăng nhập, tên hiển thị hoặc email để Khóa (Ban) hoặc Xóa khỏi hệ thống.</p>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem; max-width: 600px;">
+                                <input type="text" id="admin-search-user-id" class="form-control" placeholder="Nhập ID, tên đăng nhập, tên hiển thị hoặc email...">
+                                <button type="button" id="btn-admin-search-user" class="btn btn-primary-memphis"><i class="fa-solid fa-magnifying-glass"></i> Tìm</button>
+                            </div>
+                            <div id="admin-user-search-result" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px dashed var(--border-color); display: none;">
+                                <!-- User search result goes here -->
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- ================= KHU VỰC E: NHÀ ĐẦU TƯ ================= -->
@@ -898,6 +940,9 @@
                             <span class="badge badge-skill"><i class="fa-solid fa-chart-line"></i> Investor Traction</span>
                             <h1>Traction, unit economics và khả năng scale</h1>
                             <p>Màn này phục vụ câu hỏi: người dùng có quay lại không, AI tạo giá trị gì, chi phí mỗi học sinh bao nhiêu, và mô hình có scale được không.</p>
+                            <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                <strong>ID Tài trợ:</strong> <span id="investor-id-display" style="font-family: monospace;">investor_01</span>
+                            </div>
                         </div>
                     </div>
                     <div id="investor-traction-dashboard" class="investor-traction-dashboard">
@@ -1003,7 +1048,7 @@
                         <div class="auth-form-grid">
                             <div class="form-group auth-span-2"><label for="register-name">Họ và tên</label><input id="register-name" class="form-control" autocomplete="name" maxlength="100"></div>
                             <div class="form-group"><label for="register-username">Tên đăng nhập</label><input id="register-username" class="form-control" autocomplete="username" maxlength="30"></div>
-                            <div class="form-group"><label for="register-grade">Khối lớp</label><select id="register-grade" class="form-control"><option value="">Chọn lớp</option><option value="1">Lớp 1</option><option value="2">Lớp 2</option><option value="3">Lớp 3</option><option value="4">Lớp 4</option><option value="5">Lớp 5</option><option value="6">Lớp 6</option><option value="7">Lớp 7</option><option value="8">Lớp 8</option><option value="9">Lớp 9</option><option value="10">Lớp 10</option><option value="11">Lớp 11</option><option value="12">Lớp 12</option></select></div>
+                            <div class="form-group"><label for="register-grade">Khối lớp</label><select id="register-grade" class="form-control"><option value="">Chọn lớp</option><option value="1">Lớp 1</option><option value="2">Lớp 2</option><option value="3">Lớp 3</option><option value="4">Lớp 4</option><option value="5">Lớp 5</option><option value="6">Lớp 6</option><option value="7">Lớp 7</option><option value="8">Lớp 8</option><option value="9">Lớp 9</option></select></div>
                             <div class="form-group"><label for="register-password">Mật khẩu</label><input type="password" id="register-password" class="form-control" autocomplete="new-password" maxlength="128"></div>
                             <div class="form-group"><label for="register-confirm">Nhập lại mật khẩu</label><input type="password" id="register-confirm" class="form-control" autocomplete="new-password" maxlength="128"></div>
                             <div class="form-group auth-span-2"><label for="register-email">Email phụ huynh <span class="auth-optional">(không bắt buộc)</span></label><input type="email" id="register-email" class="form-control" autocomplete="email" maxlength="320"></div>

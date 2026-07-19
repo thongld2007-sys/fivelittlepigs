@@ -19,6 +19,17 @@ const state = {
     baseStudentId: 'emma_std_01',
     tutorChatHistory: [],
     assignmentSubjectFilter: "Tất cả",
+    // Multi-child Parent Feature
+    parentProfile: {
+        managedChildren: [
+            { id: "an_01", name: "Nguyễn Văn An" }
+        ],
+        activeChildId: "an_01"
+    },
+    studentProfile: {
+        pendingRequests: []
+    },
+    // End Multi-child Parent Feature
     testSession: {
         subject: "Toán",
         grade: 7,
@@ -623,7 +634,7 @@ function renderTeacherContributionDashboard() {
             <div class="teacher-growth-day">
                 <div class="teacher-growth-bars">
                     <span class="teacher-xp-bar" style="height:${xpHeight}%"></span>
-                    <span class="teacher-mastery-dot" style="bottom:${Math.max(8, item.mastery)}%">${item.mastery}%</span>
+                    <span class="teacher-mastery-dot" style="bottom:${xpHeight}%">${item.mastery}%</span>
                 </div>
                 <small>${getShortDateLabel(date)}</small>
                 <strong>${item.xp.toLocaleString()} XP</strong>
@@ -713,11 +724,102 @@ function renderTeacherContributionDashboard() {
     `;
 }
 
+function initParentSidebar() {
+    const sidebar = document.getElementById("parent-sidebar-menu");
+    if (!sidebar) return;
+    
+    let html = "";
+    state.parentProfile.managedChildren.forEach((child, index) => {
+        const isActive = child.id === state.parentProfile.activeChildId ? "active" : "";
+        html += `<a href="#" class="menu-item ${isActive}" data-parent-nav="child" data-child-id="${child.id}"><i class="fa-solid fa-child"></i><span>${escapeHTML(child.name)}</span></a>`;
+    });
+    
+    html += `<a href="#" class="menu-item" data-parent-nav="profile"><i class="fa-solid fa-id-card"></i><span>Hồ sơ cá nhân</span></a>`;
+    sidebar.innerHTML = html;
+    
+    sidebar.querySelectorAll(".menu-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            e.preventDefault();
+            sidebar.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
+            item.classList.add("active");
+            
+            const navType = item.getAttribute("data-parent-nav");
+            if (navType === "child") {
+                state.parentProfile.activeChildId = item.getAttribute("data-child-id");
+                document.getElementById("parent-overview-dashboard").style.display = "block";
+                document.getElementById("parent-view-profile").style.display = "none";
+                renderParentDashboard();
+            } else if (navType === "profile") {
+                document.getElementById("parent-overview-dashboard").style.display = "none";
+                document.getElementById("parent-view-profile").style.display = "block";
+                renderParentProfile();
+            }
+        });
+    });
+}
+
+function renderParentProfile() {
+    const container = document.getElementById("parent-managed-children");
+    if (!container) return;
+    
+    let html = "";
+    if (state.parentProfile.managedChildren.length === 0) {
+        html = "<p style='color: var(--text-muted); font-size: 0.9rem;'>Chưa liên kết học sinh nào.</p>";
+    } else {
+        html = state.parentProfile.managedChildren.map(child => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: #fff;">
+                <div><strong>${escapeHTML(child.name)}</strong> <small>(${escapeHTML(child.id)})</small></div>
+                <button type="button" class="btn btn-danger-outline btn-sm" onclick="removeParentChild('${child.id}')"><i class="fa-solid fa-trash-can"></i> Gỡ bỏ</button>
+            </div>
+        `).join("");
+    }
+    container.innerHTML = html;
+    
+    const sendBtn = document.getElementById("btn-parent-send-request");
+    if (sendBtn) {
+        sendBtn.onclick = () => {
+            const input = document.getElementById("parent-search-student-id");
+            const status = document.getElementById("parent-request-status");
+            const studentId = input.value.trim();
+            if (!studentId) {
+                status.textContent = "Vui lòng nhập ID học sinh.";
+                status.style.color = "var(--danger)";
+                return;
+            }
+            // Mock sending request
+            if (!state.studentProfile.pendingRequests.some(r => r.parentId === "parent_01")) {
+                state.studentProfile.pendingRequests.push({ parentId: "parent_01", parentName: "Phụ huynh (Tài khoản của bạn)" });
+            }
+            status.textContent = "Đã gửi yêu cầu liên kết đến học sinh " + escapeHTML(studentId) + "!";
+            status.style.color = "var(--success)";
+            input.value = "";
+        };
+    }
+}
+
+window.removeParentChild = function(childId) {
+    state.parentProfile.managedChildren = state.parentProfile.managedChildren.filter(c => c.id !== childId);
+    if (state.parentProfile.activeChildId === childId && state.parentProfile.managedChildren.length > 0) {
+        state.parentProfile.activeChildId = state.parentProfile.managedChildren[0].id;
+    }
+    initParentSidebar();
+    renderParentProfile();
+    showToast("Đã gỡ bỏ học sinh khỏi danh sách theo dõi");
+};
+
 function renderParentDashboard() {
     const container = document.getElementById("parent-overview-dashboard");
     if (!container) return;
 
-    const profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
+    let profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
+    
+    // Override profile if multi-child is active
+    if (state.parentProfile.activeChildId === "an_01") {
+        profile = { name: "Nguyễn Văn An", grade: 6, avatar: "An" };
+    } else if (state.parentProfile.activeChildId) {
+        const found = state.parentProfile.managedChildren.find(c => c.id === state.parentProfile.activeChildId);
+        if (found) profile = { name: found.name, grade: 5, avatar: found.name };
+    }
     const displayName = state.displayNameOverride || profile.name;
     const xpAnalytics = getXPAnalytics();
     const subjectSummary = getSubjectTrendSummary();
@@ -1867,6 +1969,11 @@ function initActionableDemoControls() {
 }
 
 function renderStudentProfile() {
+    renderStudentPendingRequests();
+    
+    const idDisplay = document.getElementById("student-id-display");
+    if (idDisplay) idDisplay.textContent = state.baseStudentId || state.studentId || "emma_std_01";
+
     const body = document.getElementById("student-profile-page");
     if (!body) return;
     const profile = getStudentLoginProfile(state.baseStudentId || state.studentId);
@@ -5280,6 +5387,8 @@ function switchPortalUI(targetRole) {
         if (userDisplayName) userDisplayName.textContent = "Thầy Hùng (GV Toán)";
         if (userAvatarImg) userAvatarImg.src = "https://api.dicebear.com/7.x/adventurer/svg?seed=TeacherHung";
         if (btnTogglePortal) btnTogglePortal.style.display = "none";
+        const teacherIdDisplay = document.getElementById("teacher-id-display");
+        if (teacherIdDisplay) teacherIdDisplay.textContent = (state.user && state.user.id) || "teacher_01";
         activateTeacherTab(state.currentTeacherTab || "grouping");
         renderTeacherDashboard();
         return;
@@ -5304,6 +5413,7 @@ function switchPortalUI(targetRole) {
         if (userDisplayName) userDisplayName.textContent = "Ops Admin";
         if (userAvatarImg) userAvatarImg.src = "https://api.dicebear.com/7.x/adventurer/svg?seed=OpsAdmin";
         if (btnTogglePortal) btnTogglePortal.style.display = "none";
+        initAdminSidebar();
         renderAdminOperationsDashboard();
         return;
     }
@@ -5327,6 +5437,8 @@ function switchPortalUI(targetRole) {
         if (userDisplayName) userDisplayName.textContent = "Seed Partner";
         if (userAvatarImg) userAvatarImg.src = "https://api.dicebear.com/7.x/adventurer/svg?seed=Investor";
         if (btnTogglePortal) btnTogglePortal.style.display = "none";
+        const investorIdDisplay = document.getElementById("investor-id-display");
+        if (investorIdDisplay) investorIdDisplay.textContent = (state.user && state.user.id) || "investor_01";
         renderInvestorTractionDashboard();
         return;
     }
@@ -5351,6 +5463,9 @@ function switchPortalUI(targetRole) {
         if (userDisplayName) userDisplayName.textContent = `Phụ huynh của ${state.displayNameOverride || profile.name}`;
         if (userAvatarImg) userAvatarImg.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=Parent${encodeURIComponent(profile.avatar)}`;
         if (btnTogglePortal) btnTogglePortal.style.display = "none";
+        const parentIdDisplay = document.getElementById("parent-id-display");
+        if (parentIdDisplay) parentIdDisplay.textContent = (state.user && state.user.id) || "parent_01";
+        initParentSidebar();
         renderParentDashboard();
         return;
     }
@@ -5441,6 +5556,7 @@ function initAuthFlow() {
                     const auth = await response.json();
                     state.isLoggedIn = true;
                     state.loggedInRole = "teacher";
+                    state.user = auth.user;
                     localStorage.setItem("isLoggedIn", "true");
                     localStorage.setItem("loggedInRole", "teacher");
                     localStorage.removeItem("studentId");
@@ -5480,60 +5596,95 @@ function initAuthFlow() {
 
             if (activeRole === "admin") {
                 const password = document.getElementById("admin-pass")?.value || "";
-                if (password.trim() !== "123456") {
-                    showError("Mật khẩu admin mặc định là 123456.");
-                    return;
+                try {
+                    const response = await fetch("/api/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: "ops_admin", password, role: "admin" })
+                    });
+                    if (!response.ok) {
+                        showError("Mật khẩu admin không chính xác.");
+                        return;
+                    }
+                    const auth = await response.json();
+                    state.isLoggedIn = true;
+                    state.loggedInRole = "admin";
+                    localStorage.setItem("isLoggedIn", "true");
+                    localStorage.setItem("loggedInRole", "admin");
+                    localStorage.removeItem("studentId");
+                    localStorage.setItem("accessToken", auth.access_token);
+                    authAccessToken = auth.access_token;
+                    if (loginOverlay) loginOverlay.classList.add("hidden");
+                    switchPortalUI("admin");
+                    showToast("Đăng nhập admin thành công.");
+                } catch (e) {
+                    showError("Lỗi kết nối máy chủ.");
                 }
-                state.isLoggedIn = true;
-                state.loggedInRole = "admin";
-                localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("loggedInRole", "admin");
-                localStorage.removeItem("studentId");
-                localStorage.removeItem("accessToken");
-                if (loginOverlay) loginOverlay.classList.add("hidden");
-                switchPortalUI("admin");
-                showToast("Đăng nhập admin thành công.");
                 return;
             }
 
             if (activeRole === "investor") {
                 const password = document.getElementById("investor-pass")?.value || "";
-                if (password.trim() !== "123456") {
-                    showError("Mật khẩu nhà đầu tư mặc định là 123456.");
-                    return;
+                try {
+                    const response = await fetch("/api/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: "seed_partner", password, role: "investor" })
+                    });
+                    if (!response.ok) {
+                        showError("Mật khẩu nhà đầu tư không chính xác.");
+                        return;
+                    }
+                    const auth = await response.json();
+                    state.isLoggedIn = true;
+                    state.loggedInRole = "investor";
+                    state.user = auth.user;
+                    localStorage.setItem("isLoggedIn", "true");
+                    localStorage.setItem("loggedInRole", "investor");
+                    localStorage.removeItem("studentId");
+                    localStorage.setItem("accessToken", auth.access_token);
+                    authAccessToken = auth.access_token;
+                    if (loginOverlay) loginOverlay.classList.add("hidden");
+                    switchPortalUI("investor");
+                    showToast("Đăng nhập nhà đầu tư thành công.");
+                } catch (e) {
+                    showError("Lỗi kết nối máy chủ.");
                 }
-                state.isLoggedIn = true;
-                state.loggedInRole = "investor";
-                localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("loggedInRole", "investor");
-                localStorage.removeItem("studentId");
-                localStorage.removeItem("accessToken");
-                if (loginOverlay) loginOverlay.classList.add("hidden");
-                switchPortalUI("investor");
-                showToast("Đăng nhập nhà đầu tư thành công.");
                 return;
             }
 
             if (activeRole === "parent") {
                 const studentId = document.getElementById("parent-student-select")?.value || "emma_std_01";
                 const password = document.getElementById("parent-pass")?.value || "";
-                if (password.trim() !== "123456") {
-                    showError("Mật khẩu phụ huynh mặc định là 123456.");
-                    return;
+                try {
+                    const response = await fetch("/api/auth/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: "parent_emma", password, role: "parent" })
+                    });
+                    if (!response.ok) {
+                        showError("Mật khẩu phụ huynh không chính xác.");
+                        return;
+                    }
+                    const auth = await response.json();
+                    const profile = getStudentLoginProfile(studentId);
+                    state.isLoggedIn = true;
+                    state.loggedInRole = "parent";
+                    state.baseStudentId = studentId;
+                    state.studentId = studentId;
+                    state.user = auth.user;
+                    applyRewardState(loadRewardState(profile));
+                    localStorage.setItem("isLoggedIn", "true");
+                    localStorage.setItem("loggedInRole", "parent");
+                    localStorage.setItem("studentId", studentId);
+                    localStorage.setItem("accessToken", auth.access_token);
+                    authAccessToken = auth.access_token;
+                    if (loginOverlay) loginOverlay.classList.add("hidden");
+                    switchPortalUI("parent");
+                    showToast("Đăng nhập phụ huynh thành công.");
+                } catch (e) {
+                    showError("Lỗi kết nối máy chủ.");
                 }
-                const profile = getStudentLoginProfile(studentId);
-                state.isLoggedIn = true;
-                state.loggedInRole = "parent";
-                state.baseStudentId = studentId;
-                state.studentId = studentId;
-                applyRewardState(loadRewardState(profile));
-                localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("loggedInRole", "parent");
-                localStorage.setItem("studentId", studentId);
-                localStorage.removeItem("accessToken");
-                if (loginOverlay) loginOverlay.classList.add("hidden");
-                switchPortalUI("parent");
-                showToast("Đăng nhập phụ huynh thành công.");
                 return;
             }
 
@@ -5626,31 +5777,83 @@ function initAuthFlow() {
     
     async function checkSession() {
         if (storedLoggedIn === "true" && storedRole === "parent") {
-            const profile = getStudentLoginProfile(storedStudentId);
-            state.isLoggedIn = true;
-            state.loggedInRole = "parent";
-            state.baseStudentId = storedStudentId;
-            state.studentId = storedStudentId;
-            applyRewardState(loadRewardState(profile));
-            state.studentProgress.activeSkill = profile.skill;
-            switchPortalUI("parent");
-            if (loginOverlay) loginOverlay.classList.add("hidden");
+            let sessionValid = false;
+            if (storedToken) {
+                try {
+                    const sessionResponse = await fetch("/api/auth/me", { headers: { "Authorization": `Bearer ${storedToken}` } });
+                    sessionValid = sessionResponse.ok;
+                } catch (error) {
+                    console.warn("[Auth] Không thể xác minh phiên phụ huynh.", error);
+                }
+            }
+            if (sessionValid) {
+                const profile = getStudentLoginProfile(storedStudentId);
+                state.isLoggedIn = true;
+                state.loggedInRole = "parent";
+                state.baseStudentId = storedStudentId;
+                state.studentId = storedStudentId;
+                authAccessToken = storedToken;
+                applyRewardState(loadRewardState(profile));
+                state.studentProgress.activeSkill = profile.skill;
+                switchPortalUI("parent");
+                if (loginOverlay) loginOverlay.classList.add("hidden");
+            } else {
+                localStorage.removeItem("isLoggedIn");
+                localStorage.removeItem("loggedInRole");
+                localStorage.removeItem("studentId");
+                localStorage.removeItem("accessToken");
+                if (loginOverlay) loginOverlay.classList.remove("hidden");
+            }
             return;
         }
 
         if (storedLoggedIn === "true" && storedRole === "admin") {
-            state.isLoggedIn = true;
-            state.loggedInRole = "admin";
-            switchPortalUI("admin");
-            if (loginOverlay) loginOverlay.classList.add("hidden");
+            let sessionValid = false;
+            if (storedToken) {
+                try {
+                    const sessionResponse = await fetch("/api/auth/me", { headers: { "Authorization": `Bearer ${storedToken}` } });
+                    sessionValid = sessionResponse.ok;
+                } catch (error) {
+                    console.warn("[Auth] Không thể xác minh phiên admin.", error);
+                }
+            }
+            if (sessionValid) {
+                state.isLoggedIn = true;
+                state.loggedInRole = "admin";
+                authAccessToken = storedToken;
+                switchPortalUI("admin");
+                if (loginOverlay) loginOverlay.classList.add("hidden");
+            } else {
+                localStorage.removeItem("isLoggedIn");
+                localStorage.removeItem("loggedInRole");
+                localStorage.removeItem("accessToken");
+                if (loginOverlay) loginOverlay.classList.remove("hidden");
+            }
             return;
         }
 
         if (storedLoggedIn === "true" && storedRole === "investor") {
-            state.isLoggedIn = true;
-            state.loggedInRole = "investor";
-            switchPortalUI("investor");
-            if (loginOverlay) loginOverlay.classList.add("hidden");
+            let sessionValid = false;
+            if (storedToken) {
+                try {
+                    const sessionResponse = await fetch("/api/auth/me", { headers: { "Authorization": `Bearer ${storedToken}` } });
+                    sessionValid = sessionResponse.ok;
+                } catch (error) {
+                    console.warn("[Auth] Không thể xác minh phiên nhà đầu tư.", error);
+                }
+            }
+            if (sessionValid) {
+                state.isLoggedIn = true;
+                state.loggedInRole = "investor";
+                authAccessToken = storedToken;
+                switchPortalUI("investor");
+                if (loginOverlay) loginOverlay.classList.add("hidden");
+            } else {
+                localStorage.removeItem("isLoggedIn");
+                localStorage.removeItem("loggedInRole");
+                localStorage.removeItem("accessToken");
+                if (loginOverlay) loginOverlay.classList.remove("hidden");
+            }
             return;
         }
 
@@ -5672,6 +5875,7 @@ function initAuthFlow() {
         if (storedLoggedIn === "true" && storedRole && sessionValid) {
             state.isLoggedIn = true;
             state.loggedInRole = storedRole;
+            state.user = sessionUser;
             if (storedRole === "student") {
                 const profile = getStudentLoginProfile(storedStudentId);
                 state.baseStudentId = storedStudentId;
@@ -6277,14 +6481,20 @@ function initTeacherModals() {
     if (btnCreatePlan) {
         btnCreatePlan.addEventListener("click", () => {
             const warningSkillName = document.getElementById("class-reteach-skill-name").textContent;
-            generateAILessonPlan(warningSkillName);
+            let skillId = "MATH_G5";
+            if (warningSkillName.includes("nguyên") || warningSkillName.includes("Lớp 6")) skillId = "MATH_G6";
+            if (warningSkillName.includes("hữu tỉ") || warningSkillName.includes("Lớp 7")) skillId = "MATH_G7";
+            generateAILessonPlan(warningSkillName, skillId);
             lpModal.style.display = "flex";
         });
     }
     if (btnCommandPlan) {
         btnCommandPlan.addEventListener("click", () => {
             const topGapSkill = document.getElementById("teacher-top-gap-skill")?.textContent || "Quy đồng phân số";
-            generateAILessonPlan(topGapSkill);
+            let skillId = "MATH_G5";
+            if (topGapSkill.includes("nguyên") || topGapSkill.includes("Lớp 6")) skillId = "MATH_G6";
+            if (topGapSkill.includes("hữu tỉ") || topGapSkill.includes("Lớp 7")) skillId = "MATH_G7";
+            generateAILessonPlan(topGapSkill, skillId);
             lpModal.style.display = "flex";
         });
     }
@@ -6749,3 +6959,182 @@ function resetToolboxForNewQuestion() {
     const hintTextPara = document.getElementById("hint-text");
     if (hintTextPara) hintTextPara.textContent = "Vui lòng bấm nút Gợi ý ở bên cạnh bài tập để nhận trợ giúp trực quan.";
 }
+
+function renderStudentPendingRequests() {
+    const container = document.getElementById("student-pending-requests");
+    if (!container) return;
+    
+    if (state.studentProfile.pendingRequests.length === 0) {
+        container.innerHTML = "<p style='color: var(--text-muted); font-size: 0.9rem;'>Không có yêu cầu nào.</p>";
+        return;
+    }
+    
+    container.innerHTML = state.studentProfile.pendingRequests.map(req => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: #f8fafc; margin-bottom: 0.5rem;">
+            <div>
+                <strong>${escapeHTML(req.parentName)}</strong> <small>(${escapeHTML(req.parentId)})</small>
+                <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Muốn liên kết để theo dõi tiến trình học tập của bạn.</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-sm btn-primary-memphis" onclick="acceptParentRequest('${req.parentId}', '${escapeHTML(req.parentName)}')"><i class="fa-solid fa-check"></i> Chấp nhận</button>
+                <button class="btn btn-sm btn-danger-outline" onclick="rejectParentRequest('${req.parentId}')"><i class="fa-solid fa-xmark"></i> Từ chối</button>
+            </div>
+        </div>
+    `).join("");
+}
+
+window.acceptParentRequest = function(parentId, parentName) {
+    state.studentProfile.pendingRequests = state.studentProfile.pendingRequests.filter(r => r.parentId !== parentId);
+    
+    const currentStudentId = state.baseStudentId || state.studentId || "emma_std_01";
+    const profile = getStudentLoginProfile(currentStudentId);
+    
+    if (!state.parentProfile.managedChildren.some(c => c.id === currentStudentId)) {
+        state.parentProfile.managedChildren.push({
+            id: currentStudentId,
+            name: state.displayNameOverride || profile.name
+        });
+    }
+    
+    renderStudentPendingRequests();
+    showToast("Đã chấp nhận liên kết tài khoản!");
+};
+
+window.rejectParentRequest = function(parentId) {
+    state.studentProfile.pendingRequests = state.studentProfile.pendingRequests.filter(r => r.parentId !== parentId);
+    renderStudentPendingRequests();
+    showToast("Đã từ chối yêu cầu liên kết");
+};
+function initAdminSidebar() {
+    const sidebar = document.getElementById("admin-sidebar-menu");
+    if (!sidebar) return;
+    
+    sidebar.querySelectorAll(".menu-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            e.preventDefault();
+            sidebar.querySelectorAll(".menu-item").forEach(i => i.classList.remove("active"));
+            item.classList.add("active");
+            
+            const navType = item.getAttribute("data-admin-nav");
+            if (navType === "operations") {
+                document.getElementById("admin-operations-dashboard").style.display = "block";
+                document.getElementById("admin-users-dashboard").style.display = "none";
+                renderAdminOperationsDashboard();
+            } else if (navType === "users") {
+                document.getElementById("admin-operations-dashboard").style.display = "none";
+                document.getElementById("admin-users-dashboard").style.display = "block";
+                initAdminUsersDashboard();
+            }
+        });
+    });
+}
+
+function initAdminUsersDashboard() {
+    const btnSearch = document.getElementById("btn-admin-search-user");
+    if (btnSearch && !btnSearch.dataset.initialized) {
+        btnSearch.dataset.initialized = "true";
+        btnSearch.addEventListener("click", async () => {
+            const input = document.getElementById("admin-search-user-id");
+            const resultBox = document.getElementById("admin-user-search-result");
+            const query = input.value.trim();
+            
+            if (!query) {
+                resultBox.style.display = "none";
+                return;
+            }
+            
+            try {
+                const response = await apiFetch(`/api/admin/users/search?query=${encodeURIComponent(query)}`);
+                if (!response.ok) throw new Error("Không thể tìm kiếm tài khoản.");
+                const data = await response.json();
+                
+                if (data.users && data.users.length > 0) {
+                    resultBox.style.display = "block";
+                    resultBox.innerHTML = data.users.map(user => {
+                        const isBanned = user.status === "banned" || !user.is_active;
+                        const statusBadge = isBanned 
+                            ? `<span class="badge badge-danger" style="font-size: 0.8rem; background-color: var(--danger, #ef4444); color: white;">Đã khóa</span>` 
+                            : `<span class="badge badge-success" style="font-size: 0.8rem; background-color: var(--success, #22c55e); color: white;">Hoạt động</span>`;
+                        
+                        const toggleActionText = isBanned ? "Mở khóa tài khoản" : "Khóa tài khoản";
+                        const toggleActionIcon = isBanned ? "fa-solid fa-unlock" : "fa-solid fa-ban";
+                        
+                        return `
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 0.5rem; background: #fff;">
+                                <div>
+                                    <h4 style="margin: 0; font-size: 1.1rem;">${escapeHTML(user.display_name)}</h4>
+                                    <p style="margin: 0.25rem 0; color: var(--text-muted); font-size: 0.9rem;">
+                                        ID: <strong>${escapeHTML(user.id)}</strong> | Tên đăng nhập: <strong>${escapeHTML(user.username)}</strong><br>
+                                        Vai trò: <span style="font-weight: 600;">${escapeHTML(user.role.toUpperCase())}</span>
+                                    </p>
+                                    ${statusBadge}
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                    <button class="btn btn-sm btn-hint-outline" onclick="adminToggleUserStatus('${user.id}', ${!isBanned})">
+                                        <i class="${toggleActionIcon}"></i> ${toggleActionText}
+                                    </button>
+                                    <button class="btn btn-sm btn-danger-outline" onclick="adminDeleteUser('${user.id}')">
+                                        <i class="fa-solid fa-trash"></i> Xóa tài khoản
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join("");
+                } else {
+                    resultBox.style.display = "block";
+                    resultBox.innerHTML = `<p style="color: var(--danger);">Không tìm thấy tài khoản phù hợp với tìm kiếm.</p>`;
+                }
+            } catch (error) {
+                showToast(error.message);
+                resultBox.style.display = "block";
+                resultBox.innerHTML = `<p style="color: var(--danger);">${escapeHTML(error.message)}</p>`;
+            }
+        });
+    }
+}
+
+window.adminToggleUserStatus = async function(id, shouldBan) {
+    try {
+        const response = await apiFetch(`/api/admin/users/${id}/status`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ is_active: !shouldBan })
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || "Không thể cập nhật trạng thái tài khoản.");
+        }
+        
+        showToast(shouldBan ? "Đã khóa tài khoản thành công!" : "Đã mở khóa tài khoản thành công!");
+        
+        // Trigger click to refresh the search result automatically
+        const btnSearch = document.getElementById("btn-admin-search-user");
+        if (btnSearch) btnSearch.click();
+    } catch (error) {
+        showToast(error.message);
+    }
+};
+
+window.adminDeleteUser = async function(id) {
+    if (!confirm("Bạn có chắc chắn muốn xóa tài khoản này không? Mọi dữ liệu liên quan (tiến trình học tập, lịch sử câu trả lời) sẽ bị xóa vĩnh viễn và không thể khôi phục.")) {
+        return;
+    }
+    
+    try {
+        const response = await apiFetch(`/api/admin/users/${id}`, {
+            method: "DELETE"
+        });
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || "Không thể xóa tài khoản.");
+        }
+        
+        showToast("Đã xóa tài khoản vĩnh viễn!");
+        
+        // Clear query input and search results
+        document.getElementById("admin-user-search-result").style.display = "none";
+        document.getElementById("admin-search-user-id").value = "";
+    } catch (error) {
+        showToast(error.message);
+    }
+};

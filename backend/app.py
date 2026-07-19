@@ -10,6 +10,7 @@ import os
 import json
 import re
 import math
+from sqlalchemy import select, delete
 
 from backend.config import APP_AUTH_REQUIRED, AUTH_COOKIE_SECURE, Config, FPT_AI_MAX_IMAGE_BYTES
 from backend.database import (
@@ -17,9 +18,9 @@ from backend.database import (
     get_consecutive_failed_count, get_stuck_time_minutes, get_answered_question_ids,
     add_student, get_ai_usage_summary, list_students, reset_student_session,
     get_dashboard_snapshot, record_ai_usage, record_uploaded_work,
-    get_response_event, get_db_connection, db_session,
+    get_response_event, get_db_connection, db_session, delete_students,
 )
-from backend.models import ChatMessage
+from backend.models import ChatMessage, User, Student
 from backend.diagnostic_engine import update_student_skill, get_next_recommended_skill, get_next_question_difficulty_and_skill
 from backend.fpt_ai import FPTAIError, fpt_ai_client
 from backend.fpt_speech import fpt_speech_client
@@ -907,6 +908,13 @@ def auth_me(authorization: Optional[str] = Header(default=None)):
     raise HTTPException(status_code=401, detail="Missing bearer token")
 
 def verify_password(password: str, encoded: str) -> bool:
+    if encoded and encoded.startswith("$argon2id$"):
+        from backend.student_auth import password_hasher
+        from argon2.exceptions import VerifyMismatchError, InvalidHashError
+        try:
+            return password_hasher.verify(encoded, password)
+        except (VerifyMismatchError, InvalidHashError):
+            return False
     import hashlib, hmac
     try:
         algorithm, salt, expected = encoded.split('$', 2)
@@ -923,7 +931,7 @@ def login(payload: LoginRequest):
     username = payload.username.strip()
     conn = get_db_connection()
     row = conn.execute("""SELECT id,display_name,role,password_hash,status FROM users
-                          WHERE email=? OR id=?""", (username, username)).fetchone()
+                          WHERE username=? OR email=? OR id=?""", (username, username, username)).fetchone()
     if not row or row["status"] != "active" or not verify_password(payload.password, row["password_hash"] or ""):
         conn.close()
         raise HTTPException(status_code=401, detail="Invalid username or password")
@@ -1872,6 +1880,90 @@ async def teacher_dashboard_websocket(websocket: WebSocket):
             await asyncio.sleep(2)
     except WebSocketDisconnect:
         return
+
+
+class AdminUserStatusRequest(BaseModel):
+    is_active: bool
+
+@app.get("/api/admin/users/search", dependencies=[Depends(require_staff_auth)])
+def admin_search_users(query: str):
+    query = query.strip().lower()
+    if not query:
+        return {"users": []}
+    
+    with db_session() as session:
+        from sqlalchemy import or_
+        users = session.scalars(
+            select(User)
+            .outerjoin(Student, Student.user_id == User.id)
+            .where(
+                or_(
+                    User.id.ilike(f"%{query}%"),
+                    User.username.ilike(f"%{query}%"),
+                    User.email.ilike(f"%{query}%"),
+                    User.display_name.ilike(f"%{query}%"),
+                    Student.id.ilike(f"%{query}%")
+                )
+            ).limit(20)
+        ).all()
+        
+        return {
+            "users": [
+                {
+                    "id": u.id,
+                    "username": u.username or u.email.split("@")[0],
+                    "display_name": u.display_name or u.username or "Người dùng",
+                    "email": u.email,
+                    "role": u.role,
+                    "status": u.status or ("active" if u.is_active else "locked"),
+                    "is_active": u.is_active
+                }
+                for u in users
+            ]
+        }
+
+@app.post("/api/admin/users/{user_id}/status", dependencies=[Depends(require_staff_auth)])
+def admin_update_user_status(user_id: str, payload: AdminUserStatusRequest):
+    with db_session() as session:
+        user = session.get(User, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        user.is_active = payload.is_active
+        user.status = "active" if payload.is_active else "locked"
+        session.add(user)
+        session.flush()
+        return {
+            "id": user.id,
+            "username": user.username,
+            "display_name": user.display_name,
+            "role": user.role,
+            "status": user.status,
+            "is_active": user.is_active
+        }
+
+@app.delete("/api/admin/users/{user_id}", dependencies=[Depends(require_staff_auth)])
+def admin_delete_user(user_id: str):
+    with db_session() as session:
+        user = session.get(User, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # If student, delete student profile first
+        if user.role == "student":
+            student = session.scalar(select(Student).where(Student.user_id == user_id))
+            if student:
+                delete_students([student.id])
+        
+        # Delete refresh tokens
+        from backend.models import RefreshToken
+        session.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
+        
+        # Delete user
+        session.delete(user)
+        session.flush()
+        
+    return {"message": f"User {user_id} deleted successfully"}
+
 
 # Serve Frontend static assets
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
