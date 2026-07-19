@@ -510,6 +510,16 @@ const INVESTOR_TRACTION_DATA = {
 };
 
 function getSubjectProgress(subject = state.testSession.subject || "Toán") {
+    if (!state.surveyCompleted) {
+        return {
+            progress: 0,
+            status: "Chưa khảo sát",
+            activeSkill: "Chưa có lộ trình",
+            backlog: 0,
+            completedAssignments: 0,
+            totalAssignments: 0
+        };
+    }
     if (!SUBJECT_PROGRESS_STATE[subject]) {
         SUBJECT_PROGRESS_STATE[subject] = {
             progress: 0,
@@ -1730,7 +1740,11 @@ function renderCoursesView() {
     const progressState = getSubjectProgress(subject);
 
     if (focusTitle) focusTitle.textContent = `${subject} ${grade}: ${progressState.activeSkill}`;
-    if (focusDesc) focusDesc.textContent = `${progressState.status}. Tiến trình và bài ôn thay đổi theo kết quả khảo sát của riêng môn này.`;
+    if (focusDesc) {
+        focusDesc.textContent = state.surveyCompleted
+            ? `${progressState.status}. Tiến trình và bài ôn thay đổi theo kết quả khảo sát của riêng môn này.`
+            : "Chưa có kết quả khảo sát. Tiến trình học tập của bạn đang là 0%. Hãy hoàn thành bài khảo sát thích ứng đầu giờ để bắt đầu.";
+    }
     if (focusButton) {
         focusButton.setAttribute("data-subject", subject);
         focusButton.setAttribute("data-grade", String(grade));
@@ -1739,21 +1753,30 @@ function renderCoursesView() {
     if (progressFill) progressFill.style.width = `${progressState.progress}%`;
     if (roadmapTitle) roadmapTitle.innerHTML = `<i class="fa-solid fa-layer-group"></i> Lộ trình cá nhân môn ${escapeHTML(subject)}`;
     if (roadmapList) {
-        const rootGap = progressState.status.includes("nền") || progressState.progress < 60;
-        roadmapList.innerHTML = `
-            <div class="course-roadmap-item ${rootGap ? "active" : "complete"}">
-                <strong>Nền tảng bắt buộc</strong>
-                <span>${rootGap ? "Đang cần ôn lại trước khi học tiếp." : "Đã đủ chắc để chuyển bước tiếp theo."}</span>
-            </div>
-            <div class="course-roadmap-item ${rootGap ? "next" : "active"}">
-                <strong>${escapeHTML(progressState.activeSkill)}</strong>
-                <span>${escapeHTML(progressState.status)}</span>
-            </div>
-            <div class="course-roadmap-item next">
-                <strong>Câu vận dụng mở rộng</strong>
-                <span>Mở khi tiến trình môn đạt 80% và Level học tập đạt 4.</span>
-            </div>
-        `;
+        if (state.surveyCompleted) {
+            const rootGap = progressState.status.includes("nền") || progressState.progress < 60;
+            roadmapList.innerHTML = `
+                <div class="course-roadmap-item ${rootGap ? "active" : "complete"}">
+                    <strong>Nền tảng bắt buộc</strong>
+                    <span>${rootGap ? "Đang cần ôn lại trước khi học tiếp." : "Đã đủ chắc để chuyển bước tiếp theo."}</span>
+                </div>
+                <div class="course-roadmap-item ${rootGap ? "next" : "active"}">
+                    <strong>${escapeHTML(progressState.activeSkill)}</strong>
+                    <span>${escapeHTML(progressState.status)}</span>
+                </div>
+                <div class="course-roadmap-item next">
+                    <strong>Câu vận dụng mở rộng</strong>
+                    <span>Mở khi tiến trình môn đạt 80% và Level học tập đạt 4.</span>
+                </div>
+            `;
+        } else {
+            roadmapList.innerHTML = `
+                <div class="course-roadmap-item active">
+                    <strong>Chưa có lộ trình</strong>
+                    <span>Vui lòng làm bài khảo sát thích ứng ở trang chủ để bắt đầu lộ trình học tập cá nhân hóa bằng AI.</span>
+                </div>
+            `;
+        }
     }
     if (statGrid) {
         statGrid.innerHTML = `
@@ -1808,7 +1831,9 @@ function renderAssignmentsView() {
         </button>
     `).join("");
 
-    const visibleItems = ASSIGNMENT_ITEMS.filter(item => activeSubject === "Tất cả" || item.subject === activeSubject);
+    const visibleItems = state.surveyCompleted
+        ? ASSIGNMENT_ITEMS.filter(item => activeSubject === "Tất cả" || item.subject === activeSubject)
+        : [];
     const lanes = [
         { key: "urgent", title: "Cần làm ngay", icon: "fa-solid fa-bolt" },
         { key: "active", title: "Đang làm", icon: "fa-solid fa-clock" },
@@ -1816,6 +1841,10 @@ function renderAssignmentsView() {
     ];
     board.innerHTML = lanes.map(lane => {
         const laneItems = visibleItems.filter(item => item.lane === lane.key);
+        const emptyMessage = state.surveyCompleted
+            ? (activeSubject === "Tất cả" ? "Chưa có bài ở mục này." : `${activeSubject} chưa có bài ở mục này.`)
+            : "Vui lòng hoàn thành khảo sát để hệ thống tạo lộ trình bằng AI.";
+        
         const cards = laneItems.length ? laneItems.map(item => `
             <article class="memphis-card assignment-task-card ${lane.key === "urgent" ? "urgent" : lane.key === "active" ? "active-task" : "completed"}">
                 <div class="assignment-task-top">
@@ -1834,9 +1863,9 @@ function renderAssignmentsView() {
             </article>
         `).join("") : `
             <div class="assignment-empty-card">
-                <i class="fa-solid fa-circle-check"></i>
-                <strong>Không có bài</strong>
-                <span>${activeSubject === "Tất cả" ? "Chưa có bài ở mục này." : `${activeSubject} chưa có bài ở mục này.`}</span>
+                <i class="fa-solid fa-graduation-cap"></i>
+                <strong>Chưa có lộ trình</strong>
+                <span>${emptyMessage}</span>
             </div>
         `;
         return `
@@ -2841,6 +2870,9 @@ function attachEssayAnalysisToLastAttempt(analysis) {
 
 function completeSurvey() {
     state.surveyCompleted = true;
+    if (state.user) {
+        state.user.initial_assessment_completed = true;
+    }
     state.testStarted = false;
     state.isSubmitting = false;
     updateSubjectProgressFromSurvey(generateSurveyAnalysis());
@@ -5722,6 +5754,7 @@ function initAuthFlow() {
         state.loggedInRole = "student";
         state.baseStudentId = studentId;
         state.studentId = studentId;
+        state.surveyCompleted = auth.user?.initial_assessment_completed || false;
         applyRewardState(loadRewardState(profile));
         state.studentProgress.activeSkill = profile.skill;
 
@@ -5882,6 +5915,7 @@ function initAuthFlow() {
                 const profile = getStudentLoginProfile(storedStudentId);
                 state.baseStudentId = storedStudentId;
                 state.studentId = storedStudentId;
+                state.surveyCompleted = sessionUser?.initial_assessment_completed || false;
                 applyRewardState(loadRewardState(profile));
                 state.studentProgress.activeSkill = profile.skill;
                 
