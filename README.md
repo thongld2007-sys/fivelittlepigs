@@ -49,7 +49,10 @@ fivelittlepigs2/
 │   └── style.css             # Thiết kế giao diện (Responsive & Modern)
 ├── api/                      # Thư mục cấu hình phục vụ cho Vercel Serverless
 │   └── index.py              # Entrypoint để Vercel chạy FastAPI
-├── docs/                     # Tài liệu hướng dẫn và gói đánh giá
+├── docs/                     # Tài liệu kế hoạch kinh doanh, nhật ký AI & gói đánh giá
+│   ├── ai_collaboration_log.md    # Nhật ký cộng tác lập trình cùng AI
+│   ├── porcus_ai_business_plan.md # Bản Kế hoạch Kinh doanh & Dự toán Tài chính
+│   └── porcus_ai_business_plan.html # Bản thảo thiết kế in ấn PDF chuẩn doanh nghiệp
 ├── tests/                    # Bộ kiểm thử tự động (Pytest)
 ├── vercel.json               # Cấu hình định tuyến của Vercel
 ├── requirements.txt          # Các thư viện Python cần thiết
