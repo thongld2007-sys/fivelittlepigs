@@ -1,7 +1,7 @@
 # NHẬT KÝ CỘNG TÁC AI (AI COLLABORATION LOG) - PORCUS AI
 
 **Dự án:** PorcusAI — Hệ thống Chẩn đoán Thích ứng Lỗ hổng Kiến thức Toán học  
-**Cuộc thi:** FPT AI Hackathon 2026  
+**Cuộc thi:** Vietnam AI Innovation Challenge  
 
 ---
 

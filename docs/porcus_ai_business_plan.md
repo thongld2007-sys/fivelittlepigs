@@ -1,6 +1,6 @@
 # KẾ HOẠCH KINH DOANH & DỰ TOÁN KINH PHÍ: PORCUS AI
 **Sản phẩm:** Hệ thống Chẩn đoán Thích ứng Lỗ hổng Kiến thức Gốc (Adaptive Diagnostic & Socratic Tutoring System)
-**Dành cho:** Ban Giám khảo & Các Nhà đầu tư Vòng Chung kết FPT AI Hackathon
+**Dành cho:** Ban Giám khảo & Các Nhà đầu tư Vòng Chung kết Vietnam AI Innovation Challenge
 
 ---
 
